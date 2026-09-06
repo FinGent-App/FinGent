@@ -80,6 +80,8 @@ struct SearchView: View {
             LazyVStack(spacing: 10) {
                 if viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty {
                     emptyPromptState
+                } else if viewModel.isSearching && viewModel.filteredQuotes.isEmpty {
+                    searchingState
                 } else if viewModel.filteredQuotes.isEmpty {
                     emptyNotFoundState
                 } else {
@@ -105,7 +107,7 @@ struct SearchView: View {
                         Text(quote.ticker)
                             .font(.headline.bold())
                             .foregroundStyle(.white)
-                        if let sector = viewModel.selectedDetailFundamentals?.sector {
+                        if let sector = viewModel.sector(for: quote.ticker) {
                             Text(sector)
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(.teal)
@@ -165,6 +167,19 @@ struct SearchView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 36)
+        }
+    }
+
+    private var searchingState: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .tint(.teal)
+                .scaleEffect(1.2)
+                .padding(.top, 50)
+
+            Text("Mengambil data harga real-time...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 

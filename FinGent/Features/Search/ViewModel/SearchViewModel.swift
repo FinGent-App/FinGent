@@ -54,17 +54,12 @@ final class SearchViewModel {
             return
         }
 
-        // 1. Filter locally if any already registered/cached matching query
-        let allQuotes = Array(marketDataRepository.quotes.values).sorted(by: { $0.ticker < $1.ticker })
-        let localMatches = allQuotes.filter { quote in
-            quote.ticker.lowercased().contains(q) || quote.name.lowercased().contains(q)
-        }
-        filteredQuotes = localMatches
-
-        // 2. Fetch live from backend for any ticker length
+        // Clear previous results so no stale/un-updated mock placeholders are displayed
+        filteredQuotes = []
         isSearching = true
+
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
 
             let ticker = q.uppercased()
@@ -75,17 +70,21 @@ final class SearchViewModel {
                         remoteFundamentals = fund
                     }
                     (self.marketDataRepository as? MarketDataRepository)?.registerRemoteQuote(remoteQuote, fundamentals: remoteFundamentals)
-                    if let idx = self.filteredQuotes.firstIndex(where: { $0.ticker == remoteQuote.ticker }) {
-                        self.filteredQuotes[idx] = remoteQuote
-                    } else {
-                        self.filteredQuotes.insert(remoteQuote, at: 0)
-                    }
+                    self.filteredQuotes = [remoteQuote]
+                }
+            } else {
+                if !Task.isCancelled {
+                    self.filteredQuotes = []
                 }
             }
             if !Task.isCancelled {
                 self.isSearching = false
             }
         }
+    }
+
+    func sector(for ticker: String) -> String? {
+        marketDataRepository.getFundamentals(for: ticker)?.sector
     }
 
     // MARK: - Details
