@@ -8,10 +8,8 @@ struct PortfolioView: View {
     @State private var portfolioRepo = PortfolioRepository.shared
     @State private var marketRepo = MarketDataRepository.shared
 
-    @State private var nameText: String = ""
     @State private var showSaved: Bool = false
     @State private var showAddStock: Bool = false
-    @State private var showAIChat: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -19,14 +17,21 @@ struct PortfolioView: View {
                 backgroundGradient
                 scrollContent
             }
-            .navigationTitle("FinGent")
+            .navigationTitle("Portfolio")
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar { aiChatToolbarButton }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAddStock = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.cyan)
+                    }
+                }
+            }
             .sheet(isPresented: $showAddStock) {
                 AddStockSheetView(onSaved: handleSaved)
-            }
-            .sheet(isPresented: $showAIChat) {
-                FinGentChatSheetView()
             }
         }
         .preferredColorScheme(.dark)
@@ -40,15 +45,7 @@ struct PortfolioView: View {
     private var scrollContent: some View {
         ScrollView {
             VStack(spacing: 24) {
-                PortfolioCardView(
-                    summary: viewModel.summary,
-                    showSaved: showSaved,
-                    onAddStock: { showAddStock = true }
-                )
-
-                if viewModel.userHoldings.isEmpty {
-                    EmptyHoldingsView(onAddStock: { showAddStock = true })
-                } else {
+                if !viewModel.userHoldings.isEmpty {
                     HoldingsListView(
                         rows: viewModel.holdingRows,
                         onRemove: { ticker in
@@ -58,11 +55,6 @@ struct PortfolioView: View {
                         }
                     )
                 }
-
-                NameSectionView(
-                    nameText: $nameText,
-                    onNameChanged: { viewModel.updateUserName($0) }
-                )
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
@@ -82,32 +74,9 @@ struct PortfolioView: View {
         .ignoresSafeArea()
     }
 
-    @ToolbarContentBuilder
-    private var aiChatToolbarButton: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Button { showAIChat = true } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Tanya AI")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background {
-                    Capsule()
-                        .fill(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
-                        .shadow(color: .cyan.opacity(0.35), radius: 6, x: 0, y: 2)
-                }
-            }
-        }
-    }
-
     // MARK: - Actions
 
     private func onAppear() {
-        nameText = viewModel.userName
         viewModel.startMarketSimulation()
     }
 
@@ -120,5 +89,3 @@ struct PortfolioView: View {
         }
     }
 }
-
-typealias ContentView = PortfolioView

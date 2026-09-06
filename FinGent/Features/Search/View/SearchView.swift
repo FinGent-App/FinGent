@@ -19,17 +19,12 @@ struct SearchView: View {
                 backgroundGradient
                 VStack(spacing: 12) {
                     searchBarHeader
-                    scopePicker
-                    if viewModel.scope == .stocks {
-                        sectorChips
-                        stocksList
-                    } else {
-                        newsList
-                    }
+                    sectorChips
+                    stocksList
                 }
                 .padding(.top, 8)
             }
-            .navigationTitle("Eksplorasi Pasar")
+            .navigationTitle("Cari Saham")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .sheet(isPresented: $showDetailSheet) {
@@ -74,16 +69,6 @@ struct SearchView: View {
         }
         .padding(12)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-    }
-
-    private var scopePicker: some View {
-        Picker("Scope", selection: $viewModel.scope) {
-            ForEach(SearchScope.allCases, id: \.self) { s in
-                Text(s.rawValue).tag(s)
-            }
-        }
-        .pickerStyle(.segmented)
         .padding(.horizontal, 16)
     }
 
@@ -176,55 +161,6 @@ struct SearchView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private var newsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 10) {
-                if viewModel.filteredNews.isEmpty {
-                    emptyState(title: "Berita Tidak Ditemukan", message: "Tidak ada berita dengan kata kunci '\(viewModel.query)'.")
-                } else {
-                    ForEach(viewModel.filteredNews) { article in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(article.sentiment.emoji)
-                                Text(article.source)
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.teal)
-                                Spacer()
-                                Text(article.date)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(article.title)
-                                .font(.subheadline.bold())
-                                .foregroundStyle(.white)
-                            Text(article.summary)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(3)
-
-                            HStack(spacing: 4) {
-                                ForEach(article.relatedTickers, id: \.self) { ticker in
-                                    Text(ticker)
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(.teal)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.teal.opacity(0.15), in: Capsule())
-                                }
-                            }
-                            .padding(.top, 4)
-                        }
-                        .padding(14)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 20)
-        }
     }
 
     private func emptyState(title: String, message: String) -> some View {
