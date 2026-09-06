@@ -2,7 +2,7 @@
 
 import Foundation
 
-struct NewsArticle: Sendable {
+struct NewsArticle: Identifiable, Sendable {
     let id: String
     let title: String
     let source: String

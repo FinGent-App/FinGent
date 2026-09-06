@@ -7,7 +7,7 @@ import AppIntents
 struct FinGentApp: App {
     var body: some Scene {
         WindowGroup {
-            PortfolioView()
+            MainTabView()
                 .task {
                     Task.detached(priority: .background) {
                         FinGentShortcuts.updateAppShortcutParameters()

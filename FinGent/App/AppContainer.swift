@@ -43,5 +43,28 @@ final class AppContainer {
         ChatViewModel()
     }
 
+    func makeHomeViewModel() -> HomeViewModel {
+        HomeViewModel(
+            portfolioRepository: portfolioRepository,
+            marketDataRepository: marketDataRepository,
+            newsRepository: newsRepository
+        )
+    }
+
+    func makeSearchViewModel() -> SearchViewModel {
+        SearchViewModel(
+            marketDataRepository: marketDataRepository,
+            newsRepository: newsRepository,
+            portfolioUseCase: portfolioUseCase
+        )
+    }
+
+    func makeProfileViewModel() -> ProfileViewModel {
+        ProfileViewModel(
+            portfolioRepository: portfolioRepository,
+            portfolioUseCase: portfolioUseCase
+        )
+    }
+
     private init() {}
 }
