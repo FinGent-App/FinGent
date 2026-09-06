@@ -24,6 +24,9 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
             priceDirections[ticker] = .unchanged
         }
         startRealtimeSimulation()
+        Task { [weak self] in
+            await self?.refreshFromBackend()
+        }
     }
 
     // MARK: - MarketDataRepositoryProtocol
@@ -85,6 +88,36 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
     func stopRealtimeSimulation() {
         simulationTimer?.invalidate()
         simulationTimer = nil
+    }
+
+    // MARK: - Backend Sync
+
+    @MainActor
+    func refreshFromBackend() async {
+        let tickers = Array(quotes.keys)
+        guard !tickers.isEmpty else { return }
+        do {
+            let liveQuotes = try await StockApiClient.shared.fetchBatch(tickers: tickers)
+            for q in liveQuotes {
+                let oldPrice = quotes[q.ticker]?.price ?? q.price
+                let dir: PriceDirection = q.price > oldPrice ? .up : (q.price < oldPrice ? .down : .unchanged)
+                self.quotes[q.ticker] = q
+                self.priceDirections[q.ticker] = dir
+            }
+            self.lastTick = Date()
+        } catch {
+            // Silently retain current quotes if backend is momentarily unreachable
+        }
+    }
+
+    @MainActor
+    func registerRemoteQuote(_ quote: StockQuote, fundamentals: StockFundamentals? = nil) {
+        self.quotes[quote.ticker] = quote
+        self.priceDirections[quote.ticker] = .unchanged
+        if let f = fundamentals {
+            Self.fundamentalsData[quote.ticker] = f
+        }
+        self.lastTick = Date()
     }
 
     // MARK: - Private Tick Logic
@@ -149,7 +182,7 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         ]
     }
 
-    private static let fundamentalsData: [String: StockFundamentals] = [
+    private static var fundamentalsData: [String: StockFundamentals] = [
         "BBCA": StockFundamentals(ticker: "BBCA", name: "Bank Central Asia", peRatio: 24.5, eps: 413.3, marketCap: 1_250, dividendYield: 2.1, beta: 0.85, pbvRatio: 4.8, roe: 20.5, debtToEquity: 5.2, sector: "Financials"),
         "BBRI": StockFundamentals(ticker: "BBRI", name: "Bank Rakyat Indonesia", peRatio: 14.2, eps: 369.7, marketCap: 790, dividendYield: 3.5, beta: 1.1, pbvRatio: 2.5, roe: 18.8, debtToEquity: 5.8, sector: "Financials"),
         "TLKM": StockFundamentals(ticker: "TLKM", name: "Telkom Indonesia", peRatio: 16.8, eps: 223.2, marketCap: 370, dividendYield: 4.2, beta: 0.75, pbvRatio: 3.1, roe: 19.2, debtToEquity: 0.8, sector: "Telecommunications"),

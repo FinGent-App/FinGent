@@ -1,0 +1,77 @@
+# ==========================================
+# macOS System Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# Xcode & iOS
+# ==========================================
+# User specific configuration & UI state
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+
+# Build results & Derived Data
+build/
+DerivedData/
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Fastlane (if added in the future)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Code signing identities & profiles (never commit secrets)
+*.cer
+*.p12
+*.mobileprovision
+
+# ==========================================
+# Python & Backend (FastAPI / Virtualenv)
+# ==========================================
+# Environments
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+backend/venv/
+backend/.venv/
+
+# Byte-code / cache
+__pycache__/
+*.py[cod]
+*$py.class
+backend/**/__pycache__/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# IDEs & Editors
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

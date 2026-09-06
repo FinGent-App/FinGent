@@ -19,7 +19,6 @@ struct SearchView: View {
                 backgroundGradient
                 VStack(spacing: 12) {
                     searchBarHeader
-                    sectorChips
                     stocksList
                 }
                 .padding(.top, 8)
@@ -56,11 +55,15 @@ struct SearchView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Cari ticker (BBCA) atau perusahaan...", text: $viewModel.query)
+            TextField("Cari ticker (misal: TSLA, AAPL, BBCA, MU)...", text: $viewModel.query)
                 .foregroundStyle(.white)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.characters)
-            if !viewModel.query.isEmpty {
+            if viewModel.isSearching {
+                ProgressView()
+                    .tint(.teal)
+                    .scaleEffect(0.8)
+            } else if !viewModel.query.isEmpty {
                 Button(action: { viewModel.query = "" }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
@@ -72,30 +75,13 @@ struct SearchView: View {
         .padding(.horizontal, 16)
     }
 
-    private var sectorChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(viewModel.sectors, id: \.self) { sector in
-                    let isSelected = viewModel.selectedSector == sector
-                    Button(action: { viewModel.selectedSector = sector }) {
-                        Text(sector)
-                            .font(.caption.bold())
-                            .foregroundStyle(isSelected ? .white : .secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(isSelected ? Color.teal : Color.white.opacity(0.08), in: Capsule())
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-    }
-
     private var stocksList: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
-                if viewModel.filteredQuotes.isEmpty {
-                    emptyState(title: "Saham Tidak Ditemukan", message: "Coba cari dengan simbol ticker lain seperti BBCA, TLKM, atau GOTO.")
+                if viewModel.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    emptyPromptState
+                } else if viewModel.filteredQuotes.isEmpty {
+                    emptyNotFoundState
                 } else {
                     ForEach(viewModel.filteredQuotes, id: \.ticker) { quote in
                         stockRow(quote: quote)
@@ -103,7 +89,7 @@ struct SearchView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
+            .padding(.top, 12)
             .padding(.bottom, 20)
         }
     }
@@ -137,7 +123,7 @@ struct SearchView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 3) {
-                    Text("Rp \(NumberFormatters.stockPrice(quote.price))")
+                    Text(quote.formattedPrice)
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
                     let isPositive = quote.changePercent >= 0
@@ -163,16 +149,37 @@ struct SearchView: View {
         .buttonStyle(.plain)
     }
 
-    private func emptyState(title: String, message: String) -> some View {
-        VStack(spacing: 8) {
+    private var emptyPromptState: some View {
+        VStack(spacing: 14) {
             Image(systemName: "magnifyingglass")
-                .font(.largeTitle)
+                .font(.system(size: 44))
+                .foregroundStyle(.secondary.opacity(0.6))
+                .padding(.top, 60)
+
+            Text("Cari Saham")
+                .font(.headline.bold())
+                .foregroundStyle(.white)
+
+            Text("Ketik simbol ticker saham (misal: TSLA, AAPL, BBCA, MU) untuk melihat data harga real-time.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.top, 40)
-            Text(title)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+        }
+    }
+
+    private var emptyNotFoundState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "questionmark.folder")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary.opacity(0.6))
+                .padding(.top, 50)
+
+            Text("Saham Tidak Ditemukan")
                 .font(.headline)
                 .foregroundStyle(.white)
-            Text(message)
+
+            Text("Tidak ditemukan hasil untuk '\(viewModel.query)'. Coba periksa kembali simbol ticker.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -200,11 +207,11 @@ struct SearchView: View {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 4) {
-                                Text("Rp \(NumberFormatters.stockPrice(quote.price))")
+                                Text(quote.formattedPrice)
                                     .font(.title2.bold())
                                     .foregroundStyle(.white)
                                 let isPositive = quote.changePercent >= 0
-                                Text(String(format: "%+.2f%% (Rp %+.0f)", quote.changePercent, quote.change))
+                                Text(String(format: "%+.2f%% (%@)", quote.changePercent, quote.formattedChange))
                                     .font(.caption.bold())
                                     .foregroundStyle(isPositive ? .green : .red)
                             }
@@ -218,11 +225,12 @@ struct SearchView: View {
                                 .font(.headline.bold())
                                 .foregroundStyle(.white)
 
+                            let currPrefix = quote.currency == "USD" ? "$" : "Rp "
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                                 metricTile(title: "P/E Ratio", value: String(format: "%.1fx", fund.peRatio))
                                 metricTile(title: "PBV Ratio", value: String(format: "%.1fx", fund.pbvRatio))
                                 metricTile(title: "ROE", value: String(format: "%.1f%%", fund.roe))
-                                metricTile(title: "Market Cap", value: "Rp \(NumberFormatters.compact(fund.marketCap * 1_000_000_000_000))")
+                                metricTile(title: "Market Cap", value: "\(currPrefix)\(NumberFormatters.compact(fund.marketCap * 1_000_000_000_000))")
                                 metricTile(title: "Dividend Yield", value: String(format: "%.1f%%", fund.dividendYield))
                                 metricTile(title: "Sektor", value: fund.sector)
                             }
@@ -246,15 +254,18 @@ struct SearchView: View {
                         Spacer(minLength: 20)
 
                         // Action Button
+                        let defaultAmount = quote.currency == "USD" ? 1_000.0 : 10_000_000.0
+                        let amountLabel = quote.currency == "USD" ? "$1,000" : "Rp 10jt"
+
                         Button(action: {
-                            viewModel.addStockToPortfolio(ticker: quote.ticker, amount: 10_000_000)
+                            viewModel.addStockToPortfolio(ticker: quote.ticker, amount: defaultAmount)
                             addedStockTicker = quote.ticker
                             showDetailSheet = false
                             showAddSuccessAlert = true
                         }) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
-                                Text("Beli & Tambah ke Portofolio (Rp 10jt)")
+                                Text("Beli & Tambah ke Portofolio (\(amountLabel))")
                             }
                             .font(.headline.bold())
                             .foregroundStyle(.black)
