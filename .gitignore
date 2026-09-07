@@ -67,6 +67,16 @@ htmlcov/
 .env.*
 !.env.example
 
+# Docker & Database Data / Dumps
+postgres_data/
+backend/postgres_data/
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
 # ==========================================
 # IDEs & Editors
 # ==========================================
