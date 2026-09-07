@@ -42,6 +42,7 @@ struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .onAppear {
                 viewModel.refresh()

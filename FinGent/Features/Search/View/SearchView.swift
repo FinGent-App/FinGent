@@ -25,6 +25,7 @@ struct SearchView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
+                    .toolbar(.hidden, for: .tabBar)
             }
         }
         .preferredColorScheme(.dark)
