@@ -380,4 +380,68 @@ final class StockApiClient: Sendable {
             throw URLError(.badServerResponse)
         }
     }
+
+    // MARK: - News Ingestion & Grounding API (Backend Python)
+
+    struct NewsArticleItemDTO: Decodable, Sendable {
+        let id: String
+        let title: String
+        let summary: String?
+        let url: String
+        let source: String
+        let author: String?
+        let image_url: String?
+        let tickers: [String]?
+        let published_at: String
+
+        func toDomain() -> NewsArticle {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var pubDate = formatter.date(from: published_at)
+            if pubDate == nil {
+                let standardFormatter = ISO8601DateFormatter()
+                pubDate = standardFormatter.date(from: published_at) ?? Date()
+            }
+
+            let parsedURL = URL(string: url) ?? URL(string: "https://finance.yahoo.com")!
+            let parsedSource = NewsSourceType.from(rawString: source)
+            let imgURL = image_url.flatMap { URL(string: $0) }
+
+            return NewsArticle(
+                id: id,
+                title: title,
+                summary: summary,
+                url: parsedURL,
+                source: parsedSource,
+                publishedAt: pubDate ?? Date(),
+                author: author,
+                imageURL: imgURL,
+                tickers: tickers ?? [],
+                fetchedAt: Date()
+            )
+        }
+    }
+
+    struct NewsResponseDTO: Decodable, Sendable {
+        let ticker: String?
+        let count: Int
+        let articles: [NewsArticleItemDTO]
+    }
+
+    func fetchNews(ticker: String? = nil, limit: Int = 15) async throws -> [NewsArticle] {
+        var urlStr = "\(baseURL)/api/v1/news?limit=\(limit)"
+        if let ticker = ticker, !ticker.isEmpty {
+            let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased().replacingOccurrences(of: ".JK", with: "")
+            urlStr += "&ticker=\(clean)"
+        }
+        guard let url = URL(string: urlStr) else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let res = try JSONDecoder().decode(NewsResponseDTO.self, from: data)
+        return res.articles.map { $0.toDomain() }
+    }
 }

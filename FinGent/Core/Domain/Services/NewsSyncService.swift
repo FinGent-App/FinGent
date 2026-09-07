@@ -7,31 +7,27 @@ actor NewsSyncService {
 
     static let shared = NewsSyncService()
 
-    private let sources: [NewsSource]
-    private let yahooSource: YahooFinanceNewsSource
+    private let apiClient: StockApiClient
     private let repository: NewsRepositoryProtocol
     private let extractor: TickerExtractor
 
     private var lastSyncTime: Date?
-    private let cacheTTL: TimeInterval = 600 // 10 minutes
+    private let cacheTTL: TimeInterval = 300 // 5 minutes
     private var isSyncing: Bool = false
 
     private let logger = Logger(subsystem: "com.suryacenter.FinGent", category: "NewsSyncService")
 
     init(
-        sources: [NewsSource]? = nil,
+        apiClient: StockApiClient = StockApiClient.shared,
         repository: NewsRepositoryProtocol = NewsRepository.shared,
         extractor: TickerExtractor = StockTickerExtractor()
     ) {
-        let yahoo = YahooFinanceNewsSource()
-        let cnbc = CNBCNewsSource()
-        self.yahooSource = yahoo
-        self.sources = sources ?? [yahoo, cnbc]
+        self.apiClient = apiClient
         self.repository = repository
         self.extractor = extractor
     }
 
-    // MARK: - Periodic / Background Sync
+    // MARK: - Periodic / Background Sync via Python Backend
 
     func sync(force: Bool = false) async {
         if !force, let last = lastSyncTime, Date().timeIntervalSince(last) < cacheTTL {
@@ -42,80 +38,33 @@ actor NewsSyncService {
         isSyncing = true
         defer { isSyncing = false }
 
-        var allFetched: [NewsArticle] = []
-
-        await withTaskGroup(of: [NewsArticle]?.self) { group in
-            for source in sources {
-                group.addTask {
-                    do {
-                        return try await source.fetchArticles()
-                    } catch {
-                        return nil
-                    }
-                }
+        do {
+            // Fetch clean structured JSON news directly from Python FastAPI Backend
+            let backendArticles = try await apiClient.fetchNews(limit: 25)
+            if !backendArticles.isEmpty {
+                try? await repository.save(backendArticles)
+                lastSyncTime = Date()
+                logger.info("✅ Synced \(backendArticles.count) news articles from Python backend")
             }
-
-            for await result in group {
-                if let articles = result {
-                    allFetched.append(contentsOf: articles)
-                }
-            }
-        }
-
-        // Ticker extraction for articles
-        let enriched = allFetched.map { article -> NewsArticle in
-            let detected = self.extractor.extractTickers(from: article)
-            let combinedTickers = Array(Set(article.tickers + detected)).sorted()
-            return NewsArticle(
-                id: article.id,
-                title: article.title,
-                summary: article.summary,
-                url: article.url,
-                source: article.source,
-                publishedAt: article.publishedAt,
-                author: article.author,
-                imageURL: article.imageURL,
-                tickers: combinedTickers,
-                fetchedAt: Date()
-            )
-        }
-
-        if !enriched.isEmpty {
-            try? await repository.save(enriched)
-            lastSyncTime = Date()
+        } catch {
+            logger.warning("Backend news sync failed, using local cache: \(error.localizedDescription)")
         }
     }
 
-    // MARK: - On-Demand Ticker Sync
+    // MARK: - On-Demand Ticker Sync via Python Backend
 
     func syncTicker(ticker: String) async {
         let cleanTicker = ticker.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !cleanTicker.isEmpty else { return }
 
         do {
-            let tickerArticles = try await yahooSource.fetchArticles(for: cleanTicker)
-            let enriched = tickerArticles.map { article -> NewsArticle in
-                let detected = self.extractor.extractTickers(from: article)
-                let combined = Array(Set(article.tickers + detected + [cleanTicker])).sorted()
-                return NewsArticle(
-                    id: article.id,
-                    title: article.title,
-                    summary: article.summary,
-                    url: article.url,
-                    source: article.source,
-                    publishedAt: article.publishedAt,
-                    author: article.author,
-                    imageURL: article.imageURL,
-                    tickers: combined,
-                    fetchedAt: Date()
-                )
-            }
-
-            if !enriched.isEmpty {
-                try? await repository.save(enriched)
+            let tickerArticles = try await apiClient.fetchNews(ticker: cleanTicker, limit: 15)
+            if !tickerArticles.isEmpty {
+                try? await repository.save(tickerArticles)
+                logger.info("✅ Synced \(tickerArticles.count) news articles for \(cleanTicker) from Python backend")
             }
         } catch {
-            logger.warning("Failed on-demand ticker news sync for \(cleanTicker): \(error.localizedDescription)")
+            logger.warning("Backend news sync for \(cleanTicker) failed: \(error.localizedDescription)")
         }
     }
 }
