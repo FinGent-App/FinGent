@@ -23,7 +23,7 @@ struct GetLatestNewsTool: Tool {
 // MARK: - 2. SearchMarketNews
 
 struct SearchMarketNewsTool: Tool {
-    let name = "searchMarketNews"
+    let name = "searchMarketNews" // id
     let description = "Searches for market news articles by keyword, topic, or stock ticker."
 
     @Generable struct Arguments {

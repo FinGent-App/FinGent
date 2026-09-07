@@ -5,9 +5,6 @@ import SwiftUI
 struct SearchView: View {
 
     @State private var viewModel: SearchViewModel
-    @State private var showDetailSheet: Bool = false
-    @State private var showAddSuccessAlert: Bool = false
-    @State private var addedStockTicker: String = ""
 
     init(viewModel: SearchViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -26,15 +23,8 @@ struct SearchView: View {
             .navigationTitle("Cari Saham")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .sheet(isPresented: $showDetailSheet) {
-                if let quote = viewModel.selectedDetailQuote {
-                    stockDetailSheet(quote: quote)
-                }
-            }
-            .alert("Berhasil Ditambahkan!", isPresented: $showAddSuccessAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("\(addedStockTicker) telah ditambahkan ke portofolio Anda senilai Rp 10.000.000.")
+            .navigationDestination(for: StockQuote.self) { quote in
+                DetailPortfolioView(quote: quote)
             }
         }
         .preferredColorScheme(.dark)
@@ -97,10 +87,7 @@ struct SearchView: View {
     }
 
     private func stockRow(quote: StockQuote) -> some View {
-        Button(action: {
-            viewModel.selectStock(quote)
-            showDetailSheet = true
-        }) {
+        NavigationLink(value: quote) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
@@ -200,136 +187,6 @@ struct SearchView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
-    }
-
-    // MARK: - Stock Detail Sheet
-
-    private func stockDetailSheet(quote: StockQuote) -> some View {
-        NavigationStack {
-            ZStack {
-                backgroundGradient
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // Title & Price
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(quote.ticker)
-                                    .font(.title.bold())
-                                    .foregroundStyle(.white)
-                                Text(quote.name)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text(quote.formattedPrice)
-                                    .font(.title2.bold())
-                                    .foregroundStyle(.white)
-                                let isPositive = quote.changePercent >= 0
-                                Text(String(format: "%+.2f%% (%@)", quote.changePercent, quote.formattedChange))
-                                    .font(.caption.bold())
-                                    .foregroundStyle(isPositive ? .green : .red)
-                            }
-                        }
-
-                        Divider().background(Color.white.opacity(0.1))
-
-                        // Fundamentals Grid
-                        if let fund = viewModel.selectedDetailFundamentals {
-                            Text("Fundamental Emiten")
-                                .font(.headline.bold())
-                                .foregroundStyle(.white)
-
-                            let currPrefix = quote.currency == "USD" ? "$" : "Rp "
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                metricTile(title: "P/E Ratio", value: String(format: "%.1fx", fund.peRatio))
-                                metricTile(title: "PBV Ratio", value: String(format: "%.1fx", fund.pbvRatio))
-                                metricTile(title: "ROE", value: String(format: "%.1f%%", fund.roe))
-                                metricTile(title: "Market Cap", value: "\(currPrefix)\(NumberFormatters.compact(fund.marketCap * 1_000_000_000_000))")
-                                metricTile(title: "Dividend Yield", value: String(format: "%.1f%%", fund.dividendYield))
-                                metricTile(title: "Sektor", value: fund.sector)
-                            }
-                        }
-
-                        // Performance
-                        if let perf = viewModel.selectedDetailPerformance {
-                            Text("Performa Historis")
-                                .font(.headline.bold())
-                                .foregroundStyle(.white)
-
-                            HStack(spacing: 8) {
-                                perfChip(label: "1D", val: perf.daily)
-                                perfChip(label: "1W", val: perf.weekly)
-                                perfChip(label: "1M", val: perf.monthly)
-                                perfChip(label: "YTD", val: perf.ytd)
-                                perfChip(label: "1Y", val: perf.yearly)
-                            }
-                        }
-
-                        Spacer(minLength: 20)
-
-                        // Action Button
-                        let defaultAmount = quote.currency == "USD" ? 1_000.0 : 10_000_000.0
-                        let amountLabel = quote.currency == "USD" ? "$1,000" : "Rp 10jt"
-
-                        Button(action: {
-                            viewModel.addStockToPortfolio(ticker: quote.ticker, amount: defaultAmount)
-                            addedStockTicker = quote.ticker
-                            showDetailSheet = false
-                            showAddSuccessAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                Text("Beli & Tambah ke Portofolio (\(amountLabel))")
-                            }
-                            .font(.headline.bold())
-                            .foregroundStyle(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color.teal, in: RoundedRectangle(cornerRadius: 14))
-                        }
-                    }
-                    .padding(20)
-                }
-            }
-            .navigationTitle("Detail Saham")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Tutup") { showDetailSheet = false }
-                        .foregroundStyle(.teal)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func metricTile(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline.bold())
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private func perfChip(label: String, val: Double) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(String(format: "%+.1f%%", val))
-                .font(.caption.bold())
-                .foregroundStyle(val >= 0 ? .green : .red)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 

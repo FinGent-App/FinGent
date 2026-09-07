@@ -2,7 +2,8 @@
 
 import Foundation
 
-struct StockQuote: Sendable {
+struct StockQuote: Identifiable, Hashable, Sendable, Codable {
+    var id: String { ticker }
     let ticker: String
     let name: String
     var price: Double

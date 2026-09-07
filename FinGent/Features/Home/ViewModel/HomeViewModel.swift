@@ -12,6 +12,7 @@ final class HomeViewModel {
     private let portfolioRepository: PortfolioRepositoryProtocol
     private let marketDataRepository: MarketDataRepositoryProtocol
     private let newsRepository: NewsRepositoryProtocol
+    private let favoritesRepository: FavoritesRepositoryProtocol
 
     // MARK: - Output State
 
@@ -30,17 +31,20 @@ final class HomeViewModel {
     private(set) var topGainers: [MarketMover] = []
     private(set) var topLosers: [MarketMover] = []
     private(set) var latestNews: [NewsArticle] = []
+    private(set) var favoriteStocks: [StockQuote] = []
 
     // MARK: - Init
 
     init(
         portfolioRepository: PortfolioRepositoryProtocol,
         marketDataRepository: MarketDataRepositoryProtocol,
-        newsRepository: NewsRepositoryProtocol
+        newsRepository: NewsRepositoryProtocol,
+        favoritesRepository: FavoritesRepositoryProtocol = FavoritesRepository.shared
     ) {
         self.portfolioRepository = portfolioRepository
         self.marketDataRepository = marketDataRepository
         self.newsRepository = newsRepository
+        self.favoritesRepository = favoritesRepository
         refresh()
     }
 
@@ -66,5 +70,16 @@ final class HomeViewModel {
         topGainers = market.topGainers
         topLosers = market.topLosers
         latestNews = Array(newsRepository.allArticles.prefix(4))
+
+        // Update favorite stocks with live market data when available
+        let savedFavorites = favoritesRepository.favorites
+        favoriteStocks = savedFavorites.map { saved in
+            market.getQuote(for: saved.ticker) ?? saved
+        }
+    }
+
+    func removeFavorite(ticker: String) {
+        favoritesRepository.removeFavorite(ticker: ticker)
+        refresh()
     }
 }

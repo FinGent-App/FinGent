@@ -33,6 +33,9 @@ struct PortfolioView: View {
             .sheet(isPresented: $showAddStock) {
                 AddStockSheetView(onSaved: handleSaved)
             }
+            .navigationDestination(for: StockQuote.self) { quote in
+                DetailPortfolioView(quote: quote)
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear(perform: onAppear)

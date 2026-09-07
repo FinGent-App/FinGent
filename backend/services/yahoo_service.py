@@ -16,6 +16,9 @@ fundamentals_cache = TTLCache(maxsize=100, ttl=3600)
 # Market summary cache: expires in 30 seconds
 market_cache = TTLCache(maxsize=10, ttl=30)
 
+# Historical chart data cache: expires in 60 seconds
+history_cache = TTLCache(maxsize=100, ttl=60)
+
 POPULAR_IDX_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO", "BBNI", "ICBP", "UNVR", "AMMN"]
 
 
@@ -239,3 +242,90 @@ def get_market_summary() -> Dict[str, Any]:
             "popular_stocks": [],
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
+
+
+def get_stock_history(ticker: str, period: str = "1mo") -> Dict[str, Any]:
+    """
+    Retrieve historical price points for line chart visualization.
+    Supported periods: 24h, 1w, 1m, 3m, ytd, 1y, 5y
+    """
+    clean_ticker = strip_jk(ticker)
+    norm_period = period.strip().lower()
+
+    period_map = {
+        "24h": ("1d", "5m"),
+        "1d": ("1d", "5m"),
+        "1w": ("5d", "15m"),
+        "5d": ("5d", "15m"),
+        "1m": ("1mo", "1d"),
+        "1mo": ("1mo", "1d"),
+        "3m": ("3mo", "1d"),
+        "3mo": ("3mo", "1d"),
+        "ytd": ("ytd", "1d"),
+        "1y": ("1y", "1d"),
+        "5y": ("5y", "1wk"),
+    }
+
+    yf_period, yf_interval = period_map.get(norm_period, ("1mo", "1d"))
+    cache_key = f"{clean_ticker}_{yf_period}_{yf_interval}"
+    if cache_key in history_cache:
+        return history_cache[cache_key]
+
+    yahoo_sym = normalize_ticker(ticker)
+    candidates = [yahoo_sym]
+    if yahoo_sym != clean_ticker:
+        candidates.append(clean_ticker)
+
+    last_df = None
+    used_sym = yahoo_sym
+    for sym in candidates:
+        try:
+            stock = yf.Ticker(sym)
+            df = stock.history(period=yf_period, interval=yf_interval)
+            if df is not None and not df.empty:
+                last_df = df
+                used_sym = sym
+                break
+        except Exception as e:
+            logger.error(f"Error fetching history for {sym}: {e}")
+            continue
+
+    if last_df is None or last_df.empty:
+        # Fallback for 24h if market is closed or 5m data is unavailable
+        if yf_period == "1d":
+            try:
+                stock = yf.Ticker(used_sym)
+                df = stock.history(period="5d", interval="15m")
+                if df is not None and not df.empty:
+                    last_df = df.tail(60)
+            except Exception:
+                pass
+
+    if last_df is None or last_df.empty:
+        raise ValueError(f"No historical data found for '{ticker}' (period: '{period}')")
+
+    data_points = []
+    for idx, row in last_df.iterrows():
+        try:
+            dt_iso = idx.isoformat()
+            data_points.append({
+                "timestamp": dt_iso,
+                "price": round(float(row["Close"]), 2),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "volume": int(row.get("Volume", 0))
+            })
+        except Exception:
+            continue
+
+    result = {
+        "ticker": clean_ticker,
+        "yahoo_ticker": used_sym,
+        "period": norm_period,
+        "count": len(data_points),
+        "data": data_points
+    }
+    history_cache[cache_key] = result
+    return result
+

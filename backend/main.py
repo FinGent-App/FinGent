@@ -6,7 +6,8 @@ from services.yahoo_service import (
     get_single_quote,
     get_batch_quotes,
     get_stock_fundamentals,
-    get_market_summary
+    get_market_summary,
+    get_stock_history
 )
 
 logging.basicConfig(
@@ -94,6 +95,22 @@ def get_fundamentals(ticker: str):
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/v1/stocks/{ticker}/history")
+def get_history(
+    ticker: str,
+    period: str = Query("1mo", description="Timeframe: 24h, 1w, 1m, 3m, ytd, 1y, 5y")
+):
+    """
+    Get historical price series for interactive line chart.
+    """
+    try:
+        return get_stock_history(ticker, period)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch stock history: {str(e)}")
 
 
 @app.get("/api/v1/market/summary")

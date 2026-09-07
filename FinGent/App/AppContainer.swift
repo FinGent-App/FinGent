@@ -14,6 +14,7 @@ final class AppContainer {
     let portfolioRepository: PortfolioRepositoryProtocol = PortfolioRepository.shared
     let marketDataRepository: MarketDataRepositoryProtocol = MarketDataRepository.shared
     let newsRepository: NewsRepositoryProtocol = NewsRepository.shared
+    let favoritesRepository: FavoritesRepositoryProtocol = FavoritesRepository.shared
 
     // MARK: - Use Cases
 
@@ -47,7 +48,8 @@ final class AppContainer {
         HomeViewModel(
             portfolioRepository: portfolioRepository,
             marketDataRepository: marketDataRepository,
-            newsRepository: newsRepository
+            newsRepository: newsRepository,
+            favoritesRepository: favoritesRepository
         )
     }
 

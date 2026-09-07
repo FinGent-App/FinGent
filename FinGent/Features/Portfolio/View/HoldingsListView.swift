@@ -50,18 +50,38 @@ struct HoldingRowView: View {
     let row: HoldingRowState
     let onRemove: () -> Void
 
+    private var holdingQuote: StockQuote {
+        MarketDataRepository.shared.getQuote(for: row.ticker) ?? StockQuote(
+            ticker: row.ticker,
+            name: row.name,
+            price: row.currentPrice,
+            previousClose: row.currentPrice,
+            open: row.currentPrice,
+            high: row.currentPrice,
+            low: row.currentPrice,
+            volume: 0,
+            currency: "IDR"
+        )
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            tickerBadge
-            stockDetails
-            Spacer()
-            valueAndPnL
+        NavigationLink(value: holdingQuote) {
+            HStack(spacing: 12) {
+                tickerBadge
+                stockDetails
+                Spacer()
+                valueAndPnL
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.04))
+            }
         }
-        .padding(.vertical, 10)
-        .padding(.horizontal, 14)
-        .background {
-            RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.04))
-        }
+        .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onRemove) {
                 Label("Hapus", systemImage: "trash")
@@ -93,33 +113,11 @@ struct HoldingRowView: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
 
-            HStack(spacing: 4) {
-                Text("\(row.lotText) · \(row.formattedPrice)")
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
-
-                directionArrow
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var directionArrow: some View {
-        switch row.direction {
-        case .up:
-            Image(systemName: "arrow.triangle.up.fill")
-                .font(.system(size: 7))
-                .foregroundStyle(.green)
-                .transition(.opacity)
-        case .down:
-            Image(systemName: "arrow.triangle.down.fill")
-                .font(.system(size: 7))
-                .foregroundStyle(.red)
-                .transition(.opacity)
-        case .unchanged:
-            EmptyView()
+            Text("\(row.lotText) · \(row.formattedPrice)")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.white.opacity(0.55))
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
         }
     }
 

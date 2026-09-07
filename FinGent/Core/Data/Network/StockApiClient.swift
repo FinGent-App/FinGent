@@ -75,6 +75,22 @@ final class StockApiClient: Sendable {
         }
     }
 
+    struct HistoryPointDTO: Decodable, Sendable {
+        let timestamp: String
+        let price: Double
+        let open: Double?
+        let high: Double?
+        let low: Double?
+        let volume: Int?
+    }
+
+    struct HistoryResponseDTO: Decodable, Sendable {
+        let ticker: String
+        let period: String
+        let count: Int
+        let data: [HistoryPointDTO]
+    }
+
     // MARK: - API Calls
 
     func fetchQuote(ticker: String) async throws -> StockQuote {
@@ -115,5 +131,37 @@ final class StockApiClient: Sendable {
         }
         let dto = try JSONDecoder().decode(FundamentalsDTO.self, from: data)
         return dto.toDomain()
+    }
+
+    func fetchHistory(ticker: String, period: String = "1mo") async throws -> [StockHistoryPoint] {
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        let normPeriod = period.lowercased()
+        guard let url = URL(string: "\(baseURL)/api/v1/stocks/\(clean)/history?period=\(normPeriod)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let dto = try JSONDecoder().decode(HistoryResponseDTO.self, from: data)
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let stdFormatter = ISO8601DateFormatter()
+
+        return dto.data.map { point in
+            let date = isoFormatter.date(from: point.timestamp)
+                ?? stdFormatter.date(from: point.timestamp)
+                ?? Date()
+
+            return StockHistoryPoint(
+                date: date,
+                price: point.price,
+                open: point.open ?? point.price,
+                high: point.high ?? point.price,
+                low: point.low ?? point.price,
+                volume: point.volume ?? 0
+            )
+        }
     }
 }
