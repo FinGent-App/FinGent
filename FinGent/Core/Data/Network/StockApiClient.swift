@@ -91,6 +91,38 @@ final class StockApiClient: Sendable {
         let data: [HistoryPointDTO]
     }
 
+    struct WatchlistItemDTO: Decodable, Sendable {
+        let id: String?
+        let user_id: String
+        let ticker: String
+        let notes: String?
+        let added_at: String?
+    }
+
+    struct WatchlistResponseDTO: Decodable, Sendable {
+        let user_id: String
+        let count: Int
+        let watchlist: [WatchlistItemDTO]
+    }
+
+    struct HoldingDTO: Decodable, Sendable {
+        let id: String?
+        let user_id: String
+        let ticker: String
+        let name: String
+        let shares: Int
+        let price_per_share: Double
+        let invested_amount: Double
+        let sector: String?
+        let updated_at: String?
+    }
+
+    struct HoldingsResponseDTO: Decodable, Sendable {
+        let user_id: String
+        let count: Int
+        let holdings: [HoldingDTO]
+    }
+
     // MARK: - API Calls
 
     func fetchQuote(ticker: String) async throws -> StockQuote {
@@ -162,6 +194,106 @@ final class StockApiClient: Sendable {
                 low: point.low ?? point.price,
                 volume: point.volume ?? 0
             )
+        }
+    }
+
+    // MARK: - Watchlist (PostgreSQL Cloud Sync)
+
+    func fetchWatchlist(userId: String = "default_user") async throws -> [WatchlistItemDTO] {
+        guard let url = URL(string: "\(baseURL)/api/v1/watchlist?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let res = try JSONDecoder().decode(WatchlistResponseDTO.self, from: data)
+        return res.watchlist
+    }
+
+    func addToWatchlist(ticker: String, notes: String? = nil, userId: String = "default_user") async throws {
+        guard let url = URL(string: "\(baseURL)/api/v1/watchlist?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload: [String: Any?] = ["ticker": ticker.uppercased(), "notes": notes]
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload.compactMapValues { $0 })
+
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    func removeFromWatchlist(ticker: String, userId: String = "default_user") async throws {
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let url = URL(string: "\(baseURL)/api/v1/watchlist/\(clean)?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    // MARK: - Portfolio Holdings (PostgreSQL Cloud Sync)
+
+    func fetchHoldings(userId: String = "default_user") async throws -> [HoldingDTO] {
+        guard let url = URL(string: "\(baseURL)/api/v1/portfolio/holdings?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let res = try JSONDecoder().decode(HoldingsResponseDTO.self, from: data)
+        return res.holdings
+    }
+
+    func saveHolding(
+        ticker: String,
+        name: String,
+        shares: Int,
+        pricePerShare: Double,
+        investedAmount: Double,
+        sector: String = "Technology",
+        userId: String = "default_user"
+    ) async throws {
+        guard let url = URL(string: "\(baseURL)/api/v1/portfolio/holdings?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload: [String: Any] = [
+            "ticker": ticker.uppercased(),
+            "name": name,
+            "shares": shares,
+            "price_per_share": pricePerShare,
+            "invested_amount": investedAmount,
+            "sector": sector
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    func deleteHolding(ticker: String, userId: String = "default_user") async throws {
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let url = URL(string: "\(baseURL)/api/v1/portfolio/holdings/\(clean)?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
         }
     }
 }

@@ -32,6 +32,10 @@ final class FavoritesRepository: FavoritesRepositoryProtocol, @unchecked Sendabl
 
     private init() {
         self.favorites = Self.loadFavorites()
+        // Asynchronously sync with PostgreSQL backend
+        Task { [weak self] in
+            await self?.syncWithBackend()
+        }
     }
 
     // MARK: - FavoritesRepositoryProtocol
@@ -55,14 +59,63 @@ final class FavoritesRepository: FavoritesRepositoryProtocol, @unchecked Sendabl
         } else {
             favorites.append(quote)
         }
+
+        // Sync to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.addToWatchlist(ticker: quote.ticker)
+            } catch {
+                print("⚠️ [FavoritesRepository] Failed to sync favorite to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
     }
 
     func removeFavorite(ticker: String) {
         let upper = ticker.uppercased()
         favorites.removeAll { $0.ticker.uppercased() == upper }
+
+        // Sync removal to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.removeFromWatchlist(ticker: ticker)
+            } catch {
+                print("⚠️ [FavoritesRepository] Failed to sync removal to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
     }
 
-    // MARK: - Persistence
+    // MARK: - PostgreSQL Cloud Synchronization
+
+    func syncWithBackend() async {
+        do {
+            let remoteItems = try await StockApiClient.shared.fetchWatchlist()
+            let remoteTickers = Set(remoteItems.map { $0.ticker.uppercased() })
+            let localTickers = favoriteTickers
+
+            // 1. Push any local favorites that are not yet in PostgreSQL
+            for localQuote in favorites where !remoteTickers.contains(localQuote.ticker.uppercased()) {
+                try? await StockApiClient.shared.addToWatchlist(ticker: localQuote.ticker)
+            }
+
+            // 2. Pull any remote favorites from PostgreSQL that are not in local
+            let missingTickers = remoteTickers.subtracting(localTickers)
+            if !missingTickers.isEmpty {
+                let quotes = try await StockApiClient.shared.fetchBatch(tickers: Array(missingTickers))
+                await MainActor.run {
+                    for q in quotes {
+                        if !self.isFavorite(ticker: q.ticker) {
+                            self.favorites.append(q)
+                        }
+                    }
+                }
+            }
+            print("✅ [FavoritesRepository] Synchronized with PostgreSQL (Total: \(self.favorites.count))")
+        } catch {
+            print("ℹ️ [FavoritesRepository] Backend offline or unreachable. Using local cache.")
+        }
+    }
+
+    // MARK: - Local Persistence (Offline-First Fallback)
 
     private func saveFavorites() {
         guard let data = try? JSONEncoder().encode(favorites) else { return }

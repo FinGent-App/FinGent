@@ -55,40 +55,115 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
         self.portfolioValue = UserDefaults.standard.double(forKey: Key.portfolioValue)
         self.userName = UserDefaults.standard.string(forKey: Key.userName) ?? ""
         self.userHoldings = Self.loadHoldings()
+
+        // Asynchronously sync with PostgreSQL backend
+        Task { [weak self] in
+            await self?.syncWithBackend()
+        }
     }
 
     // MARK: - Portfolio Modification
 
     func addHolding(ticker: String, name: String, amount: Double, pricePerShare: Double, sector: String) {
+        let savedHolding: UserHolding
         if let index = userHoldings.firstIndex(where: { $0.ticker == ticker }) {
             let existing = userHoldings[index]
             let newShares = Int(amount / pricePerShare)
             let totalShares = existing.shares + newShares
             let totalInvested = existing.investedAmount + amount
             let weightedPrice = totalShares > 0 ? totalInvested / Double(totalShares) : pricePerShare
-            userHoldings[index] = UserHolding(
+            let updated = UserHolding(
                 ticker: ticker,
                 name: name,
                 investedAmount: totalInvested,
                 pricePerShare: weightedPrice,
                 sector: sector
             )
+            userHoldings[index] = updated
+            savedHolding = updated
         } else {
-            userHoldings.append(UserHolding(
+            let created = UserHolding(
                 ticker: ticker,
                 name: name,
                 investedAmount: amount,
                 pricePerShare: pricePerShare,
                 sector: sector
-            ))
+            )
+            userHoldings.append(created)
+            savedHolding = created
+        }
+
+        // Sync to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.saveHolding(
+                    ticker: savedHolding.ticker,
+                    name: savedHolding.name,
+                    shares: savedHolding.shares,
+                    pricePerShare: savedHolding.pricePerShare,
+                    investedAmount: savedHolding.investedAmount,
+                    sector: savedHolding.sector
+                )
+            } catch {
+                print("⚠️ [PortfolioRepository] Failed to sync holding to PostgreSQL: \(error.localizedDescription)")
+            }
         }
     }
 
     func removeHolding(ticker: String) {
         userHoldings.removeAll { $0.ticker == ticker }
+
+        // Sync removal to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.deleteHolding(ticker: ticker)
+            } catch {
+                print("⚠️ [PortfolioRepository] Failed to sync holding deletion to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
     }
 
-    // MARK: - Persistence
+    // MARK: - PostgreSQL Cloud Synchronization
+
+    func syncWithBackend() async {
+        do {
+            let remoteHoldings = try await StockApiClient.shared.fetchHoldings()
+
+            if remoteHoldings.isEmpty && !userHoldings.isEmpty {
+                // 1. Initial migration: Push local holdings to empty PostgreSQL database
+                for h in userHoldings {
+                    try? await StockApiClient.shared.saveHolding(
+                        ticker: h.ticker,
+                        name: h.name,
+                        shares: h.shares,
+                        pricePerShare: h.pricePerShare,
+                        investedAmount: h.investedAmount,
+                        sector: h.sector
+                    )
+                }
+                print("✅ [PortfolioRepository] Pushed \(userHoldings.count) local holdings to PostgreSQL.")
+            } else if !remoteHoldings.isEmpty {
+                // 2. Pull remote holdings from PostgreSQL and merge with local state
+                let mapped = remoteHoldings.map { dto in
+                    UserHolding(
+                        ticker: dto.ticker,
+                        name: dto.name,
+                        investedAmount: dto.invested_amount,
+                        pricePerShare: dto.price_per_share,
+                        sector: dto.sector ?? "Technology"
+                    )
+                }
+                await MainActor.run {
+                    self.userHoldings = mapped
+                }
+                print("✅ [PortfolioRepository] Pulled \(mapped.count) holdings from PostgreSQL.")
+            }
+        } catch {
+            print("ℹ️ [PortfolioRepository] Backend offline or unreachable. Using local cache.")
+        }
+    }
+
+    // MARK: - Local Persistence (Offline-First Fallback)
 
     private func saveHoldings() {
         guard let data = try? JSONEncoder().encode(userHoldings) else { return }
