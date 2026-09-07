@@ -62,7 +62,8 @@ async def init_db_pool() -> Optional[asyncpg.Pool]:
             min_size=DB_POOL_MIN_SIZE,
             max_size=DB_POOL_MAX_SIZE,
             timeout=DB_TIMEOUT_SECONDS,
-            ssl=ssl_context
+            ssl=ssl_context,
+            statement_cache_size=0 if ssl_context is not None else 100
         )
         logger.info("✅ PostgreSQL connection pool initialized successfully.")
         
