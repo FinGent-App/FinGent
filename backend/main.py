@@ -35,6 +35,16 @@ from services.milvus_service import (
     sync_sec_to_milvus,
     sync_news_to_milvus
 )
+from services.agent_tools_service import (
+    get_market_movers,
+    get_stock_fundamentals_tool,
+    compare_stocks,
+    get_latest_news as get_agent_latest_news,
+    search_market_news as search_agent_market_news,
+    get_portfolio_news as get_agent_portfolio_news,
+    analyze_news_impact,
+    analyze_portfolio_impact
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +115,19 @@ class RAGQueryRequest(BaseModel):
     limit: Optional[int] = Field(5, description="Max knowledge chunks to retrieve")
 
 
+class CompareStocksRequest(BaseModel):
+    tickers: List[str] = Field(..., min_items=2, description="List of stock tickers to compare")
+
+
+class NewsImpactRequest(BaseModel):
+    topic: str = Field(..., description="News topic or headline to evaluate")
+
+
+class PortfolioImpactRequest(BaseModel):
+    event: str = Field(..., description="Macro event or market scenario")
+    user_id: Optional[str] = Field("default_user", description="User ID for portfolio lookup")
+
+
 # ==============================================================================
 # Health & Status
 # ==============================================================================
@@ -126,7 +149,15 @@ def health_check():
             "/api/v1/stocks/{ticker}/sec",
             "/api/v1/stocks/batch?tickers=BBCA,TLKM,BBRI",
             "/api/v1/stocks/{ticker}/fundamentals",
-            "/api/v1/market/summary"
+            "/api/v1/market/summary",
+            "/api/v1/agent/movers",
+            "/api/v1/agent/fundamentals/{ticker}",
+            "/api/v1/agent/compare",
+            "/api/v1/agent/news",
+            "/api/v1/agent/news/search",
+            "/api/v1/agent/portfolio-news",
+            "/api/v1/agent/news-impact",
+            "/api/v1/agent/portfolio-impact"
         ]
     }
 
@@ -529,6 +560,97 @@ def search_rag_knowledge(
             "results": hits
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================================
+# Cloud Agent Tools Endpoints (MCP & Remote Execution Ready)
+# ==============================================================================
+
+@app.get("/api/v1/agent/movers")
+def api_agent_movers(type: str = Query("gainers", description="Type of movers: 'gainers' or 'losers'")):
+    """Tool: Get Market Movers (Gainers / Losers)"""
+    try:
+        return get_market_movers(type)
+    except Exception as e:
+        logger.error("Agent movers tool failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/agent/fundamentals/{ticker}")
+def api_agent_fundamentals(ticker: str):
+    """Tool: Get Stock Valuation and Fundamentals (P/E, PBV, ROE, Market Cap)"""
+    try:
+        return get_stock_fundamentals_tool(ticker)
+    except Exception as e:
+        logger.error("Agent fundamentals tool failed for %s: %s", ticker, str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/agent/compare")
+def api_agent_compare(req: CompareStocksRequest):
+    """Tool: Compare two or more stocks side-by-side"""
+    try:
+        return compare_stocks(req.tickers)
+    except Exception as e:
+        logger.error("Agent compare tool failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/agent/news")
+async def api_agent_news(count: int = Query(5, ge=1, le=20, description="Number of news articles")):
+    """Tool: Get latest financial news articles"""
+    try:
+        return await get_agent_latest_news(count)
+    except Exception as e:
+        logger.error("Agent latest news failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/agent/news/search")
+def api_agent_search_news(q: str = Query(..., description="Query term"), limit: int = Query(5, ge=1, le=20)):
+    """Tool: Semantic RAG search for news articles"""
+    try:
+        return search_agent_market_news(q, limit)
+    except Exception as e:
+        logger.error("Agent search news failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/agent/portfolio-news")
+async def api_agent_portfolio_news(
+    ticker: Optional[str] = Query(None, description="Optional single ticker or 'ALL'"),
+    x_user_id: Optional[str] = Header("default_user", alias="X-User-Id")
+):
+    """Tool: Get News for User's Portfolio Holdings"""
+    try:
+        return await get_agent_portfolio_news(user_id=x_user_id, ticker=ticker)
+    except Exception as e:
+        logger.error("Agent portfolio news failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/agent/news-impact")
+async def api_agent_news_impact(req: NewsImpactRequest):
+    """Tool: Analyze Sentiment and Price Impact of News or Topic"""
+    try:
+        return await analyze_news_impact(req.topic)
+    except Exception as e:
+        logger.error("Agent news impact failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/agent/portfolio-impact")
+async def api_agent_portfolio_impact(
+    req: PortfolioImpactRequest,
+    x_user_id: Optional[str] = Header("default_user", alias="X-User-Id")
+):
+    """Tool: Analyze Portfolio Exposure to Macroeconomic Events"""
+    try:
+        uid = req.user_id or x_user_id or "default_user"
+        return await analyze_portfolio_impact(user_id=uid, event=req.event)
+    except Exception as e:
+        logger.error("Agent portfolio impact failed: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -32,15 +32,7 @@ final class FinGentAgent {
             GetPortfolioMoversTool(),
             GetUnrealizedGainTool(),
             GetStockQuoteTool(),
-            GetStockPerformanceTool(),
-            GetStockFundamentalsTool(),
-            CompareStocksTool(),
-            GetMarketMoversTool(),
-            GetLatestNewsTool(),
-            SearchMarketNewsTool(),
-            GetPortfolioNewsTool(),
-            AnalyzeNewsImpactTool(),
-            AnalyzePortfolioImpactTool()
+            GetStockPerformanceTool()
         ]
     }
 

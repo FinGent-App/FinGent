@@ -76,8 +76,43 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // Case 1: Conceptual or general queries that do not have RAG knowledge nor news
-        guard !allCitations.isEmpty || (context.requiresNews && !articles.isEmpty) else {
+        // 2. Fetch Cloud Agent Analytical Grounding (Compare, News Impact, Portfolio Impact)
+        var cloudGrounding: String? = nil
+        let lower = prompt.lowercased()
+
+        if (lower.contains("banding") || lower.contains("vs") || lower.contains("compare")) && context.tickers.count >= 2 {
+            if let comp = try? await StockApiClient.shared.compareStocks(tickers: context.tickers) {
+                var compLines = ["ANALISIS PERBANDINGAN SAHAM (Cloud Agent Service):"]
+                for item in comp.comparison {
+                    compLines.append("• \(item.ticker) (\(item.name)): Harga Rp \(item.price), 24h: \(item.change_percent)%, P/E: \(item.pe_ratio), PBV: \(item.pbv_ratio), ROE: \(item.roe)%, Mkt Cap: Rp \(item.market_cap), Div Yield: \(item.dividend_yield)%")
+                }
+                cloudGrounding = compLines.joined(separator: "\n")
+            }
+        } else if (lower.contains("dampak") || lower.contains("pengaruh") || lower.contains("imbas") || lower.contains("efek") || lower.contains("impact")) &&
+                  (lower.contains("portofolio") || lower.contains("holding") || lower.contains("saham saya") || lower.contains("investasi saya")) {
+            if let impact = try? await StockApiClient.shared.analyzePortfolioImpact(event: prompt) {
+                var impactLines = ["ANALISIS EKSPOSUR MAKRO PORTOFOLIO (Cloud Agent Service):"]
+                impactLines.append("• Skenario: \(impact.event)")
+                impactLines.append("• Total Eksposur Risiko: \(impact.exposure_percent)%")
+                impactLines.append("• Kesimpulan: \(impact.analysis)")
+                for item in impact.affected_holdings {
+                    impactLines.append("  - \(item.ticker) (\(item.sector), bobot \(item.portfolio_weight)%): \(item.reason)")
+                }
+                cloudGrounding = impactLines.joined(separator: "\n")
+            }
+        } else if (lower.contains("dampak") || lower.contains("pengaruh") || lower.contains("sentimen")) && context.tickers.count >= 1 {
+            if let newsImpact = try? await StockApiClient.shared.analyzeNewsImpact(topic: prompt) {
+                cloudGrounding = """
+                ANALISIS DAMPAK SENTIMEN PASAR (Cloud Agent Service):
+                • Topik: \(newsImpact.topic)
+                • Sentimen Terdeteksi: \(newsImpact.sentiment)
+                • Ringkasan: \(newsImpact.summary)
+                """
+            }
+        }
+
+        // Case 1: Conceptual or general queries that do not have RAG knowledge, news, nor cloud agent analytics
+        guard !allCitations.isEmpty || (context.requiresNews && !articles.isEmpty) || cloudGrounding != nil else {
             do {
                 let rawReply = try await agent.ask(prompt)
                 return AIResponse(
@@ -96,12 +131,13 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // Case 2: Evidence Grounded Prompt Construction (Zilliz Milvus + RSS)
+        // Case 2: Evidence Grounded Prompt Construction (Zilliz Milvus + RSS + Cloud Agent Analytics)
         let groundedPrompt = buildGroundedPrompt(
             userPrompt: prompt,
             context: context,
             articles: articles,
-            ragGrounding: ragResponse?.grounding_context
+            ragGrounding: ragResponse?.grounding_context,
+            cloudGrounding: cloudGrounding
         )
 
         do {
@@ -120,7 +156,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 userPrompt: prompt,
                 context: context,
                 articles: articles,
-                ragCitations: allCitations
+                ragCitations: allCitations,
+                cloudGrounding: cloudGrounding
             )
 
             return AIResponse(
@@ -142,7 +179,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
         userPrompt: String,
         context: NewsQueryContext,
         articles: [NewsArticle],
-        ragGrounding: String? = nil
+        ragGrounding: String? = nil,
+        cloudGrounding: String? = nil
     ) -> String {
         var prompt = "USER QUERY: \"\(userPrompt)\"\n\n"
 
@@ -154,6 +192,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
             - Price: \(quote.formattedPrice)
             - 24H Change: \(quote.formattedChange) (\(String(format: "%.2f", quote.changePercent))%)
             - Volume: \(quote.volume)
+
+            """
+        }
+
+        // Add Cloud Agent Analytics if available (Stock comparison, Macro scenario exposure, News impact)
+        if let cloudGrounding = cloudGrounding, !cloudGrounding.isEmpty {
+            prompt += """
+            CLOUD AGENT ANALYTICS ENGINE (Fundamentals, Peer Comparison, Macro Impact):
+            \(cloudGrounding)
 
             """
         }
@@ -186,7 +233,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         // Strict grounding instructions
         prompt += """
         STRICT GROUNDING INSTRUCTIONS:
-        1. Base your answer strictly on the VERIFIED FINANCIAL KNOWLEDGE BASE, NEWS EVIDENCE, and MARKET DATA provided above. Do NOT fabricate or assume unreported information.
+        1. Base your answer strictly on the VERIFIED FINANCIAL KNOWLEDGE BASE, CLOUD AGENT ANALYTICS, NEWS EVIDENCE, and MARKET DATA provided above. Do NOT fabricate or assume unreported information.
         2. Reference user's portfolio holding or SEC filing directly if present in the knowledge base.
         3. Clearly distinguish between:
            - FACTS: What the verified knowledge base and latest news explicitly report.
@@ -206,7 +253,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
         userPrompt: String,
         context: NewsQueryContext,
         articles: [NewsArticle],
-        ragCitations: [NewsCitation] = []
+        ragCitations: [NewsCitation] = [],
+        cloudGrounding: String? = nil
     ) -> (answer: String, bias: MarketBias) {
         let ticker = context.tickers.first ?? "Pasar"
         let quote = context.tickers.first.flatMap { marketRepo.getQuote(for: $0) }
@@ -235,6 +283,10 @@ final class ChatUseCase: ChatUseCaseProtocol {
 
         if let q = quote {
             text += "📊 **Kondisi Pasar Terkini:**\nHarga berada di **\(q.formattedPrice)** dengan pergerakan harian **\(q.formattedChange)** (\(String(format: "%.2f", q.changePercent))%).\n\n"
+        }
+
+        if let cg = cloudGrounding, !cg.isEmpty {
+            text += "⚡ **Temuan Analisis Cloud Agent:**\n\(cg)\n\n"
         }
 
         // Display Portfolio Citations if available

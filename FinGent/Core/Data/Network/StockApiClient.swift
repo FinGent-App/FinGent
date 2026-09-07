@@ -444,4 +444,97 @@ final class StockApiClient: Sendable {
         let res = try JSONDecoder().decode(NewsResponseDTO.self, from: data)
         return res.articles.map { $0.toDomain() }
     }
+
+    // MARK: - Cloud Agent Tools API (Python Backend / Remote MCP Ready)
+
+    struct StockComparisonItemDTO: Decodable, Sendable {
+        let ticker: String
+        let name: String
+        let price: Double
+        let change_percent: Double
+        let sector: String
+        let pe_ratio: Double
+        let pbv_ratio: Double
+        let roe: Double
+        let market_cap: Double
+        let dividend_yield: Double
+    }
+
+    struct StockComparisonResponseDTO: Decodable, Sendable {
+        let tickers: [String]
+        let count: Int
+        let comparison: [StockComparisonItemDTO]
+    }
+
+    struct NewsImpactResponseDTO: Decodable, Sendable {
+        let topic: String
+        let sentiment: String
+        let summary: String
+    }
+
+    struct PortfolioImpactHoldingDTO: Decodable, Sendable {
+        let ticker: String
+        let name: String
+        let sector: String
+        let market_value: Double
+        let portfolio_weight: Double
+        let reason: String
+    }
+
+    struct PortfolioImpactResponseDTO: Decodable, Sendable {
+        let event: String
+        let total_portfolio_value: Double
+        let exposure_value: Double
+        let exposure_percent: Double
+        let affected_holdings: [PortfolioImpactHoldingDTO]
+        let analysis: String
+    }
+
+    func compareStocks(tickers: [String]) async throws -> StockComparisonResponseDTO {
+        guard let url = URL(string: "\(baseURL)/api/v1/agent/compare") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = ["tickers": tickers]
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(StockComparisonResponseDTO.self, from: data)
+    }
+
+    func analyzeNewsImpact(topic: String) async throws -> NewsImpactResponseDTO {
+        guard let url = URL(string: "\(baseURL)/api/v1/agent/news-impact") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = ["topic": topic]
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(NewsImpactResponseDTO.self, from: data)
+    }
+
+    func analyzePortfolioImpact(event: String, userId: String = "default_user") async throws -> PortfolioImpactResponseDTO {
+        guard let url = URL(string: "\(baseURL)/api/v1/agent/portfolio-impact") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let payload = ["event": event, "user_id": userId]
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(PortfolioImpactResponseDTO.self, from: data)
+    }
 }
