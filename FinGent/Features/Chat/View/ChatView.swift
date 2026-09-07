@@ -5,6 +5,7 @@ import SwiftUI
 struct ChatView: View {
     @State private var viewModel = AppContainer.shared.makeChatViewModel()
     @FocusState private var isInputFocused: Bool
+    @State private var selectedSafariURL: IdentifiableURL? = nil
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,9 @@ struct ChatView: View {
                     }
                 }
             }
+            .sheet(item: $selectedSafariURL) { item in
+                SafariView(url: item.url)
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -50,17 +54,17 @@ struct ChatView: View {
                         .stroke(Color(red: 0.0, green: 0.82, blue: 0.61).opacity(0.4), lineWidth: 4)
                 }
 
-            Text("Agentic AI System • 16 Market Tools Active")
+            Text("RSS Grounded AI • Yahoo Finance & CNBC Live")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.7))
 
             Spacer()
 
-            Text("LLM Foundation")
+            Text("News Evidence Active")
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.white.opacity(0.08))
+                .background(Color.cyan.opacity(0.15))
                 .clipShape(Capsule())
                 .foregroundStyle(.cyan)
         }
@@ -76,8 +80,10 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.messages) { msg in
-                        ChatBubbleRow(message: msg)
-                            .id(msg.id)
+                        ChatBubbleRow(message: msg) { url in
+                            selectedSafariURL = IdentifiableURL(url: url)
+                        }
+                        .id(msg.id)
                     }
 
                     if viewModel.isProcessing {
@@ -104,8 +110,10 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Processing Indicator
+
     private var processingRow: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(spacing: 10) {
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.cyan)
@@ -113,23 +121,22 @@ struct ChatView: View {
                 .background(Circle().fill(.cyan.opacity(0.2)))
 
             HStack(spacing: 8) {
-                ProgressView().tint(.cyan)
-                Text("FinGent sedang menganalisis...")
-                    .font(.system(size: 13, weight: .medium))
+                ProgressView()
+                    .tint(.cyan)
+                    .scaleEffect(0.8)
+
+                Text("Mencari berita terbaru & menganalisis...")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.7))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.06))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
+                    .fill(Color(red: 0.12, green: 0.12, blue: 0.18))
             )
 
-            Spacer(minLength: 40)
+            Spacer()
         }
     }
 
@@ -144,13 +151,16 @@ struct ChatView: View {
                     } label: {
                         Text(prompt)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(.white.opacity(0.85))
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 7)
                             .background(
                                 Capsule()
-                                    .fill(Color.cyan.opacity(0.12))
-                                    .overlay(Capsule().stroke(Color.cyan.opacity(0.3), lineWidth: 1))
+                                    .fill(Color.white.opacity(0.08))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                    )
                             )
                     }
                     .disabled(viewModel.isProcessing)
@@ -165,7 +175,7 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Tanya seputar saham atau portofolio...", text: $viewModel.inputText)
+            TextField("Tanya saham, misal: Apakah MU akan naik?", text: $viewModel.inputText)
                 .font(.system(size: 14))
                 .foregroundStyle(.white)
                 .focused($isInputFocused)
@@ -214,6 +224,7 @@ struct ChatView: View {
 
 private struct ChatBubbleRow: View {
     let message: ChatViewModel.ChatMessage
+    var onSelectSource: (URL) -> Void = { _ in }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -227,13 +238,55 @@ private struct ChatBubbleRow: View {
                 Spacer(minLength: 40)
             }
 
-            Text(message.content)
-                .font(.system(size: 14))
-                .lineSpacing(4)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(bubbleBackground)
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 10) {
+                // Optional Market Bias Badge
+                if let bias = message.bias {
+                    HStack(spacing: 5) {
+                        Text(bias.emoji)
+                            .font(.system(size: 10))
+                        Text("Market Bias: \(bias.label)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(biasColor(bias))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(biasColor(bias).opacity(0.15), in: Capsule())
+                }
+
+                // Message text
+                Text(message.content)
+                    .font(.system(size: 14))
+                    .lineSpacing(4)
+                    .foregroundStyle(.white)
+
+                // Sources Section (Only shown if sources exist)
+                if !message.sources.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "newspaper.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.cyan)
+
+                            Text("Sources (\(message.sources.count))")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .padding(.top, 4)
+
+                        VStack(spacing: 6) {
+                            ForEach(message.sources) { citation in
+                                NewsCitationView(citation: citation) { url in
+                                    onSelectSource(url)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(bubbleBackground)
 
             if message.role == .user {
                 Image(systemName: "person.fill")
@@ -244,6 +297,14 @@ private struct ChatBubbleRow: View {
             } else {
                 Spacer(minLength: 40)
             }
+        }
+    }
+
+    private func biasColor(_ bias: MarketBias) -> Color {
+        switch bias {
+        case .bullish: return Color(red: 0.0, green: 0.82, blue: 0.52)
+        case .bearish: return Color(red: 1.0, green: 0.23, blue: 0.19)
+        case .neutral: return Color(red: 0.85, green: 0.85, blue: 0.85)
         }
     }
 

@@ -9,26 +9,43 @@ final class ChatViewModel {
 
     // MARK: - Types
 
-    struct ChatMessage: Identifiable {
+    struct ChatMessage: Identifiable, Sendable {
         let id = UUID()
         enum Role { case user, assistant }
         let role: Role
         let content: String
+        let bias: MarketBias?
+        let confidence: Double?
+        let sources: [NewsCitation]
+
+        init(
+            role: Role,
+            content: String,
+            bias: MarketBias? = nil,
+            confidence: Double? = nil,
+            sources: [NewsCitation] = []
+        ) {
+            self.role = role
+            self.content = content
+            self.bias = bias
+            self.confidence = confidence
+            self.sources = sources
+        }
     }
 
     // MARK: - Constants
 
     static let quickPrompts = [
         "📊 Ringkasan Portofolio",
+        "⚡ Apakah MU akan naik atau turun?",
+        "📰 Berita katalis terbaru NVDA",
         "📈 Saham Penggerak IHSG",
-        "⚖️ Bandingkan GOTO vs BBRI",
-        "📰 Berita Portofolio Saya",
-        "⚡ Dampak Suku Bunga"
+        "⚖️ Bandingkan GOTO vs BBRI"
     ]
 
     private static let welcomeMessage = ChatMessage(
         role: .assistant,
-        content: "Halo! Saya FinGent AI Assistant 🤖\n\nSaya terhubung langsung dengan portofolio kamu dan 16 tools pasar modal. Tanyakan apa saja tentang performa portofolio, perbandingan saham, atau berita terkini!"
+        content: "Halo! Saya FinGent AI Assistant 🤖\n\nSaya terhubung dengan live feed Yahoo Finance, CNBC RSS, dan portofolio kamu. Tanyakan prospek saham (seperti MU, NVDA, BBCA), katalis terkini, atau pergerakan pasar!"
     )
 
     // MARK: - Output State
@@ -39,7 +56,17 @@ final class ChatViewModel {
 
     // MARK: - Dependencies
 
-    private var agent = FinGentAgent()
+    private let chatUseCase: ChatUseCaseProtocol
+
+    // MARK: - Init
+
+    init(chatUseCase: ChatUseCaseProtocol) {
+        self.chatUseCase = chatUseCase
+    }
+
+    convenience init() {
+        self.init(chatUseCase: ChatUseCase())
+    }
 
     // MARK: - Actions
 
@@ -54,8 +81,14 @@ final class ChatViewModel {
             isProcessing = true
             defer { isProcessing = false }
             do {
-                let reply = try await agent.ask(prompt)
-                append(.init(role: .assistant, content: reply))
+                let response = try await chatUseCase.ask(prompt)
+                append(.init(
+                    role: .assistant,
+                    content: response.answer,
+                    bias: response.bias,
+                    confidence: response.confidence,
+                    sources: response.sources
+                ))
             } catch {
                 append(.init(role: .assistant, content: "Maaf, terjadi kendala: \(error.localizedDescription)"))
             }
@@ -63,7 +96,7 @@ final class ChatViewModel {
     }
 
     func resetSession() {
-        agent.resetSession()
+        chatUseCase.resetSession()
         messages = [Self.welcomeMessage]
     }
 

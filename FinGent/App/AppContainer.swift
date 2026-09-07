@@ -23,6 +23,17 @@ final class AppContainer {
         marketDataRepository: marketDataRepository
     )
 
+    private(set) lazy var newsRetrievalUseCase = NewsRetrievalUseCase(
+        newsRepository: newsRepository,
+        syncService: NewsSyncService.shared
+    )
+
+    private(set) lazy var chatUseCase = ChatUseCase(
+        agent: FinGentAgent(),
+        newsRetrievalUseCase: newsRetrievalUseCase,
+        marketRepo: marketDataRepository
+    )
+
     // MARK: - ViewModels
 
     func makePortfolioViewModel() -> PortfolioViewModel {
@@ -41,7 +52,7 @@ final class AppContainer {
     }
 
     func makeChatViewModel() -> ChatViewModel {
-        ChatViewModel()
+        ChatViewModel(chatUseCase: chatUseCase)
     }
 
     func makeHomeViewModel() -> HomeViewModel {

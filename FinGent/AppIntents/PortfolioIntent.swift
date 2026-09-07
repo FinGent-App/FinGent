@@ -91,7 +91,7 @@ struct AskFinGentIntent: AppIntent {
         var newsSnippets: [String] = []
         for ticker in tickers {
             let stockArticles = articles.filter { $0.relatedTickers.contains(ticker) }
-            if let best = stockArticles.first(where: { $0.title.uppercased().contains(ticker) || $0.summary.uppercased().contains(ticker) }) ?? stockArticles.first {
+            if let best = stockArticles.first(where: { $0.title.uppercased().contains(ticker) || ($0.summary?.uppercased().contains(ticker) ?? false) }) ?? stockArticles.first {
                 newsSnippets.append("For \(ticker), \(best.title)")
             }
         }
@@ -305,7 +305,7 @@ struct CekBeritaIntent: AppIntent {
         var newsSnippets: [String] = []
         for ticker in tickers {
             let stockArticles = articles.filter { $0.relatedTickers.contains(ticker) }
-            if let best = stockArticles.first(where: { $0.title.uppercased().contains(ticker) || $0.summary.uppercased().contains(ticker) }) ?? stockArticles.first {
+            if let best = stockArticles.first(where: { $0.title.uppercased().contains(ticker) || ($0.summary?.uppercased().contains(ticker) ?? false) }) ?? stockArticles.first {
                 newsSnippets.append("For \(ticker), \(best.title)")
             }
         }

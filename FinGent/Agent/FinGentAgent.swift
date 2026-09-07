@@ -7,28 +7,20 @@ import FoundationModels
 @MainActor
 final class FinGentAgent {
 
-    private var session: LanguageModelSession
+    private var toolSession: LanguageModelSession
+    private var groundedSession: LanguageModelSession
     private(set) var isProcessing = false
 
-    private static let systemInstructions = """
+    private static let toolInstructions = """
     You are FinGent, an intelligent Indonesian stock market portfolio assistant.
+    Use the available tools to fetch data before responding. Do not make up numbers.
+    Always provide actionable, concise answers.
+    """
 
-    Your capabilities:
-    1. PORTFOLIO: Check portfolio summary, individual holdings, performance, allocation, top movers, and unrealized gains.
-    2. STOCK & MARKET: Get stock quotes, performance, fundamentals, compare stocks, and find market movers on IHSG.
-    3. NEWS & ANALYSIS: Get latest news, search news, find portfolio-related news, analyze news impact, and portfolio impact analysis.
-
-    Guidelines:
-    - Always use the available tools to fetch data before responding. Do not make up numbers.
-    - Present data clearly with relevant emojis and formatting.
-    - When analyzing, provide actionable insights based on the data.
-    - If a user asks about a stock not in the database, let them know and suggest alternatives.
-    - You can chain multiple tool calls to answer complex questions.
-    - For comparison questions, use the compareStocks tool.
-    - Currency is in Indonesian Rupiah (IDR/Rp).
-    - Stock tickers are from the Indonesia Stock Exchange (IDX/BEI).
-    - For news queries: Do NOT just output a numbered list of raw articles. Synthesize the headlines into a concise, spoken executive summary explaining the main event, key takeaway, and overall market sentiment so the user gets a quick digest.
-    - Always respond in natural English with clear, concise sentences so Siri can read the answer aloud clearly.
+    private static let groundedInstructions = """
+    You are FinGent, an intelligent financial analyst and stock market assistant.
+    Analyze the provided news evidence and market data accurately, impartially, and concisely.
+    Clearly distinguish between facts from the news, market analysis, and probabilistic outlook bias.
     """
 
     private static var allTools: [any Tool] {
@@ -53,23 +45,58 @@ final class FinGentAgent {
     }
 
     init() {
-        self.session = LanguageModelSession(
+        self.toolSession = LanguageModelSession(
             tools: Self.allTools,
-            instructions: Self.systemInstructions
+            instructions: Self.toolInstructions
+        )
+        self.groundedSession = LanguageModelSession(
+            instructions: Self.groundedInstructions
         )
     }
 
-    func ask(_ question: String) async throws -> String {
+    /// Grounded generation session without the 16 tools context overhead
+    func askGrounded(_ prompt: String) async throws -> String {
         isProcessing = true
         defer { isProcessing = false }
-        let response = try await session.respond(to: question)
-        return response.content
+
+        do {
+            let response = try await groundedSession.respond(to: prompt)
+            return response.content
+        } catch {
+            // Re-instantiate session to clear corrupted transcript state and retry
+            groundedSession = LanguageModelSession(instructions: Self.groundedInstructions)
+            let retry = try await groundedSession.respond(to: prompt)
+            return retry.content
+        }
+    }
+
+    /// Standard agent query with tool calling capabilities
+    func ask(_ question: String) async throws -> String {
+        if question.contains("NEWS EVIDENCE") {
+            return try await askGrounded(question)
+        }
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        do {
+            let response = try await toolSession.respond(to: question)
+            return response.content
+        } catch {
+            // Re-instantiate session to clear corrupted transcript state and retry
+            toolSession = LanguageModelSession(tools: Self.allTools, instructions: Self.toolInstructions)
+            let retry = try await toolSession.respond(to: question)
+            return retry.content
+        }
     }
 
     func resetSession() {
-        session = LanguageModelSession(
+        toolSession = LanguageModelSession(
             tools: Self.allTools,
-            instructions: Self.systemInstructions
+            instructions: Self.toolInstructions
+        )
+        groundedSession = LanguageModelSession(
+            instructions: Self.groundedInstructions
         )
     }
 }

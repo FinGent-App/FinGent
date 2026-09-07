@@ -6,6 +6,7 @@ struct FinGentChatSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = AppContainer.shared.makeChatViewModel()
     @FocusState private var isInputFocused: Bool
+    @State private var selectedSafariURL: IdentifiableURL? = nil
 
     var body: some View {
         NavigationStack {
@@ -20,6 +21,9 @@ struct FinGentChatSheetView: View {
             .navigationTitle("FinGent AI")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
+            .sheet(item: $selectedSafariURL) { item in
+                SafariView(url: item.url)
+            }
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
@@ -33,7 +37,9 @@ struct FinGentChatSheetView: View {
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(viewModel.messages) { msg in
-                        ChatBubbleView(message: msg)
+                        ChatBubbleView(message: msg) { url in
+                            selectedSafariURL = IdentifiableURL(url: url)
+                        }
                     }
                     if viewModel.isProcessing {
                         processingIndicator
@@ -57,7 +63,7 @@ struct FinGentChatSheetView: View {
     private var processingIndicator: some View {
         HStack(spacing: 8) {
             ProgressView().tint(.cyan)
-            Text("FinGent sedang menganalisis...")
+            Text("FinGent sedang menganalisis berita & pasar...")
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
@@ -143,6 +149,7 @@ struct FinGentChatSheetView: View {
 
 private struct ChatBubbleView: View {
     let message: ChatViewModel.ChatMessage
+    var onSelectSource: (URL) -> Void = { _ in }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -152,18 +159,62 @@ private struct ChatBubbleView: View {
                 Spacer(minLength: 40)
             }
 
-            Text(message.content)
-                .font(.system(size: 14))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background { bubble }
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
+                if let bias = message.bias {
+                    HStack(spacing: 4) {
+                        Text(bias.emoji)
+                            .font(.system(size: 10))
+                        Text("Bias: \(bias.label)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(biasColor(bias))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(biasColor(bias).opacity(0.15), in: Capsule())
+                }
+
+                Text(message.content)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white)
+
+                if !message.sources.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "newspaper.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.cyan)
+                            Text("Sources (\(message.sources.count))")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        .padding(.top, 2)
+
+                        ForEach(message.sources) { citation in
+                            NewsCitationView(citation: citation) { url in
+                                onSelectSource(url)
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background { bubble }
 
             if message.role == .user {
                 userAvatar
             } else {
                 Spacer(minLength: 40)
             }
+        }
+    }
+
+    private func biasColor(_ bias: MarketBias) -> Color {
+        switch bias {
+        case .bullish: return Color(red: 0.0, green: 0.82, blue: 0.52)
+        case .bearish: return Color(red: 1.0, green: 0.23, blue: 0.19)
+        case .neutral: return Color(red: 0.85, green: 0.85, blue: 0.85)
         }
     }
 
