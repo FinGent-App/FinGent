@@ -123,6 +123,20 @@ final class StockApiClient: Sendable {
         let holdings: [HoldingDTO]
     }
 
+    struct SecFilingDTO: Decodable, Sendable, Identifiable {
+        var id: String { "\(type)_\(date)_\(url)" }
+        let type: String
+        let title: String
+        let date: String
+        let url: String
+    }
+
+    struct SecFilingsResponseDTO: Decodable, Sendable {
+        let ticker: String
+        let count: Int
+        let filings: [SecFilingDTO]
+    }
+
     // MARK: - API Calls
 
     func fetchQuote(ticker: String) async throws -> StockQuote {
@@ -291,6 +305,76 @@ final class StockApiClient: Sendable {
         }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+    }
+
+    // MARK: - SEC Filings (10-K, 10-Q, 8-K)
+
+    func fetchSecFilings(ticker: String, limit: Int = 10) async throws -> [SecFilingDTO] {
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let url = URL(string: "\(baseURL)/api/v1/stocks/\(clean)/sec?limit=\(limit)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let res = try JSONDecoder().decode(SecFilingsResponseDTO.self, from: data)
+        return res.filings
+    }
+
+    // MARK: - RAG DTOs & Vector Knowledge Base (Zilliz Cloud)
+
+    struct RAGCitationDTO: Decodable, Sendable {
+        let id: String
+        let doc_type: String
+        let badge_label: String
+        let ticker: String
+        let title: String
+        let content: String
+        let source_url: String
+        let score: Double
+    }
+
+    struct RAGQueryResponseDTO: Decodable, Sendable {
+        let query: String
+        let grounding_context: String
+        let count: Int
+        let citations: [RAGCitationDTO]
+    }
+
+    func queryRAG(prompt: String, ticker: String? = nil, userId: String = "default_user", limit: Int = 5) async throws -> RAGQueryResponseDTO {
+        guard let url = URL(string: "\(baseURL)/api/v1/rag/query") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var payload: [String: Any] = [
+            "query": prompt,
+            "user_id": userId,
+            "limit": limit
+        ]
+        if let ticker = ticker, !ticker.isEmpty {
+            payload["ticker"] = ticker.uppercased()
+        }
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(RAGQueryResponseDTO.self, from: data)
+    }
+
+    func syncRAG(userId: String = "default_user") async throws {
+        guard let url = URL(string: "\(baseURL)/api/v1/rag/sync?user_id=\(userId)") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
         let (_, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)

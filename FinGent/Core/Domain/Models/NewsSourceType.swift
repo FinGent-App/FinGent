@@ -6,6 +6,7 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
     case yahooFinance = "Yahoo Finance"
     case cnbc = "CNBC"
     case sec = "SEC"
+    case portfolio = "Portfolio"
     case bloomberg = "Bloomberg"
     case reuters = "Reuters"
     case other = "Other"
@@ -17,6 +18,7 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .yahooFinance: return "Yahoo Finance"
         case .cnbc: return "CNBC"
         case .sec: return "SEC Filing"
+        case .portfolio: return "Portofolio & P/L"
         case .bloomberg: return "Bloomberg"
         case .reuters: return "Reuters"
         case .other: return "News"
@@ -27,7 +29,8 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         switch self {
         case .yahooFinance: return "newspaper.fill"
         case .cnbc: return "chart.bar.xaxis"
-        case .sec: return "doc.text.magnifyingglass"
+        case .sec: return "doc.text.fill"
+        case .portfolio: return "briefcase.fill"
         case .bloomberg: return "globe.americas.fill"
         case .reuters: return "antenna.radiowaves.left.and.right"
         case .other: return "link"
@@ -39,6 +42,7 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .yahooFinance: return "722EE5" // Purple
         case .cnbc: return "0D8CD9" // Blue
         case .sec: return "EAA626" // Gold
+        case .portfolio: return "00D084" // Emerald Green
         case .bloomberg: return "FF5933" // Orange
         case .reuters: return "FF8000" // Tangerine
         case .other: return "8E8E93" // Gray
@@ -47,12 +51,14 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
 
     static func from(rawString: String) -> NewsSourceType {
         let lowered = rawString.lowercased()
-        if lowered.contains("yahoo") {
+        if lowered.contains("portfolio") || lowered.contains("portofolio") {
+            return .portfolio
+        } else if lowered.contains("sec") {
+            return .sec
+        } else if lowered.contains("yahoo") {
             return .yahooFinance
         } else if lowered.contains("cnbc") {
             return .cnbc
-        } else if lowered.contains("sec") {
-            return .sec
         } else if lowered.contains("bloomberg") {
             return .bloomberg
         } else if lowered.contains("reuters") {

@@ -125,6 +125,7 @@ struct NewsCitation: Identifiable, Codable, Hashable, Sendable {
     let source: NewsSourceType
     let url: URL
     let publishedAt: Date
+    let badgeLabel: String?
 
     init(from article: NewsArticle) {
         self.id = article.id
@@ -132,14 +133,16 @@ struct NewsCitation: Identifiable, Codable, Hashable, Sendable {
         self.source = article.source
         self.url = article.url
         self.publishedAt = article.publishedAt
+        self.badgeLabel = nil
     }
 
-    init(id: String, title: String, source: NewsSourceType, url: URL, publishedAt: Date) {
+    init(id: String, title: String, source: NewsSourceType, url: URL, publishedAt: Date, badgeLabel: String? = nil) {
         self.id = id
         self.title = title
         self.source = source
         self.url = url
         self.publishedAt = publishedAt
+        self.badgeLabel = badgeLabel
     }
 }
 

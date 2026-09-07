@@ -19,6 +19,9 @@ market_cache = TTLCache(maxsize=10, ttl=30)
 # Historical chart data cache: expires in 60 seconds
 history_cache = TTLCache(maxsize=100, ttl=60)
 
+# SEC filings cache: max 100 items, expires in 2 hours
+sec_filings_cache = TTLCache(maxsize=100, ttl=7200)
+
 POPULAR_IDX_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO", "BBNI", "ICBP", "UNVR", "AMMN"]
 
 
@@ -327,5 +330,71 @@ def get_stock_history(ticker: str, period: str = "1mo") -> Dict[str, Any]:
         "data": data_points
     }
     history_cache[cache_key] = result
+    return result
+
+
+def get_sec_filings(ticker: str, limit: int = 10) -> Dict[str, Any]:
+    """
+    Retrieve SEC Filings (10-K, 10-Q, 8-K) from Yahoo Finance / EDGAR.
+    Primarily available for US-listed companies (e.g. MU, NVDA, AAPL, TSLA).
+    """
+    clean_ticker = strip_jk(ticker)
+    cache_key = f"{clean_ticker}_{limit}"
+    if cache_key in sec_filings_cache:
+        return sec_filings_cache[cache_key]
+
+    candidates = [clean_ticker]
+    yahoo_sym = normalize_ticker(ticker)
+    if yahoo_sym != clean_ticker:
+        candidates.append(yahoo_sym)
+
+    raw_filings = []
+    used_sym = clean_ticker
+    for sym in candidates:
+        try:
+            stock = yf.Ticker(sym)
+            filings = stock.sec_filings
+            if filings and isinstance(filings, list) and len(filings) > 0:
+                raw_filings = filings
+                used_sym = sym
+                break
+        except Exception as e:
+            logger.warning(f"Failed to fetch SEC filings for {sym}: {e}")
+            continue
+
+    formatted = []
+    for f in raw_filings[:limit]:
+        try:
+            f_type = str(f.get("type") or "Filing").strip()
+            f_title = str(f.get("title") or f"SEC Form {f_type}").strip()
+            
+            # Format date safely
+            raw_date = f.get("date")
+            f_date = str(raw_date) if raw_date is not None else ""
+
+            # Resolve canonical URL
+            f_url = f.get("edgarUrl")
+            if not f_url and f.get("exhibits"):
+                exhibits = f.get("exhibits")
+                if isinstance(exhibits, dict):
+                    f_url = exhibits.get(f_type) or next(iter(exhibits.values()), "")
+            f_url = str(f_url or "").strip()
+
+            formatted.append({
+                "type": f_type,
+                "title": f_title,
+                "date": f_date,
+                "url": f_url
+            })
+        except Exception:
+            continue
+
+    result = {
+        "ticker": clean_ticker,
+        "symbol": used_sym,
+        "count": len(formatted),
+        "filings": formatted
+    }
+    sec_filings_cache[cache_key] = result
     return result
 

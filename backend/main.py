@@ -11,7 +11,8 @@ from services.yahoo_service import (
     get_batch_quotes,
     get_stock_fundamentals,
     get_market_summary,
-    get_stock_history
+    get_stock_history,
+    get_sec_filings
 )
 from services.news_db_service import get_news_by_ticker, get_recent_news, get_news_count
 from services.rss_ingestion_service import sync_all_rss_feeds, sync_ticker_news
@@ -27,6 +28,12 @@ from services.portfolio_db_service import (
     delete_holding,
     record_transaction,
     get_user_transactions
+)
+from services.milvus_service import (
+    search_knowledge_hybrid,
+    sync_portfolio_to_milvus,
+    sync_sec_to_milvus,
+    sync_news_to_milvus
 )
 
 logging.basicConfig(
@@ -91,6 +98,13 @@ class TransactionRequest(BaseModel):
     price_per_share: float = Field(..., gt=0, description="Execution price per share")
 
 
+class RAGQueryRequest(BaseModel):
+    query: str = Field(..., description="User prompt or question")
+    ticker: Optional[str] = Field(None, description="Optional stock ticker filter")
+    user_id: Optional[str] = Field("default_user", description="User ID for portfolio filtering")
+    limit: Optional[int] = Field(5, description="Max knowledge chunks to retrieve")
+
+
 # ==============================================================================
 # Health & Status
 # ==============================================================================
@@ -109,6 +123,7 @@ def health_check():
             "/api/v1/watchlist",
             "/api/v1/portfolio/holdings",
             "/api/v1/stocks/{ticker}",
+            "/api/v1/stocks/{ticker}/sec",
             "/api/v1/stocks/batch?tickers=BBCA,TLKM,BBRI",
             "/api/v1/stocks/{ticker}/fundamentals",
             "/api/v1/market/summary"
@@ -396,6 +411,125 @@ def get_summary():
         return get_market_summary()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch market summary: {str(e)}")
+
+
+@app.get("/api/v1/stocks/{ticker}/sec")
+def get_sec(
+    ticker: str,
+    limit: int = Query(10, ge=1, le=50, description="Max SEC filings to retrieve")
+):
+    """
+    Retrieve SEC Filings (Form 10-K, 10-Q, 8-K) from Yahoo Finance / EDGAR.
+    Available for US stocks (e.g. MU, NVDA, AAPL, TSLA).
+    """
+    try:
+        return get_sec_filings(ticker, limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch SEC filings: {str(e)}")
+
+
+# ==============================================================================
+# RAG (Retrieval-Augmented Generation) & Knowledge Base Endpoints (Zilliz Cloud)
+# ==============================================================================
+
+@app.post("/api/v1/rag/sync")
+async def sync_rag_knowledge(
+    user_id: str = Query("default_user", description="User ID"),
+    sync_sec: bool = Query(True, description="Also sync SEC filings for US holdings")
+):
+    """
+    Synchronize PostgreSQL portfolio holdings, SEC filings, and RSS news into Zilliz Cloud Milvus.
+    """
+    stats = {"portfolio_synced": 0, "sec_synced": 0, "news_synced": 0}
+    try:
+        # 1. Sync User Portfolio Holdings
+        holdings = await get_user_holdings(user_id)
+        if holdings:
+            stats["portfolio_synced"] = sync_portfolio_to_milvus(user_id, holdings)
+
+            # 2. Sync SEC Filings for each holding
+            if sync_sec:
+                for h in holdings:
+                    ticker = str(h.get("ticker", "")).strip().upper()
+                    if ticker and not ticker.endswith(".JK"):
+                        try:
+                            sec_data = get_sec_filings(ticker, limit=5)
+                            filings = sec_data.get("filings", [])
+                            if filings:
+                                stats["sec_synced"] += sync_sec_to_milvus(ticker, filings)
+                        except Exception as e:
+                            logger.warning("Failed to sync SEC for %s: %s", ticker, str(e))
+
+        # 3. Sync Recent News Articles
+        recent_news = await get_recent_news(limit=25)
+        if recent_news:
+            stats["news_synced"] = sync_news_to_milvus(recent_news)
+
+        return {
+            "status": "success",
+            "message": "Zilliz Cloud knowledge base synchronized successfully.",
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error("RAG knowledge sync failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to sync knowledge base: {str(e)}")
+
+
+@app.post("/api/v1/rag/query")
+def query_rag_knowledge(req: RAGQueryRequest):
+    """
+    Semantic hybrid search against Zilliz Cloud knowledge base (SEC, Portfolio, News).
+    Returns grounded context and structured citations with distinct badge labels.
+    """
+    try:
+        hits = search_knowledge_hybrid(
+            query_text=req.query,
+            ticker=req.ticker,
+            user_id=req.user_id,
+            limit=req.limit or 5
+        )
+
+        snippets = []
+        for h in hits:
+            snippets.append(f"[{h['badge_label']}] {h['title']}: {h['content']}")
+
+        grounding_context = "\n".join(snippets)
+
+        return {
+            "query": req.query,
+            "grounding_context": grounding_context,
+            "count": len(hits),
+            "citations": hits
+        }
+    except Exception as e:
+        logger.error("RAG query failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to execute RAG query: {str(e)}")
+
+
+@app.get("/api/v1/rag/search")
+def search_rag_knowledge(
+    q: str = Query(..., description="Semantic search query"),
+    ticker: Optional[str] = Query(None, description="Optional ticker filter"),
+    user_id: Optional[str] = Query("default_user", description="User ID"),
+    limit: int = Query(5, ge=1, le=20, description="Max results")
+):
+    """
+    Direct inspection endpoint for semantic search over Zilliz Cloud Milvus.
+    """
+    try:
+        hits = search_knowledge_hybrid(
+            query_text=q,
+            ticker=ticker,
+            user_id=user_id,
+            limit=limit
+        )
+        return {
+            "query": q,
+            "count": len(hits),
+            "results": hits
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

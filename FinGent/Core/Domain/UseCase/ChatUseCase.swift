@@ -40,8 +40,44 @@ final class ChatUseCase: ChatUseCaseProtocol {
     func ask(_ prompt: String) async throws -> AIResponse {
         let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
 
-        // Case 1: Conceptual or general queries that do not need news evidence
-        guard context.requiresNews && !articles.isEmpty else {
+        // 1. Fetch Zilliz Cloud Milvus RAG knowledge (SEC, Portfolio & P/L, News)
+        let ragTargetTicker = context.tickers.first
+        let ragResponse = try? await StockApiClient.shared.queryRAG(prompt: prompt, ticker: ragTargetTicker)
+
+        var allCitations: [NewsCitation] = []
+
+        if let ragHits = ragResponse?.citations, !ragHits.isEmpty {
+            for dto in ragHits {
+                let source: NewsSourceType
+                if dto.doc_type == "portfolio" {
+                    source = .portfolio
+                } else if dto.doc_type == "sec" {
+                    source = .sec
+                } else {
+                    source = NewsSourceType.from(rawString: dto.badge_label)
+                }
+                allCitations.append(
+                    NewsCitation(
+                        id: dto.id,
+                        title: dto.title,
+                        source: source,
+                        url: URL(string: dto.source_url) ?? URL(string: "about:blank")!,
+                        publishedAt: Date(),
+                        badgeLabel: dto.badge_label
+                    )
+                )
+            }
+        }
+
+        // Also merge local RSS articles if any
+        for art in articles {
+            if !allCitations.contains(where: { $0.title == art.title }) {
+                allCitations.append(NewsCitation(from: art))
+            }
+        }
+
+        // Case 1: Conceptual or general queries that do not have RAG knowledge nor news
+        guard !allCitations.isEmpty || (context.requiresNews && !articles.isEmpty) else {
             do {
                 let rawReply = try await agent.ask(prompt)
                 return AIResponse(
@@ -60,14 +96,13 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // Case 2: News Grounded Prompt Construction
+        // Case 2: Evidence Grounded Prompt Construction (Zilliz Milvus + RSS)
         let groundedPrompt = buildGroundedPrompt(
             userPrompt: prompt,
             context: context,
-            articles: articles
+            articles: articles,
+            ragGrounding: ragResponse?.grounding_context
         )
-
-        let citations = articles.map { NewsCitation(from: $0) }
 
         do {
             let rawReply = try await agent.askGrounded(groundedPrompt)
@@ -77,21 +112,22 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 answer: cleanedAnswer,
                 bias: bias,
                 confidence: bias != nil ? 0.78 : nil,
-                sources: citations
+                sources: allCitations
             )
         } catch {
             // Graceful fallback synthesis if on-device model hits GenerationError or context limit
             let fallback = synthesizeFallbackResponse(
                 userPrompt: prompt,
                 context: context,
-                articles: articles
+                articles: articles,
+                ragCitations: allCitations
             )
 
             return AIResponse(
                 answer: fallback.answer,
                 bias: fallback.bias,
                 confidence: 0.75,
-                sources: citations
+                sources: allCitations
             )
         }
     }
@@ -105,7 +141,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
     private func buildGroundedPrompt(
         userPrompt: String,
         context: NewsQueryContext,
-        articles: [NewsArticle]
+        articles: [NewsArticle],
+        ragGrounding: String? = nil
     ) -> String {
         var prompt = "USER QUERY: \"\(userPrompt)\"\n\n"
 
@@ -121,30 +158,41 @@ final class ChatUseCase: ChatUseCaseProtocol {
             """
         }
 
-        // Add structured news evidence (concise top articles to stay well within token limits)
-        prompt += "NEWS EVIDENCE (Verified External Sources):\n"
-        for (i, article) in articles.prefix(3).enumerated() {
+        // Add Zilliz Cloud RAG verified knowledge (Portfolio, SEC, News)
+        if let ragGrounding = ragGrounding, !ragGrounding.isEmpty {
             prompt += """
-            [\(i + 1)]
-            Source: \(article.source.displayName)
-            Published: \(ISO8601DateFormatter().string(from: article.publishedAt))
-            Title: \(article.title)
-            Summary: \(article.summary ?? "No summary provided.")
-            URL: \(article.url.absoluteString)
+            VERIFIED FINANCIAL KNOWLEDGE BASE (Zilliz Cloud Milvus - SEC, Portfolio, News):
+            \(ragGrounding)
 
             """
+        }
+
+        // Add structured news evidence if available
+        if !articles.isEmpty {
+            prompt += "NEWS EVIDENCE (Verified External Sources):\n"
+            for (i, article) in articles.prefix(3).enumerated() {
+                prompt += """
+                [\(i + 1)]
+                Source: \(article.source.displayName)
+                Published: \(ISO8601DateFormatter().string(from: article.publishedAt))
+                Title: \(article.title)
+                Summary: \(article.summary ?? "No summary provided.")
+                URL: \(article.url.absoluteString)
+
+                """
+            }
         }
 
         // Strict grounding instructions
         prompt += """
         STRICT GROUNDING INSTRUCTIONS:
-        1. Base your answer strictly on the NEWS EVIDENCE and MARKET DATA provided above. Do NOT fabricate or assume unreported news.
-        2. Clearly distinguish between:
-           - FACTS: What the latest news explicitly reported (with timestamps/freshness).
-           - ANALYSIS: What these facts imply for the company and market.
+        1. Base your answer strictly on the VERIFIED FINANCIAL KNOWLEDGE BASE, NEWS EVIDENCE, and MARKET DATA provided above. Do NOT fabricate or assume unreported information.
+        2. Reference user's portfolio holding or SEC filing directly if present in the knowledge base.
+        3. Clearly distinguish between:
+           - FACTS: What the verified knowledge base and latest news explicitly report.
+           - ANALYSIS: What these facts imply for the company, user's position, and market.
            - OUTLOOK / BIAS: State a clear probabilistic bias (Bullish, Bearish, or Neutral). Never state that a stock is certain to rise or fall.
-        3. If the evidence is insufficient to make a strong prediction, explicitly state that recent news evidence is limited.
-        4. Provide an actionable, well-reasoned answer in natural, friendly tone.
+        4. Provide an actionable, well-reasoned answer in Indonesian (natural, friendly, professional tone).
         5. At the very end of your response, output a single bias tag on a new line:
            [BIAS: BULLISH] or [BIAS: BEARISH] or [BIAS: NEUTRAL].
         """
@@ -157,7 +205,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
     private func synthesizeFallbackResponse(
         userPrompt: String,
         context: NewsQueryContext,
-        articles: [NewsArticle]
+        articles: [NewsArticle],
+        ragCitations: [NewsCitation] = []
     ) -> (answer: String, bias: MarketBias) {
         let ticker = context.tickers.first ?? "Pasar"
         let quote = context.tickers.first.flatMap { marketRepo.getQuote(for: $0) }
@@ -182,32 +231,55 @@ final class ChatUseCase: ChatUseCaseProtocol {
             bias = .neutral
         }
 
-        var text = "Berdasarkan bukti berita terkini dari **Yahoo Finance** dan **CNBC**, bias pergerakan saham **\(ticker)** saat ini cenderung **\(bias.label)**.\n\n"
+        var text = "Berdasarkan analisis terintegrasi **FinGent Intelligence (Zilliz Cloud RAG & Live Market)**, berikut ringkasan untuk **\(ticker)**:\n\n"
 
         if let q = quote {
             text += "📊 **Kondisi Pasar Terkini:**\nHarga berada di **\(q.formattedPrice)** dengan pergerakan harian **\(q.formattedChange)** (\(String(format: "%.2f", q.changePercent))%).\n\n"
         }
 
-        text += "📰 **Fakta & Katalis dari Berita Terbaru:**\n"
-        for (i, article) in articles.prefix(3).enumerated() {
-            let relativeTime = article.publishedAt.timeAgoDisplay()
-            text += "\(i + 1). **\(article.title)** (\(article.source.displayName), \(relativeTime))\n"
-            if let summary = article.summary, !summary.isEmpty {
-                text += "   _\(summary)_\n"
+        // Display Portfolio Citations if available
+        let portfolioCitations = ragCitations.filter { $0.source == .portfolio }
+        if !portfolioCitations.isEmpty {
+            text += "💼 **Posisi Portofolio Anda:**\n"
+            for p in portfolioCitations {
+                text += "• \(p.title)\n"
+            }
+            text += "\n"
+        }
+
+        // Display SEC Citations if available
+        let secCitations = ragCitations.filter { $0.source == .sec }
+        if !secCitations.isEmpty {
+            text += "🏛️ **Laporan Resmi SEC (EDGAR/Yahoo):**\n"
+            for s in secCitations {
+                text += "• \(s.badgeLabel ?? "SEC Filing"): \(s.title)\n"
+            }
+            text += "\n"
+        }
+
+        // Display News Citations if available
+        if !articles.isEmpty {
+            text += "📰 **Fakta & Katalis dari Berita Terbaru:**\n"
+            for (i, article) in articles.prefix(3).enumerated() {
+                let relativeTime = article.publishedAt.timeAgoDisplay()
+                text += "\(i + 1). **\(article.title)** (\(article.source.displayName), \(relativeTime))\n"
+                if let summary = article.summary, !summary.isEmpty {
+                    text += "   _\(summary)_\n"
+                }
             }
         }
 
         text += "\n💡 **Analisis & Outlook:**\n"
         switch bias {
         case .bullish:
-            text += "Katalis berita terbaru menunjukkan sentimen yang konstruktif dan permintaan yang solid. Namun, pergerakan jangka pendek tetap bergantung pada likuiditas pasar dan sentimen makroekonomi."
+            text += "Katalis berita dan fundamental terkini menunjukkan sentimen yang konstruktif. Namun, pergerakan jangka pendek tetap bergantung pada likuiditas pasar."
         case .bearish:
-            text += "Berita terkini mengindikasikan adanya tekanan jangka pendek atau kehati-hatian investor terhadap sektor ini. Disarankan untuk memantau level *support* kunci."
+            text += "Data terkini mengindikasikan adanya kehati-hatian investor atau potensi koreksi jangka pendek. Disarankan untuk memantau level proteksi risiko."
         case .neutral:
-            text += "Belum ada katalis tunggal yang dominan untuk memicu tren arah baru. Pergerakan harga diperkirakan masih bergerak dalam fase konsolidasi."
+            text += "Kondisi pasar saat ini berada dalam fase konsolidasi seimbang tanpa dorongan arah ekstrem."
         }
 
-        text += "\n\n*(Catatan: Ini adalah sintesis berbasis bukti berita terkini dan bukan jaminan pasti arah pergerakan harga).*"
+        text += "\n\n*(Catatan: Rangkuman disintesis dari Zilliz Milvus Vector RAG, SEC Filings, dan Live News feeds).*"
 
         return (text, bias)
     }

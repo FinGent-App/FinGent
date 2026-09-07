@@ -39,6 +39,9 @@ struct DetailPortfolioView: View {
     @State private var selectedScrubPoint: StockHistoryPoint? = nil
 
     @State private var fundamentals: StockFundamentals? = nil
+    @State private var secFilings: [StockApiClient.SecFilingDTO] = []
+    @State private var isLoadingFilings: Bool = false
+    @State private var activeSafariURL: IdentifiableURL? = nil
     @State private var showBuySuccessAlert: Bool = false
     @State private var boughtAmountText: String = ""
     @State private var favoritesRepo = FavoritesRepository.shared
@@ -61,6 +64,7 @@ struct DetailPortfolioView: View {
                     timeframeSegmentedControl
                     statsGrid
                     fundamentalsSection
+                    secFilingsSection
                     actionButton
                 }
                 .padding(.horizontal, 16)
@@ -81,6 +85,10 @@ struct DetailPortfolioView: View {
         .task {
             loadFundamentals()
             await loadHistory(for: selectedTimeframe)
+            await loadSecFilings()
+        }
+        .sheet(item: $activeSafariURL) { item in
+            SafariView(url: item.url)
         }
         .alert("Berhasil Ditambahkan!", isPresented: $showBuySuccessAlert) {
             Button("OK", role: .cancel) {}
@@ -451,6 +459,134 @@ struct DetailPortfolioView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - SEC Filings Section (US Stocks)
+
+    @ViewBuilder
+    private var secFilingsSection: some View {
+        if !quote.ticker.uppercased().hasSuffix(".JK") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: "00D2C4"))
+
+                    Text("Laporan Resmi SEC (EDGAR)")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+
+                    Spacer()
+
+                    Text("10-K • 10-Q • 8-K")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                if isLoadingFilings {
+                    HStack {
+                        Spacer()
+                        ProgressView().tint(Color(hex: "00D2C4")).scaleEffect(0.8)
+                        Text("Memuat dokumen SEC...")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                        Spacer()
+                    }
+                    .padding(.vertical, 12)
+                } else if secFilings.isEmpty {
+                    Text("Belum ada dokumen SEC yang tercatat untuk emiten ini.")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .padding(.vertical, 6)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(secFilings) { filing in
+                            secFilingRow(filing)
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
+        }
+    }
+
+    private func secFilingRow(_ filing: StockApiClient.SecFilingDTO) -> some View {
+        Button {
+            if let url = URL(string: filing.url), !filing.url.isEmpty {
+                activeSafariURL = IdentifiableURL(url: url)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text(filing.type)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(badgeColor(for: filing.type))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(badgeColor(for: filing.type).opacity(0.15))
+                    )
+                    .frame(minWidth: 48)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(filing.title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    Text(filing.date)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.35))
+            }
+            .padding(9)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.025))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func badgeColor(for type: String) -> Color {
+        let upper = type.uppercased()
+        if upper.contains("10-K") {
+            return Color(hex: "FFB800")
+        } else if upper.contains("10-Q") {
+            return Color(hex: "00D2C4")
+        } else if upper.contains("8-K") {
+            return Color(hex: "9D65FF")
+        } else {
+            return Color(hex: "4FA3FF")
+        }
+    }
+
+    private func loadSecFilings() async {
+        guard !quote.ticker.uppercased().hasSuffix(".JK") else { return }
+        isLoadingFilings = true
+        defer { isLoadingFilings = false }
+        do {
+            let filings = try await StockApiClient.shared.fetchSecFilings(ticker: quote.ticker, limit: 6)
+            await MainActor.run {
+                self.secFilings = filings
+            }
+        } catch {
+            print("ℹ️ [DetailPortfolioView] Failed to load SEC filings: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Action Button

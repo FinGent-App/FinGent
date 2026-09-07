@@ -6,9 +6,16 @@ struct NewsCitationView: View {
     let citation: NewsCitation
     var onSelect: (URL) -> Void = { _ in }
 
+    private var hasValidWebURL: Bool {
+        let str = citation.url.absoluteString
+        return str.hasPrefix("http://") || str.hasPrefix("https://")
+    }
+
     var body: some View {
         Button {
-            onSelect(citation.url)
+            if hasValidWebURL {
+                onSelect(citation.url)
+            }
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 // Source Icon with tint
@@ -18,16 +25,19 @@ struct NewsCitationView: View {
                     .frame(width: 26, height: 26)
                     .background(citation.source.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
 
-                // Metadata: Publisher, Time, Title
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
-                        Text(citation.source.displayName)
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.9))
+                // Metadata: Publisher/Badge, Time, Title
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(citation.badgeLabel ?? citation.source.displayName)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(citation.source.accentColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(citation.source.accentColor.opacity(0.15), in: Capsule())
 
                         Text("•")
                             .font(.system(size: 10))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(.white.opacity(0.3))
 
                         Text(citation.publishedAt.timeAgoDisplay())
                             .font(.system(size: 10, weight: .medium))
@@ -44,10 +54,12 @@ struct NewsCitationView: View {
                 Spacer(minLength: 4)
 
                 // Open Link Indicator
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .padding(.top, 2)
+                if hasValidWebURL {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .padding(.top, 2)
+                }
             }
             .padding(10)
             .background(
@@ -55,11 +67,12 @@ struct NewsCitationView: View {
                     .fill(Color.white.opacity(0.05))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(citation.source.accentColor.opacity(0.2), lineWidth: 1)
                     )
             )
         }
         .buttonStyle(.plain)
+        .disabled(!hasValidWebURL)
     }
 }
 
