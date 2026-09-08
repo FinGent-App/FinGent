@@ -684,7 +684,26 @@ struct DetailPortfolioView: View {
     private func loadFundamentals() {
         fundamentals = marketRepo.getFundamentals(for: quote.ticker)
         Task {
-            if let fund = try? await StockApiClient.shared.fetchFundamentals(ticker: quote.ticker) {
+            if let m = try? await StockApiClient.shared.fetchMarketData(ticker: quote.ticker) {
+                let fund = StockFundamentals(
+                    ticker: m.ticker,
+                    name: m.name,
+                    peRatio: m.trailing_pe ?? 0.0,
+                    eps: m.eps ?? 0.0,
+                    marketCap: (m.market_cap ?? 0.0) / 1_000_000_000_000.0,
+                    dividendYield: m.dividend_yield ?? 0.0,
+                    beta: 1.0,
+                    pbvRatio: m.pbv_ratio ?? 0.0,
+                    roe: m.roe ?? 0.0,
+                    debtToEquity: 1.0,
+                    sector: m.sector ?? "Unknown",
+                    forwardPE: m.forward_pe,
+                    forwardEps: m.forward_eps,
+                    freeCashflow: m.free_cashflow
+                )
+                self.fundamentals = fund
+                (self.marketRepo as? MarketDataRepository)?.registerRemoteQuote(quote, fundamentals: fund)
+            } else if let fund = try? await StockApiClient.shared.fetchFundamentals(ticker: quote.ticker) {
                 self.fundamentals = fund
                 (self.marketRepo as? MarketDataRepository)?.registerRemoteQuote(quote, fundamentals: fund)
             }

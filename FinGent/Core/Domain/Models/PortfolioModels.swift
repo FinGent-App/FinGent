@@ -12,6 +12,7 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
     let pricePerShare: Double
     let sector: String
     var currency: String? = nil
+    var marketPrice: Double? = nil
 
     var effectiveCurrency: String {
         if let c = currency, !c.isEmpty {
@@ -35,7 +36,8 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         investedAmount: Double,
         pricePerShare: Double,
         sector: String,
-        currency: String? = nil
+        currency: String? = nil,
+        marketPrice: Double? = nil
     ) {
         self.ticker = ticker
         self.name = name
@@ -43,6 +45,7 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         self.pricePerShare = pricePerShare
         self.sector = sector
         self.currency = currency
+        self.marketPrice = marketPrice
     }
 
     var shares: Int {

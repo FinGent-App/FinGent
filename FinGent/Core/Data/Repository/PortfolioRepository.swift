@@ -151,7 +151,8 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
                         investedAmount: dto.invested_amount,
                         pricePerShare: dto.price_per_share,
                         sector: dto.sector ?? "Technology",
-                        currency: dto.currency
+                        currency: dto.currency,
+                        marketPrice: dto.current_price
                     )
                 }
                 await MainActor.run {

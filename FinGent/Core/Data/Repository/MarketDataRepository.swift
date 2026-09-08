@@ -14,8 +14,6 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
     private(set) var priceDirections: [String: PriceDirection] = [:]
     private(set) var lastTick: Date = Date()
 
-    private var simulationTimer: Timer?
-
     // MARK: - Init
 
     private init() {
@@ -23,7 +21,6 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         for ticker in quotes.keys {
             priceDirections[ticker] = .unchanged
         }
-        startRealtimeSimulation()
         Task { [weak self] in
             await self?.refreshFromBackend()
         }
@@ -76,20 +73,14 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
             .map { MarketMover(ticker: $0.ticker, name: $0.name, price: $0.price, changePercent: $0.changePercent) }
     }
 
-    // MARK: - Simulation
+    // MARK: - Simulation (Disabled in favor of authentic PostgreSQL data)
 
     func startRealtimeSimulation() {
-        guard simulationTimer == nil else { return }
-        simulationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.simulateMarketTick()
-            }
-        }
+        // Disabled: Authentic prices are retrieved directly from PostgreSQL stock_market_data
     }
 
     func stopRealtimeSimulation() {
-        simulationTimer?.invalidate()
-        simulationTimer = nil
+        // Disabled
     }
 
     // MARK: - Backend Sync
@@ -161,7 +152,7 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
             currency: currency
         )
         self.quotes[upper] = quote
-        self.priceDirections[upper] = .unchanged
+        self.priceDirections[upper] = (changePct > 0 ? .up : (changePct < 0 ? .down : .unchanged))
 
         let w = weekly ?? 0.0
         let m = monthly ?? 0.0
@@ -189,48 +180,6 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         self.lastTick = Date()
     }
 
-    // MARK: - Private Tick Logic
-
-    @MainActor
-    private func simulateMarketTick() {
-        lastTick = Date()
-
-        let allTickers = Array(quotes.keys)
-        let countToUpdate = Int.random(in: 3...6)
-        let sampledTickers = allTickers.shuffled().prefix(countToUpdate)
-
-        for ticker in sampledTickers {
-            guard var quote = quotes[ticker] else { continue }
-
-            let tick = idxTickSize(for: quote.price)
-            let steps = [-2, -1, -1, 0, 1, 1, 2].randomElement() ?? 0
-
-            guard steps != 0 else {
-                priceDirections[ticker] = .unchanged
-                continue
-            }
-
-            let delta = Double(steps) * tick
-            let newPrice = max(tick, quote.price + delta)
-
-            priceDirections[ticker] = steps > 0 ? .up : .down
-            quote.price = newPrice
-            quote.high = max(quote.high, newPrice)
-            quote.low = min(quote.low, newPrice)
-            quote.volume += Int.random(in: 500...20_000)
-            quotes[ticker] = quote
-        }
-    }
-
-    private func idxTickSize(for price: Double) -> Double {
-        switch price {
-        case ..<200: return 1.0
-        case ..<500: return 2.0
-        case ..<2_000: return 5.0
-        case ..<5_000: return 10.0
-        default: return 25.0
-        }
-    }
 
     // MARK: - Static Data
 

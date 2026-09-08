@@ -53,7 +53,7 @@ final class PortfolioViewModel {
     }
 
     func startMarketSimulation() {
-        marketDataRepository.startRealtimeSimulation()
+        // Disabled: Uses authentic PostgreSQL prices
     }
 
     // MARK: - Private Build Helpers
@@ -61,11 +61,11 @@ final class PortfolioViewModel {
     private func buildHoldingRows(from holdings: [UserHolding]) -> [HoldingRowState] {
         holdings.map { holding in
             let quote = marketDataRepository.getQuote(for: holding.ticker)
-            let currentPrice = quote?.price ?? holding.pricePerShare
+            let currentPrice = holding.marketPrice ?? quote?.price ?? holding.pricePerShare
             let pnl = holding.pnl(at: currentPrice)
             let pnlPct = holding.pnlPercent(at: currentPrice)
             let currentVal = holding.currentValue(at: currentPrice)
-            let direction = marketDataRepository.priceDirections[holding.ticker] ?? .unchanged
+            let direction: PriceDirection = pnl > 0 ? .up : (pnl < 0 ? .down : .unchanged)
 
             let isUSD = holding.isUSD || quote?.isUSD == true
             let curr = isUSD ? "USD" : "IDR"

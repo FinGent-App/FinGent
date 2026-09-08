@@ -20,7 +20,8 @@ final class PortfolioUseCase {
 
     func resolvedHoldings() -> [StockHolding] {
         portfolioRepository.userHoldings.map { holding in
-            let currentPrice = marketDataRepository.getQuote(for: holding.ticker)?.price
+            let currentPrice = holding.marketPrice
+                ?? marketDataRepository.getQuote(for: holding.ticker)?.price
                 ?? holding.pricePerShare
             return StockHolding(
                 ticker: holding.ticker,

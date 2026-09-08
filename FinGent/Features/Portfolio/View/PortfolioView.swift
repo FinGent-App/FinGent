@@ -41,7 +41,6 @@ struct PortfolioView: View {
         .preferredColorScheme(.dark)
         .onAppear(perform: onAppear)
         .onChange(of: portfolioRepo.userHoldings) { _, _ in viewModel.refresh() }
-        .onChange(of: marketRepo.lastTick) { _, _ in viewModel.refresh() }
     }
 
     // MARK: - Subviews
@@ -58,10 +57,16 @@ struct PortfolioView: View {
                             }
                         }
                     )
+                } else {
+                    EmptyHoldingsView(onAddStock: { showAddStock = true })
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 120)
+        }
+        .refreshable {
+            await portfolioRepo.syncWithBackend()
         }
     }
 
@@ -81,7 +86,9 @@ struct PortfolioView: View {
     // MARK: - Actions
 
     private func onAppear() {
-        viewModel.startMarketSimulation()
+        Task {
+            await portfolioRepo.syncWithBackend()
+        }
     }
 
     private func handleSaved() {
