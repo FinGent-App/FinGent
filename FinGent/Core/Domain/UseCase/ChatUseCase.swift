@@ -40,131 +40,69 @@ final class ChatUseCase: ChatUseCaseProtocol {
     func ask(_ prompt: String) async throws -> AIResponse {
         let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
 
-        // 1. Fetch Zilliz Cloud Milvus RAG knowledge (SEC, Portfolio & P/L, News)
-        let ragTargetTicker = context.tickers.first
-        let ragResponse = try? await StockApiClient.shared.queryRAG(prompt: prompt, ticker: ragTargetTicker)
-
-        var allCitations: [NewsCitation] = []
-
-        if let ragHits = ragResponse?.citations, !ragHits.isEmpty {
-            for dto in ragHits {
-                let source: NewsSourceType
-                if dto.doc_type == "portfolio" {
-                    source = .portfolio
-                } else if dto.doc_type == "sec" {
-                    source = .sec
-                } else {
-                    source = NewsSourceType.from(rawString: dto.badge_label)
-                }
-                allCitations.append(
-                    NewsCitation(
-                        id: dto.id,
-                        title: dto.title,
-                        source: source,
-                        url: URL(string: dto.source_url) ?? URL(string: "about:blank")!,
-                        publishedAt: Date(),
-                        badgeLabel: dto.badge_label
-                    )
-                )
-            }
-        }
-
-        // Also merge local RSS articles if any
-        for art in articles {
-            if !allCitations.contains(where: { $0.title == art.title }) {
-                allCitations.append(NewsCitation(from: art))
-            }
-        }
-
-        // 2. Fetch Cloud Agent Analytical Grounding (Compare, News Impact, Portfolio Impact)
-        var cloudGrounding: String? = nil
-        let lower = prompt.lowercased()
-
-        if (lower.contains("banding") || lower.contains("vs") || lower.contains("compare")) && context.tickers.count >= 2 {
-            if let comp = try? await StockApiClient.shared.compareStocks(tickers: context.tickers) {
-                var compLines = ["ANALISIS PERBANDINGAN SAHAM (Cloud Agent Service):"]
-                for item in comp.comparison {
-                    compLines.append("• \(item.ticker) (\(item.name)): Harga Rp \(item.price), 24h: \(item.change_percent)%, P/E: \(item.pe_ratio), PBV: \(item.pbv_ratio), ROE: \(item.roe)%, Mkt Cap: Rp \(item.market_cap), Div Yield: \(item.dividend_yield)%")
-                }
-                cloudGrounding = compLines.joined(separator: "\n")
-            }
-        } else if (lower.contains("dampak") || lower.contains("pengaruh") || lower.contains("imbas") || lower.contains("efek") || lower.contains("impact")) &&
-                  (lower.contains("portofolio") || lower.contains("holding") || lower.contains("saham saya") || lower.contains("investasi saya")) {
-            if let impact = try? await StockApiClient.shared.analyzePortfolioImpact(event: prompt) {
-                var impactLines = ["ANALISIS EKSPOSUR MAKRO PORTOFOLIO (Cloud Agent Service):"]
-                impactLines.append("• Skenario: \(impact.event)")
-                impactLines.append("• Total Eksposur Risiko: \(impact.exposure_percent)%")
-                impactLines.append("• Kesimpulan: \(impact.analysis)")
-                for item in impact.affected_holdings {
-                    impactLines.append("  - \(item.ticker) (\(item.sector), bobot \(item.portfolio_weight)%): \(item.reason)")
-                }
-                cloudGrounding = impactLines.joined(separator: "\n")
-            }
-        } else if (lower.contains("dampak") || lower.contains("pengaruh") || lower.contains("sentimen")) && context.tickers.count >= 1 {
-            if let newsImpact = try? await StockApiClient.shared.analyzeNewsImpact(topic: prompt) {
-                cloudGrounding = """
-                ANALISIS DAMPAK SENTIMEN PASAR (Cloud Agent Service):
-                • Topik: \(newsImpact.topic)
-                • Sentimen Terdeteksi: \(newsImpact.sentiment)
-                • Ringkasan: \(newsImpact.summary)
-                """
-            }
-        }
-
-        // Case 1: Conceptual or general queries that do not have RAG knowledge, news, nor cloud agent analytics
-        guard !allCitations.isEmpty || (context.requiresNews && !articles.isEmpty) || cloudGrounding != nil else {
-            do {
-                let rawReply = try await agent.ask(prompt)
-                return AIResponse(
-                    answer: rawReply,
-                    bias: nil,
-                    confidence: nil,
-                    sources: []
-                )
-            } catch {
-                return AIResponse(
-                    answer: "FinGent siap membantu analisis pasar dan portofolio Anda. Coba tanyakan prospek saham spesifik seperti: \"Apakah MU akan naik atau turun?\" atau \"Katalis terbaru NVDA\".",
-                    bias: nil,
-                    confidence: nil,
-                    sources: []
-                )
-            }
-        }
-
-        // Case 2: Evidence Grounded Prompt Construction (Zilliz Milvus + RSS + Cloud Agent Analytics)
-        let groundedPrompt = buildGroundedPrompt(
-            userPrompt: prompt,
-            context: context,
-            articles: articles,
-            ragGrounding: ragResponse?.grounding_context,
-            cloudGrounding: cloudGrounding
-        )
-
         do {
-            let rawReply = try await agent.askGrounded(groundedPrompt)
+            // Master Orchestrator: Apple FoundationModels on iOS evaluates the user prompt.
+            // FoundationModels is NEVER bypassed. It autonomously selects between on-device tools
+            // (portfolio balance, holdings, quotes) and the Cloud Analyst (Gemini + RAG + SEC).
+            let rawReply = try await agent.ask(prompt)
             let (cleanedAnswer, bias) = extractBias(from: rawReply)
+
+            var citations = SharedCitationStore.shared.drainLastCitations()
+            if citations.isEmpty && !articles.isEmpty && context.requiresNews {
+                citations = articles.prefix(3).map { NewsCitation(from: $0) }
+            }
 
             return AIResponse(
                 answer: cleanedAnswer,
                 bias: bias,
-                confidence: bias != nil ? 0.78 : nil,
-                sources: allCitations
+                confidence: bias != nil ? 0.82 : nil,
+                sources: citations
             )
         } catch {
-            // Graceful fallback synthesis if on-device model hits GenerationError or context limit
+            // Fallback path: When executed on environments without Apple Intelligence neural engine
+            // assets (e.g. standard simulator), consult Cloud Analyst or perform synthesis.
+            if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: context.tickers.first) {
+                let citations = (cloudResponse.citations ?? []).map { dto in
+                    let source: NewsSourceType
+                    if dto.doc_type.lowercased() == "sec" {
+                        source = .sec
+                    } else if dto.doc_type.lowercased() == "portfolio" {
+                        source = .portfolio
+                    } else {
+                        source = NewsSourceType.from(rawString: dto.title)
+                    }
+                    return NewsCitation(
+                        id: UUID().uuidString,
+                        title: dto.title,
+                        source: source,
+                        url: URL(string: dto.source_url ?? "https://www.sec.gov") ?? URL(string: "about:blank")!,
+                        publishedAt: Date(),
+                        badgeLabel: dto.doc_type.uppercased()
+                    )
+                }
+
+                let (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
+                return AIResponse(
+                    answer: cleanedAnswer,
+                    bias: bias ?? .neutral,
+                    confidence: 0.80,
+                    sources: citations
+                )
+            }
+
             let fallback = synthesizeFallbackResponse(
                 userPrompt: prompt,
                 context: context,
                 articles: articles,
-                ragCitations: allCitations,
-                cloudGrounding: cloudGrounding
+                ragCitations: [],
+                cloudGrounding: nil
             )
 
             return AIResponse(
                 answer: fallback.answer,
                 bias: fallback.bias,
                 confidence: 0.75,
-                sources: allCitations
+                sources: articles.prefix(3).map { NewsCitation(from: $0) }
             )
         }
     }

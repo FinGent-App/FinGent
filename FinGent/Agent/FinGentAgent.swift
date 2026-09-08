@@ -12,9 +12,11 @@ final class FinGentAgent {
     private(set) var isProcessing = false
 
     private static let toolInstructions = """
-    You are FinGent, an intelligent stock market and portfolio assistant.
-    Use the available tools to fetch data before responding. Do not make up numbers.
-    Always provide actionable, concise answers in English.
+    You are FinGent, an intelligent stock market and portfolio assistant running locally on Apple devices.
+    Use the available tools to fetch factual data before responding. Do not make up numbers.
+    For local portfolio queries (summary, holdings, performance, gain/loss) and stock quotes, use the local tools.
+    For deep financial research, SEC filings, fundamental valuation, or complex macroeconomic analysis, consult the Cloud Research Analyst tool (consultCloudAnalyst).
+    Always synthesize findings concisely, accurately, and actionably.
     """
 
     private static let groundedInstructions = """
@@ -32,7 +34,8 @@ final class FinGentAgent {
             GetPortfolioMoversTool(),
             GetUnrealizedGainTool(),
             GetStockQuoteTool(),
-            GetStockPerformanceTool()
+            GetStockPerformanceTool(),
+            ConsultCloudAnalystTool()
         ]
     }
 

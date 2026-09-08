@@ -195,6 +195,21 @@ final class StockApiClient: Sendable {
         let filings: [SecFilingDTO]
     }
 
+    struct CloudConsultCitationDTO: Decodable, Sendable {
+        let doc_type: String
+        let title: String
+        let source_url: String?
+        let score: Double?
+    }
+
+    struct CloudConsultResponseDTO: Decodable, Sendable {
+        let query: String
+        let ticker: String?
+        let analyst_report: String
+        let citations: [CloudConsultCitationDTO]?
+        let model: String?
+    }
+
     // MARK: - API Calls
 
     func fetchQuote(ticker: String) async throws -> StockQuote {
@@ -609,5 +624,30 @@ final class StockApiClient: Sendable {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(PortfolioImpactResponseDTO.self, from: data)
+    }
+
+    func consultCloudAnalyst(query: String, ticker: String? = nil, userId: String = "default_user") async throws -> CloudConsultResponseDTO {
+        guard let url = URL(string: "\(baseURL)/api/v1/agent/consult") else {
+            throw URLError(.badURL)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(userId, forHTTPHeaderField: "X-User-Id")
+
+        var payload: [String: Any] = [
+            "query": query,
+            "user_id": userId
+        ]
+        if let ticker = ticker, !ticker.isEmpty {
+            payload["ticker"] = ticker
+        }
+
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(CloudConsultResponseDTO.self, from: data)
     }
 }
