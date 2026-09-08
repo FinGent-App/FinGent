@@ -139,8 +139,8 @@ struct ProfileView: View {
 
             statCard(
                 title: "Total Return",
-                value: String(format: "%@%.1f%%", viewModel.totalPnL >= 0 ? "+" : "", viewModel.totalPnLPercent),
-                icon: viewModel.totalPnL >= 0 ? "arrow.up.right" : "arrow.down.right",
+                value: String(format: "%@%.1f%%", viewModel.totalPnL >= 0 ? "+" : "-", abs(viewModel.totalPnLPercent)),
+                icon: "chart.line.uptrend.xyaxis",
                 accent: viewModel.totalPnL >= 0 ? Color(red: 0.0, green: 0.82, blue: 0.61) : .red
             )
         }

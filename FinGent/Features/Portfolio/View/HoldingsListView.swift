@@ -129,13 +129,9 @@ struct HoldingRowView: View {
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.25), value: row.currentValue)
 
-            HStack(spacing: 2) {
-                Image(systemName: row.isProfit ? "arrow.up.right" : "arrow.down.right")
-                    .font(.system(size: 9, weight: .bold))
-                Text(row.formattedPnlPercent)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-            }
-            .foregroundStyle(row.isProfit ? .green : .red)
+            Text(row.formattedPnlPercent)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(row.isProfit ? .green : .red)
         }
     }
 }

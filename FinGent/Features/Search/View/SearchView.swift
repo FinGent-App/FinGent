@@ -117,12 +117,9 @@ struct SearchView: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
                     let isPositive = quote.changePercent >= 0
-                    HStack(spacing: 2) {
-                        Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
-                        Text(String(format: "%+.2f%%", quote.changePercent))
-                    }
-                    .font(.caption2.bold())
-                    .foregroundStyle(isPositive ? .green : .red)
+                    Text(String(format: "%+.2f%%", quote.changePercent))
+                        .font(.caption2.bold())
+                        .foregroundStyle(isPositive ? .green : .red)
                 }
 
                 Image(systemName: "chevron.right")

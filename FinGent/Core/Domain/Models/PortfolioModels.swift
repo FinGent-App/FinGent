@@ -2,6 +2,20 @@
 
 import Foundation
 
+// MARK: - PurchaseLot (Lot Transaksi Pembelian)
+
+struct PurchaseLot: Codable, Identifiable, Sendable, Equatable {
+    var id: UUID = UUID()
+    var date: Date = Date()
+    var pricePerShare: Double
+    var totalInvested: Double
+
+    var shares: Double {
+        guard pricePerShare > 0 else { return 0 }
+        return totalInvested / pricePerShare
+    }
+}
+
 // MARK: - UserHolding (persisted, user-facing)
 
 struct UserHolding: Codable, Identifiable, Sendable, Equatable {
@@ -13,6 +27,7 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
     let sector: String
     var currency: String? = nil
     var marketPrice: Double? = nil
+    var purchaseLots: [PurchaseLot]? = nil
 
     var effectiveCurrency: String {
         if let c = currency, !c.isEmpty {
@@ -37,7 +52,8 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         pricePerShare: Double,
         sector: String,
         currency: String? = nil,
-        marketPrice: Double? = nil
+        marketPrice: Double? = nil,
+        purchaseLots: [PurchaseLot]? = nil
     ) {
         self.ticker = ticker
         self.name = name
@@ -46,6 +62,7 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         self.sector = sector
         self.currency = currency
         self.marketPrice = marketPrice
+        self.purchaseLots = purchaseLots
     }
 
     var shares: Int {
@@ -53,22 +70,39 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         return Int(investedAmount / pricePerShare)
     }
 
+    var fractionalShares: Double {
+        guard pricePerShare > 0 else { return 0 }
+        return investedAmount / pricePerShare
+    }
+
+    var formattedShares: String {
+        let val = fractionalShares
+        if val.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(val))"
+        } else {
+            let str = String(format: "%.2f", val)
+            if str.hasSuffix("0") {
+                return String(format: "%.1f", val)
+            }
+            return str
+        }
+    }
+
     var lots: Int {
         shares / 100
     }
 
     func currentValue(at currentPrice: Double) -> Double {
-        Double(shares) * currentPrice
+        fractionalShares * currentPrice
     }
 
     func pnl(at currentPrice: Double) -> Double {
-        currentValue(at: currentPrice) - Double(shares) * pricePerShare
+        currentValue(at: currentPrice) - investedAmount
     }
 
     func pnlPercent(at currentPrice: Double) -> Double {
-        let cost = Double(shares) * pricePerShare
-        guard cost > 0 else { return 0 }
-        return (pnl(at: currentPrice) / cost) * 100
+        guard investedAmount > 0 else { return 0 }
+        return (pnl(at: currentPrice) / investedAmount) * 100
     }
 }
 

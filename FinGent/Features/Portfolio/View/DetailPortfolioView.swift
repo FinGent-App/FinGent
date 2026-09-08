@@ -42,12 +42,20 @@ struct DetailPortfolioView: View {
     @State private var secFilings: [StockApiClient.SecFilingDTO] = []
     @State private var isLoadingFilings: Bool = false
     @State private var activeSafariURL: IdentifiableURL? = nil
-    @State private var showBuySuccessAlert: Bool = false
-    @State private var boughtAmountText: String = ""
+    @State private var showHoldingSheet: Bool = false
+    @State private var holdingSheetDetent: PresentationDetent = .large
+    @State private var portfolioRepo = PortfolioRepository.shared
     @State private var favoritesRepo = FavoritesRepository.shared
 
     private let portfolioUseCase: PortfolioUseCase = AppContainer.shared.portfolioUseCase
     private let marketRepo: MarketDataRepositoryProtocol = MarketDataRepository.shared
+
+    private var currentHolding: UserHolding? {
+        let clean = quote.ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        return portfolioRepo.userHoldings.first {
+            $0.ticker.trimmingCharacters(in: .whitespaces).uppercased() == clean
+        }
+    }
 
     private var isFavorited: Bool {
         favoritesRepo.isFavorite(ticker: quote.ticker)
@@ -64,11 +72,13 @@ struct DetailPortfolioView: View {
                     timeframeSegmentedControl
                     statsGrid
                     secFilingsSection
-                    actionButton
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 32)
+                .padding(.bottom, 20)
+            }
+            .safeAreaInset(edge: .bottom) {
+                stickyViewHoldingBar
             }
         }
         .navigationTitle(quote.ticker)
@@ -89,10 +99,22 @@ struct DetailPortfolioView: View {
         .sheet(item: $activeSafariURL) { item in
             SafariView(url: item.url)
         }
-        .alert("Berhasil Ditambahkan!", isPresented: $showBuySuccessAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("\(quote.ticker) telah ditambahkan ke portofolio Anda senilai \(boughtAmountText).")
+        .sheet(isPresented: $showHoldingSheet) {
+            StockHoldingDetailSheet(
+                quote: quote,
+                sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General",
+                onBuy: { amount, pricePerShare in
+                    portfolioUseCase.addHolding(
+                        ticker: quote.ticker,
+                        name: quote.name,
+                        amount: amount,
+                        pricePerShare: pricePerShare,
+                        sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General"
+                    )
+                }
+            )
+            .presentationDetents([.large, .fraction(0.65)], selection: $holdingSheetDetent)
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -201,14 +223,12 @@ struct DetailPortfolioView: View {
 
                     let info = periodChangeInfo
                     HStack(spacing: 6) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
-                                .font(.system(size: 10, weight: .bold))
-
+                        Group {
+                            let sign = info.change >= 0 ? "+" : "-"
                             if isUSD {
-                                Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
+                                Text(String(format: "%@$%.2f (%@%.2f%%)", sign, abs(info.change), sign, abs(info.changePct)))
                             } else {
-                                Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
+                                Text(String(format: "%@Rp %@ (%@%.2f%%)", sign, NumberFormatters.stockPrice(abs(info.change)), sign, abs(info.changePct)))
                             }
                         }
                         .font(.system(size: 11.5, weight: .bold, design: .rounded))
@@ -658,37 +678,49 @@ struct DetailPortfolioView: View {
         }
     }
 
-    // MARK: - Action Button
+    // MARK: - Sticky View Holding Bar
 
-    private var actionButton: some View {
-        let isUSD = quote.currency.uppercased() == "USD"
-        let defaultAmount = isUSD ? 1_000.0 : 10_000_000.0
-        let amountLabel = isUSD ? "$1,000" : "Rp 10jt"
+    private var stickyViewHoldingBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .overlay(Color.white.opacity(0.12))
 
-        return Button {
-            portfolioUseCase.addHolding(
-                ticker: quote.ticker,
-                name: quote.name,
-                amount: defaultAmount,
-                pricePerShare: quote.price,
-                sector: fundamentals?.sector ?? "General"
-            )
-            boughtAmountText = amountLabel
-            showBuySuccessAlert = true
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.headline)
-                Text("Beli & Tambah ke Portofolio (\(amountLabel))")
-                    .font(.subheadline.bold())
+            Button {
+                holdingSheetDetent = .large
+                showHoldingSheet = true
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.prepare()
+                generator.impactOccurred()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "briefcase.fill")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("View Holding")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: "00D2FF"), Color(hex: "00F5D4")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .shadow(color: Color(hex: "00D2FF").opacity(0.35), radius: 10, y: 4)
             }
-            .foregroundStyle(.black)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color.teal, in: RoundedRectangle(cornerRadius: 14))
-            .shadow(color: Color.teal.opacity(0.3), radius: 8, y: 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
         }
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color(hex: "080B11").opacity(0.85))
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     // MARK: - Data Loading
@@ -784,5 +816,710 @@ private extension Color {
         let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
         let b = Double(rgbValue & 0x0000FF) / 255.0
         self.init(red: r, green: g, blue: b)
+    }
+}
+
+// MARK: - Stock Holding Detail Sheet
+
+// MARK: - Purchase Form Entry Model
+
+struct PurchaseFormEntry: Identifiable, Equatable {
+    let id: UUID
+    var date: Date
+    var priceInput: String
+    var totalInput: String
+
+    init(id: UUID = UUID(), date: Date = Date(), priceInput: String = "", totalInput: String = "") {
+        self.id = id
+        self.date = date
+        self.priceInput = priceInput
+        self.totalInput = totalInput
+    }
+
+    var price: Double {
+        let clean = priceInput.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
+        return Double(clean) ?? 0.0
+    }
+
+    var total: Double {
+        let clean = totalInput.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
+        return Double(clean) ?? 0.0
+    }
+
+    var shares: Double {
+        guard price > 0, total > 0 else { return 0.0 }
+        return total / price
+    }
+
+    var formattedShares: String {
+        let s = shares
+        guard s > 0 else { return "0" }
+        if s.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(s))"
+        } else {
+            let str = String(format: "%.2f", s)
+            return str.hasSuffix("0") ? String(format: "%.1f", s) : str
+        }
+    }
+}
+
+// MARK: - Stock Holding Detail Sheet
+
+struct StockHoldingDetailSheet: View {
+    let quote: StockQuote
+    let sector: String
+    let onBuy: (_ amount: Double, _ pricePerShare: Double) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var repo = PortfolioRepository.shared
+    @State private var purchaseEntries: [PurchaseFormEntry] = []
+    @State private var isInitialized: Bool = false
+    @State private var showDeleteConfirm: Bool = false
+    @State private var showLotDeleteOptions: Bool = false
+    @State private var pendingDeleteEntryId: UUID? = nil
+    @State private var showSuccessToast: Bool = false
+    @State private var toastMessage: String = ""
+
+    private var holding: UserHolding? {
+        let clean = quote.ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        return repo.userHoldings.first {
+            $0.ticker.trimmingCharacters(in: .whitespaces).uppercased() == clean
+        }
+    }
+
+    private var isUSD: Bool {
+        quote.currency.uppercased() == "USD" || quote.isUSD
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        if isUSD {
+            return String(format: "$%.2f", value)
+        } else {
+            return "Rp \(NumberFormatters.stockPrice(value))"
+        }
+    }
+
+    private func formatNumberInput(_ val: Double) -> String {
+        guard val > 0 else { return "" }
+        if val.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(val))"
+        } else {
+            let str = String(format: "%.2f", val)
+            return str.hasSuffix("0") ? String(format: "%.1f", val) : str
+        }
+    }
+
+    private var validEntries: [PurchaseFormEntry] {
+        purchaseEntries.filter { $0.price > 0 && $0.total > 0 }
+    }
+
+    private var totalInvestedAmount: Double {
+        let sum = validEntries.reduce(0) { $0 + $1.total }
+        if sum > 0 { return sum }
+        return holding?.investedAmount ?? 0.0
+    }
+
+    private var totalCalculatedShares: Double {
+        let sum = validEntries.reduce(0) { $0 + $1.shares }
+        if sum > 0 { return sum }
+        return holding?.fractionalShares ?? 0.0
+    }
+
+    private var formattedTotalShares: String {
+        let s = totalCalculatedShares
+        guard s > 0 else { return "0" }
+        if s.truncatingRemainder(dividingBy: 1) == 0 {
+            return "\(Int(s))"
+        } else {
+            let str = String(format: "%.2f", s)
+            return str.hasSuffix("0") ? String(format: "%.1f", s) : str
+        }
+    }
+
+    private var averagePricePerShare: Double {
+        guard totalCalculatedShares > 0 else { return quote.price }
+        return totalInvestedAmount / totalCalculatedShares
+    }
+
+    private var currentPositionValue: Double {
+        totalCalculatedShares * quote.price
+    }
+
+    private var currentPnL: Double {
+        currentPositionValue - totalInvestedAmount
+    }
+
+    private var currentPnLPercent: Double {
+        guard totalInvestedAmount > 0 else { return 0.0 }
+        return (currentPnL / totalInvestedAmount) * 100
+    }
+
+    private func addNewEntry() {
+        let newEntry = PurchaseFormEntry(
+            date: Date(),
+            priceInput: "",
+            totalInput: ""
+        )
+        purchaseEntries.append(newEntry)
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+    }
+
+    private func removeEntry(id: UUID) {
+        guard purchaseEntries.count > 1 else { return }
+        purchaseEntries.removeAll { $0.id == id }
+        syncHoldingEdits()
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+    }
+
+    private func syncHoldingEdits() {
+        guard isInitialized else { return }
+        guard holding != nil else { return }
+        let valid = validEntries
+        guard !valid.isEmpty else { return }
+
+        let lots = valid.map { entry in
+            PurchaseLot(
+                id: entry.id,
+                date: entry.date,
+                pricePerShare: entry.price,
+                totalInvested: entry.total
+            )
+        }
+        repo.updateHoldingLots(
+            ticker: quote.ticker,
+            lots: lots,
+            pricePerShare: averagePricePerShare,
+            totalInvested: totalInvestedAmount
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(hex: "080B11").ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        headerSummaryCard
+
+                        if let holding = holding {
+                            ownedPositionSection(holding: holding)
+                        } else {
+                            unownedPositionSection
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 32)
+                }
+            }
+            .navigationTitle("Holding Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Selesai") {
+                        dismiss()
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color(hex: "4FA3FF"))
+                }
+            }
+            .onAppear {
+                if let holding = holding {
+                    if let lots = holding.purchaseLots, !lots.isEmpty {
+                        purchaseEntries = lots.map { lot in
+                            PurchaseFormEntry(
+                                id: lot.id,
+                                date: lot.date,
+                                priceInput: formatNumberInput(lot.pricePerShare),
+                                totalInput: formatNumberInput(lot.totalInvested)
+                            )
+                        }
+                    } else {
+                        purchaseEntries = [
+                            PurchaseFormEntry(
+                                date: Date(),
+                                priceInput: formatNumberInput(holding.pricePerShare),
+                                totalInput: formatNumberInput(holding.investedAmount)
+                            )
+                        ]
+                    }
+                } else {
+                    purchaseEntries = [
+                        PurchaseFormEntry(
+                            date: Date(),
+                            priceInput: formatNumberInput(quote.price),
+                            totalInput: ""
+                        )
+                    ]
+                }
+                DispatchQueue.main.async {
+                    isInitialized = true
+                }
+            }
+            .onChange(of: purchaseEntries) { _, _ in
+                syncHoldingEdits()
+            }
+            .confirmationDialog("Hapus dari Portofolio?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Hapus Saham", role: .destructive) {
+                    repo.removeHolding(ticker: quote.ticker)
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.warning)
+                }
+                Button("Batal", role: .cancel) {}
+            } message: {
+                Text("Apakah Anda yakin ingin menghapus \(quote.ticker) dari portofolio Anda?")
+            }
+            .confirmationDialog("Pilihan Hapus", isPresented: $showLotDeleteOptions, titleVisibility: .visible) {
+                if let id = pendingDeleteEntryId {
+                    Button("Hapus Lot Ini Saja", role: .destructive) {
+                        removeEntry(id: id)
+                        pendingDeleteEntryId = nil
+                    }
+                }
+                Button("Hapus Seluruh \(quote.ticker) dari Portofolio", role: .destructive) {
+                    repo.removeHolding(ticker: quote.ticker)
+                    pendingDeleteEntryId = nil
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.warning)
+                }
+                Button("Batal", role: .cancel) {
+                    pendingDeleteEntryId = nil
+                }
+            } message: {
+                Text("Pilih apakah Anda ingin menghapus lot transaksi ini saja atau menghapus seluruh posisi \(quote.ticker) dari portofolio.")
+            }
+            .overlay(alignment: .bottom) {
+                if showSuccessToast {
+                    Text(toastMessage)
+                        .font(.footnote.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(hex: "00D084"), in: Capsule())
+                        .shadow(color: Color.black.opacity(0.4), radius: 8, y: 4)
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    // MARK: - Header Summary Card
+
+    private var headerSummaryCard: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(quote.ticker)
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+
+                    if holding != nil {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(hex: "00D084"))
+                                .frame(width: 6, height: 6)
+                            Text("Dimiliki")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color(hex: "00D084"))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(hex: "00D084").opacity(0.15), in: Capsule())
+                    } else {
+                        Text("Belum Dimiliki")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.08), in: Capsule())
+                    }
+                }
+
+                Text(quote.name)
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(sector)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.teal)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.teal.opacity(0.12), in: Capsule())
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        }
+    }
+
+    // MARK: - Owned Position Section
+
+    private func ownedPositionSection(holding: UserHolding) -> some View {
+        let currentVal = currentPositionValue
+        let pnl = currentPnL
+        let pnlPct = currentPnLPercent
+        let isProfit = pnl >= 0
+        let sign = isProfit ? "+" : "-"
+
+        return VStack(spacing: 16) {
+            // 1. Valuasi Posisi & Total G&L (Side by Side)
+            HStack(spacing: 12) {
+                metricTile(
+                    title: "Valuasi Posisi",
+                    value: formatCurrency(currentVal),
+                    caption: "Nilai saat ini (\(formattedTotalShares) Shares)",
+                    icon: "chart.pie.fill",
+                    color: Color(hex: "00D2FF")
+                )
+
+                metricTile(
+                    title: "Total G&L",
+                    value: String(format: "%@%@ (%@%.2f%%)", sign, formatCurrency(abs(pnl)), sign, abs(pnlPct)),
+                    caption: isProfit ? "Keuntungan" : "Kerugian",
+                    icon: "chart.line.uptrend.xyaxis",
+                    color: isProfit ? Color(hex: "00D084") : Color(hex: "FF3B30")
+                )
+            }
+
+            // 2. List Form Kepemilikan (Tanggal Beli, Per Share Price, Total Beli, Dapat Share) + Button "+ Add Share"
+            purchaseEntriesList
+        }
+    }
+
+    // MARK: - Unowned Position Section
+
+    private var unownedPositionSection: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                Image(systemName: "briefcase")
+                    .font(.system(size: 38))
+                    .foregroundStyle(Color(hex: "4FA3FF"))
+                    .frame(width: 76, height: 76)
+                    .background(Color(hex: "4FA3FF").opacity(0.12), in: Circle())
+
+                Text("Belum Memiliki Saham \(quote.ticker)")
+                    .font(.headline.bold())
+                    .foregroundStyle(.white)
+
+                Text("Masukkan tanggal beli, harga per share, dan total nominal yang dibeli untuk menambahkan ke portofolio Anda.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+            }
+            .padding(.vertical, 8)
+
+            // List Form Kepemilikan + Button "+ Add Share"
+            purchaseEntriesList
+
+            // Confirm Purchase Button
+            Button {
+                let amt = totalInvestedAmount
+                let price = averagePricePerShare
+                guard amt > 0, price > 0 else { return }
+                onBuy(amt, price)
+                let lots = validEntries.map { entry in
+                    PurchaseLot(
+                        id: entry.id,
+                        date: entry.date,
+                        pricePerShare: entry.price,
+                        totalInvested: entry.total
+                    )
+                }
+                repo.updateHoldingLots(ticker: quote.ticker, lots: lots, pricePerShare: price, totalInvested: amt)
+                toastMessage = "\(quote.ticker) berhasil ditambahkan ke portofolio!"
+                withAnimation { showSuccessToast = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    withAnimation { showSuccessToast = false }
+                }
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.headline)
+                    Text("Beli & Tambah ke Portofolio")
+                        .font(.headline.bold())
+                }
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: "00D2FF"), Color(hex: "00F5D4")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
+                .shadow(color: Color(hex: "00D2FF").opacity(0.35), radius: 10, y: 4)
+            }
+            .disabled(totalInvestedAmount <= 0 || averagePricePerShare <= 0)
+            .opacity(totalInvestedAmount > 0 && averagePricePerShare > 0 ? 1.0 : 0.5)
+        }
+    }
+
+    // MARK: - Purchase Entries List (Tanggal Beli + Horizontal Row + Add Share Button)
+
+    private var purchaseEntriesList: some View {
+        VStack(spacing: 12) {
+            ForEach($purchaseEntries) { $entry in
+                VStack(spacing: 10) {
+                    // Header: Tanggal Beli + Tombol Hapus (jika > 1)
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color(hex: "00D2FF"))
+
+                        Text("Tanggal Beli")
+                            .font(.system(size: 11.5, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+
+                        DatePicker(
+                            "",
+                            selection: $entry.date,
+                            displayedComponents: .date
+                        )
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        .tint(Color(hex: "00D2FF"))
+
+                        Spacer()
+
+                        if holding != nil {
+                            Button {
+                                if purchaseEntries.count > 1 {
+                                    pendingDeleteEntryId = entry.id
+                                    showLotDeleteOptions = true
+                                } else {
+                                    showDeleteConfirm = true
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Hapus dari Portofolio")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                }
+                                .foregroundStyle(Color(hex: "FF3B30"))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4.5)
+                                .background(Color(hex: "FF3B30").opacity(0.12), in: Capsule())
+                            }
+                        } else if purchaseEntries.count > 1 {
+                            Button {
+                                removeEntry(id: entry.id)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("Hapus")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .foregroundStyle(Color(hex: "FF3B30").opacity(0.85))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4.5)
+                                .background(Color(hex: "FF3B30").opacity(0.12), in: Capsule())
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 4)
+
+                    // 1 List Horizontal: Per Share Price, Total Beli, Dapat Share
+                    HStack(spacing: 8) {
+                        // 1. Per Share Price (Form)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Per Share Price")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+
+                            HStack(spacing: 3) {
+                                Text(isUSD ? "$" : "Rp")
+                                    .font(.system(size: 12.5, weight: .bold))
+                                    .foregroundStyle(Color(hex: "00D2FF"))
+
+                                TextField("0", text: $entry.priceInput)
+                                    .keyboardType(.decimalPad)
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+
+                        // 2. Total Beli (Form)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Total Beli")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+
+                            HStack(spacing: 3) {
+                                Text(isUSD ? "$" : "Rp")
+                                    .font(.system(size: 12.5, weight: .bold))
+                                    .foregroundStyle(Color(hex: "00F5D4"))
+
+                                TextField("0", text: $entry.totalInput)
+                                    .keyboardType(.decimalPad)
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+
+                        // 3. Total Dapat Berapa Share (Calculated)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Dapat Share")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(entry.formattedShares)
+                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color(hex: "00D2FF"))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+
+                                Text("Shares")
+                                    .font(.system(size: 9.5, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.45))
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: "00D2FF").opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(hex: "00D2FF").opacity(0.25), lineWidth: 1)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                }
+            }
+
+            // Tombol + Add Share (Kecil di Tengah Horizontal)
+            HStack {
+                Spacer()
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        addNewEntry()
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Add Share")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Color(hex: "00D2FF"))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Color(hex: "00D2FF").opacity(0.12), in: Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(Color(hex: "00D2FF").opacity(0.3), lineWidth: 1)
+                    }
+                }
+                Spacer()
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    // MARK: - Metric Tile Component
+
+    private func metricTile(
+        title: String,
+        value: String,
+        caption: String,
+        icon: String,
+        color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption.bold())
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.caption.bold())
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+
+            Text(value)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+
+            Text(caption)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.4))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        }
     }
 }

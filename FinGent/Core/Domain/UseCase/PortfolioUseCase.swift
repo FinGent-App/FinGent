@@ -75,6 +75,14 @@ final class PortfolioUseCase {
         )
     }
 
+    func updateShares(ticker: String, newShares: Double) {
+        portfolioRepository.updateShares(ticker: ticker, newShares: newShares)
+    }
+
+    func updateHoldingDetails(ticker: String, pricePerShare: Double, totalInvested: Double) {
+        portfolioRepository.updateHoldingDetails(ticker: ticker, pricePerShare: pricePerShare, totalInvested: totalInvested)
+    }
+
     func removeHolding(ticker: String) {
         portfolioRepository.removeHolding(ticker: ticker)
     }
@@ -82,10 +90,10 @@ final class PortfolioUseCase {
     // MARK: - Weighted Average Merge Logic
 
     func mergedHolding(existing: UserHolding, addAmount: Double, addPrice: Double) -> UserHolding {
-        let newShares = Int(addAmount / addPrice)
-        let totalShares = existing.shares + newShares
+        let additionalShares = addPrice > 0 ? (addAmount / addPrice) : 0
+        let totalShares = existing.fractionalShares + additionalShares
         let totalInvested = existing.investedAmount + addAmount
-        let weightedPrice = totalShares > 0 ? totalInvested / Double(totalShares) : addPrice
+        let weightedPrice = totalShares > 0 ? totalInvested / totalShares : addPrice
         return UserHolding(
             ticker: existing.ticker,
             name: existing.name,

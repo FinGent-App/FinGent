@@ -65,29 +65,34 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
     // MARK: - Portfolio Modification
 
     func addHolding(ticker: String, name: String, amount: Double, pricePerShare: Double, sector: String) {
+        let upperTicker = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        let isUSD = !upperTicker.hasSuffix(".JK") && !["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "UNVR", "GOTO", "BBNI", "ICBP", "AMMN", "ACES", "BREN", "EMTK", "KLBF", "MDKA", "INDF", "PGAS", "PTBA", "ADRO", "ANTM"].contains(upperTicker)
+
         let savedHolding: UserHolding
-        if let index = userHoldings.firstIndex(where: { $0.ticker == ticker }) {
+        if let index = userHoldings.firstIndex(where: { $0.ticker.uppercased() == upperTicker }) {
             let existing = userHoldings[index]
-            let newShares = Int(amount / pricePerShare)
-            let totalShares = existing.shares + newShares
+            let additionalShares = pricePerShare > 0 ? (amount / pricePerShare) : 0
+            let totalShares = existing.fractionalShares + additionalShares
             let totalInvested = existing.investedAmount + amount
-            let weightedPrice = totalShares > 0 ? totalInvested / Double(totalShares) : pricePerShare
+            let weightedPrice = totalShares > 0 ? totalInvested / totalShares : pricePerShare
             let updated = UserHolding(
-                ticker: ticker,
-                name: name,
+                ticker: existing.ticker,
+                name: name.isEmpty ? existing.name : name,
                 investedAmount: totalInvested,
                 pricePerShare: weightedPrice,
-                sector: sector
+                sector: sector.isEmpty ? existing.sector : sector,
+                currency: existing.currency ?? (isUSD ? "USD" : "IDR")
             )
             userHoldings[index] = updated
             savedHolding = updated
         } else {
             let created = UserHolding(
-                ticker: ticker,
+                ticker: upperTicker,
                 name: name,
                 investedAmount: amount,
                 pricePerShare: pricePerShare,
-                sector: sector
+                sector: sector,
+                currency: isUSD ? "USD" : "IDR"
             )
             userHoldings.append(created)
             savedHolding = created
@@ -106,6 +111,112 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
                 )
             } catch {
                 print("⚠️ [PortfolioRepository] Failed to sync holding to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func updateShares(ticker: String, newShares: Double) {
+        let upper = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let index = userHoldings.firstIndex(where: { $0.ticker.uppercased() == upper }) else { return }
+        if newShares <= 0 {
+            removeHolding(ticker: upper)
+            return
+        }
+        let existing = userHoldings[index]
+        let newInvested = newShares * existing.pricePerShare
+        let updated = UserHolding(
+            ticker: existing.ticker,
+            name: existing.name,
+            investedAmount: newInvested,
+            pricePerShare: existing.pricePerShare,
+            sector: existing.sector,
+            currency: existing.currency,
+            marketPrice: existing.marketPrice
+        )
+        userHoldings[index] = updated
+
+        // Sync to backend
+        Task {
+            do {
+                try await StockApiClient.shared.saveHolding(
+                    ticker: updated.ticker,
+                    name: updated.name,
+                    shares: updated.shares,
+                    pricePerShare: updated.pricePerShare,
+                    investedAmount: updated.investedAmount,
+                    sector: updated.sector
+                )
+            } catch {
+                print("⚠️ [PortfolioRepository] Failed to sync updated shares to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func updateHoldingDetails(ticker: String, pricePerShare: Double, totalInvested: Double) {
+        let upper = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let index = userHoldings.firstIndex(where: { $0.ticker.uppercased() == upper }) else { return }
+        guard pricePerShare > 0, totalInvested > 0 else { return }
+
+        let existing = userHoldings[index]
+        let updated = UserHolding(
+            ticker: existing.ticker,
+            name: existing.name,
+            investedAmount: totalInvested,
+            pricePerShare: pricePerShare,
+            sector: existing.sector,
+            currency: existing.currency,
+            marketPrice: existing.marketPrice
+        )
+        userHoldings[index] = updated
+
+        // Sync to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.saveHolding(
+                    ticker: updated.ticker,
+                    name: updated.name,
+                    shares: updated.shares,
+                    pricePerShare: updated.pricePerShare,
+                    investedAmount: updated.investedAmount,
+                    sector: updated.sector
+                )
+            } catch {
+                print("⚠️ [PortfolioRepository] Failed to sync updated holding details to PostgreSQL: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func updateHoldingLots(ticker: String, lots: [PurchaseLot], pricePerShare: Double, totalInvested: Double) {
+        let upper = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let index = userHoldings.firstIndex(where: { $0.ticker.uppercased() == upper }) else { return }
+        guard pricePerShare > 0, totalInvested > 0 else { return }
+
+        let existing = userHoldings[index]
+        let updated = UserHolding(
+            ticker: existing.ticker,
+            name: existing.name,
+            investedAmount: totalInvested,
+            pricePerShare: pricePerShare,
+            sector: existing.sector,
+            currency: existing.currency,
+            marketPrice: existing.marketPrice,
+            purchaseLots: lots
+        )
+        userHoldings[index] = updated
+
+        // Sync to PostgreSQL backend
+        Task {
+            do {
+                try await StockApiClient.shared.saveHolding(
+                    ticker: updated.ticker,
+                    name: updated.name,
+                    shares: updated.shares,
+                    pricePerShare: updated.pricePerShare,
+                    investedAmount: updated.investedAmount,
+                    sector: updated.sector
+                )
+            } catch {
+                print("⚠️ [PortfolioRepository] Failed to sync updated lots to PostgreSQL: \(error.localizedDescription)")
             }
         }
     }

@@ -105,27 +105,19 @@ struct HomeView: View {
                 }
             }
 
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(NumberFormatters.rupiah(viewModel.portfolioValue))
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                    Text("\(viewModel.userHoldingsCount) Saham Aktif")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                let pnl = viewModel.portfolioPnL
-                let isProfit = pnl >= 0
-                HStack(spacing: 4) {
-                    Image(systemName: isProfit ? "arrow.up.right" : "arrow.down.right")
-                    Text("\(isProfit ? "+" : "")\(NumberFormatters.compact(abs(pnl))) (\(String(format: "%+.1f", viewModel.portfolioPnLPct))%)")
-                }
-                .font(.caption.bold())
-                .foregroundStyle(isProfit ? .green : .red)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background((isProfit ? Color.green : Color.red).opacity(0.15), in: Capsule())
+            VStack(alignment: .leading, spacing: 6) {
+                Text(viewModel.formattedPortfolioValue)
+                    .font(.title2.bold())
+                    .foregroundStyle(.white)
+
+                let isProfit = viewModel.portfolioPnL >= 0
+                let sign = isProfit ? "+" : "-"
+                Text("\(sign)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", sign, abs(viewModel.portfolioPnLPct))))")
+                    .font(.caption.bold())
+                    .foregroundStyle(isProfit ? .green : .red)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background((isProfit ? Color.green : Color.red).opacity(0.15), in: Capsule())
             }
         }
         .padding(16)
@@ -292,20 +284,16 @@ struct HomeView: View {
                     .foregroundStyle(.white)
 
                 let isPositive = stock.change >= 0
-                HStack(spacing: 3) {
-                    Image(systemName: isPositive ? "triangle.fill" : "triangle.fill")
-                        .rotationEffect(.degrees(isPositive ? 0 : 180))
-                        .font(.system(size: 6))
-                    Text(String(format: "%@%.2f%%", isPositive ? "+" : "", stock.changePercent))
-                        .font(.caption2.bold())
-                }
-                .foregroundStyle(isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30"))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(
-                    (isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30")).opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 6)
-                )
+                let sign = isPositive ? "+" : "-"
+                Text(String(format: "%@%.2f%%", sign, abs(stock.changePercent)))
+                    .font(.caption2.bold())
+                    .foregroundStyle(isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30"))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        (isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30")).opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 6)
+                    )
             }
 
             Image(systemName: "chevron.right")

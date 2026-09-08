@@ -22,6 +22,23 @@ final class HomeViewModel {
     private(set) var portfolioPnL: Double = 0
     private(set) var portfolioPnLPct: Double = 0
     private(set) var userHoldingsCount: Int = 0
+    private(set) var isAllUSD: Bool = false
+
+    var formattedPortfolioValue: String {
+        if isAllUSD {
+            return String(format: "$%.2f", portfolioValue)
+        } else {
+            return NumberFormatters.rupiah(portfolioValue)
+        }
+    }
+
+    var formattedPnL: String {
+        if isAllUSD {
+            return String(format: "$%.2f", abs(portfolioPnL))
+        } else {
+            return NumberFormatters.compact(abs(portfolioPnL))
+        }
+    }
 
     // IHSG Benchmark state
     let ihsgPrice: Double = 8_245.50
@@ -55,6 +72,7 @@ final class HomeViewModel {
         let holdings = repo.userHoldings
         userName = repo.userName.isEmpty ? "Investor" : repo.userName
         userHoldingsCount = holdings.count
+        isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
 
         let market = marketDataRepository
         let totalVal = holdings.reduce(0.0) { sum, h in

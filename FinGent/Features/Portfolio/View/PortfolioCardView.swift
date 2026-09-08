@@ -75,14 +75,10 @@ struct PortfolioCardView: View {
                 Text("Total Return")
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.5))
-                HStack(spacing: 3) {
-                    Image(systemName: summary.isPnLProfit ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 9, weight: .bold))
-                    Text(summary.totalPnLText)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(summary.isPnLProfit ? .green : .red)
-                .contentTransition(.numericText())
+                Text(summary.totalPnLText)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(summary.isPnLProfit ? .green : .red)
+                    .contentTransition(.numericText())
             }
         }
     }
