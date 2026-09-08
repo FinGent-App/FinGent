@@ -26,11 +26,13 @@ POPULAR_IDX_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO", "BBNI", "
 
 
 def normalize_ticker(ticker: str) -> str:
-    """Ensure Indonesian stock tickers end with .JK, unless it's a market index like ^JKSE."""
+    """Ensure Indonesian stock tickers end with .JK, while US and global equities remain clean."""
     t = ticker.strip().upper()
     if t.startswith("^"):
         return t
-    if not t.endswith(".JK"):
+    if t.endswith(".JK"):
+        return t
+    if t in POPULAR_IDX_TICKERS:
         return f"{t}.JK"
     return t
 

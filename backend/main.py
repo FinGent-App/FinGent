@@ -46,6 +46,7 @@ from services.agent_tools_service import (
     analyze_news_impact,
     analyze_portfolio_impact
 )
+from services.cloud_agent_service import consult_cloud_analyst
 
 logging.basicConfig(
     level=logging.INFO,
@@ -127,6 +128,12 @@ class NewsImpactRequest(BaseModel):
 class PortfolioImpactRequest(BaseModel):
     event: str = Field(..., description="Macro event or market scenario")
     user_id: Optional[str] = Field("default_user", description="User ID for portfolio lookup")
+
+
+class ConsultCloudAgentRequest(BaseModel):
+    query: str = Field(..., description="Financial, macroeconomic, or SEC research query")
+    ticker: Optional[str] = Field(None, description="Optional target stock ticker, e.g. 'MU', 'NVDA'")
+    user_id: Optional[str] = Field("default_user", description="User ID for portfolio personalization")
 
 
 # ==============================================================================
@@ -670,6 +677,23 @@ async def api_agent_portfolio_impact(
         return await analyze_portfolio_impact(user_id=uid, event=req.event)
     except Exception as e:
         logger.error("Agent portfolio impact failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/agent/consult")
+async def api_agent_consult(
+    req: ConsultCloudAgentRequest,
+    x_user_id: Optional[str] = Header("default_user", alias="X-User-Id")
+):
+    """
+    Endpoint for Apple FoundationModels on iOS to consult the Gemini Cloud Research Analyst.
+    Executes deep vector RAG, SEC filings, live Yahoo Finance fundamentals, and Gemini 3.6 Flash synthesis.
+    """
+    uid = req.user_id or x_user_id or "default_user"
+    try:
+        return await consult_cloud_analyst(query=req.query, ticker=req.ticker, user_id=uid)
+    except Exception as e:
+        logger.error("Cloud Agent consultation failed: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
