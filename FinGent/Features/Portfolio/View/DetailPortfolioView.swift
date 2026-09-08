@@ -186,39 +186,41 @@ struct DetailPortfolioView: View {
                 }
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(displayFormattedPrice)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .contentTransition(.numericText())
 
                 let info = periodChangeInfo
-                HStack(spacing: 3) {
-                    Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 11, weight: .bold))
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 11, weight: .bold))
 
-                    if quote.currency.uppercased() == "USD" {
-                        Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
+                        if quote.currency.uppercased() == "USD" {
+                            Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
+                        } else {
+                            Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
+                        }
+                    }
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(themeColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(themeColor.opacity(0.12), in: Capsule())
+
+                    if let scrub = selectedScrubPoint {
+                        Text(formatScrubDate(scrub.date))
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .transition(.opacity)
                     } else {
-                        Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
+                        Text(selectedTimeframe.rawValue)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
                 }
-                .font(.caption.bold())
-                .foregroundStyle(themeColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(themeColor.opacity(0.12), in: Capsule())
-            }
-
-            if let scrub = selectedScrubPoint {
-                Text(formatScrubDate(scrub.date))
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .transition(.opacity)
-            } else {
-                Text("Periode: \(selectedTimeframe.rawValue)")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.4))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
