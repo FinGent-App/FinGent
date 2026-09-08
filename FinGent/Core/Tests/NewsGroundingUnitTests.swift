@@ -89,12 +89,12 @@ final class NewsGroundingUnitTests: Sendable {
         let t2 = extractor.extractTickers(from: "NVIDIA announces new Blackwell platform delivery date.")
         assertTest(t2.contains("NVDA"), name: "Ticker Extractor: extracts 'NVDA' from 'NVIDIA'")
 
-        let t3 = extractor.extractTickers(from: "Bank Central Asia dan BRI mencatat kenaikan laba bersih.")
-        assertTest(t3.contains("BBCA") && t3.contains("BBRI"), name: "Ticker Extractor: extracts multiple IDX tickers 'BBCA' & 'BBRI'")
+        let t3 = extractor.extractTickers(from: "Apple and Microsoft reported strong quarterly earnings growth.")
+        assertTest(t3.contains("AAPL") && t3.contains("MSFT"), name: "Ticker Extractor: extracts multiple US tech tickers 'AAPL' & 'MSFT'")
 
-        // Test 2.2: Explicit symbol syntax
-        let t4 = extractor.extractTickers(from: "Stock $TSLA and (NASDAQ:AAPL) reached new milestones.")
-        assertTest(t4.contains("TSLA") && t4.contains("AAPL"), name: "Ticker Extractor: extracts from $TSLA and (NASDAQ:AAPL)")
+        // Test 2.2: Explicit symbol syntax ($TSLA, (NASDAQ:AAPL), and parenthetical (XYZ))
+        let t4 = extractor.extractTickers(from: "Stock $TSLA, (NASDAQ:AAPL), and (BBCA) reached new milestones.")
+        assertTest(t4.contains("TSLA") && t4.contains("AAPL") && t4.contains("BBCA"), name: "Ticker Extractor: extracts from $TSLA, (NASDAQ:AAPL), and (BBCA)")
 
         // Test 2.3: Avoid False Positives on single-letter/common English words
         let t5 = extractor.extractTickers(from: "An investor is in for a treat today with all the news.")

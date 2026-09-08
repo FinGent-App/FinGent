@@ -5,49 +5,89 @@ import logging
 from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 import email.utils
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 import httpx
+from database import fetch_all, is_connected
 from services.news_db_service import upsert_news_articles
 
 logger = logging.getLogger("FinGent.RSS")
 
-# Curated stock dictionary matching Swift StockTickerExtractor
-KNOWN_TICKERS = {
-    # US Tech & Chips
+# Curated global/US stock alias dictionary (Company Name / Keyword -> Ticker)
+# Focused on major US equities, semiconductor leaders, and global tech leaders
+GLOBAL_COMPANY_ALIASES: Dict[str, List[str]] = {
     "MU": ["micron", "micron technology"],
     "NVDA": ["nvidia", "nvidia corp"],
     "AMD": ["advanced micro devices", "amd"],
-    "AAPL": ["apple", "apple inc", "iphone"],
+    "AAPL": ["apple", "apple inc"],
     "MSFT": ["microsoft"],
-    "TSLA": ["tesla"],
+    "TSLA": ["tesla", "tesla motors"],
     "GOOGL": ["alphabet", "google"],
     "GOOG": ["google"],
-    "META": ["meta", "meta platforms", "facebook"],
+    "META": ["meta platforms", "facebook"],
     "AMZN": ["amazon", "amazon.com"],
     "INTC": ["intel", "intel corp"],
     "QCOM": ["qualcomm"],
     "AVGO": ["broadcom"],
     "TSM": ["tsmc", "taiwan semiconductor"],
+    "ARM": ["arm holdings", "arm"],
+    "SMCI": ["super micro", "supermicro"],
+    "PLTR": ["palantir"],
+    "NFLX": ["netflix"],
+    "COIN": ["coinbase"],
+    "ORCL": ["oracle"],
+    "CRM": ["salesforce"],
+    "UBER": ["uber"],
     "BABA": ["alibaba"],
-    # IDX Indonesian Bluechips
-    "BBCA": ["bca", "bank central asia"],
-    "BBRI": ["bri", "bank rakyat indonesia"],
-    "BMRI": ["mandiri", "bank mandiri"],
-    "BBNI": ["bni", "bank negara indonesia"],
-    "TLKM": ["telkom", "telkom indonesia"],
-    "ASII": ["astra", "astra international"],
-    "GOTO": ["goto", "gojek tokopedia"],
-    "UNVR": ["unilever indonesia", "unilever"],
-    "ICBP": ["indofood cbp"],
-    "INDF": ["indofood"],
-    "ADRO": ["adaro", "adaro energy"],
-    "PTBA": ["bukit asam"],
 }
+
+# Alias for backwards compatibility
+KNOWN_TICKERS = GLOBAL_COMPANY_ALIASES
+
+# Common English words and financial acronyms to prevent false positive ticker matches
+COMMON_WORD_BLACKLIST: Set[str] = {
+    "A", "I", "IN", "ON", "AN", "AT", "BY", "FOR", "IF", "IS", "IT", "OF",
+    "OR", "TO", "UP", "US", "BE", "DO", "GO", "HE", "ME", "MY", "NO", "SO",
+    "WE", "ALL", "ARE", "AND", "CAN", "OUT", "NEW", "NOW", "ONE", "SEE",
+    "BUY", "PAY", "KEY", "TOP", "BIG", "CEO", "CFO", "CTO", "GDP", "CPI",
+    "FED", "SEC", "IPO", "ETF", "AI", "EV", "USA", "USD", "IDR", "EUR",
+    "GBP", "JPY", "EST", "PST", "GMT", "UTC", "AM", "PM", "THE", "NOT"
+}
+
+# Regex patterns for explicit financial symbols (Cashtags, Exchange Parentheses, Standalone Parentheses)
+EXPLICIT_TICKER_PATTERNS = [
+    re.compile(r"\$([A-Z]{1,5})\b"),                                   # $MU, $AAPL
+    re.compile(r"\((?:NASDAQ|NYSE|AMEX|IDX):\s*([A-Z]{1,5})\)", re.I), # (NASDAQ: AAPL)
+    re.compile(r"\(([A-Z]{1,5})\)"),                                   # (MU), (BBCA)
+]
 
 # RSS Feed endpoints
 YAHOO_TOP_NEWS_URL = "https://finance.yahoo.com/news/rssindex"
 CNBC_TOP_NEWS_URL = "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
 YAHOO_TICKER_FEED_URL = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}"
+
+
+async def get_tracked_tickers_from_db() -> Set[str]:
+    """
+    Fetches unique tickers dynamically from user watchlists, portfolio holdings,
+    and stock market data tables in PostgreSQL.
+    """
+    if not is_connected():
+        return set()
+
+    try:
+        rows = await fetch_all("""
+            SELECT DISTINCT ticker FROM (
+                SELECT ticker FROM portfolio_holdings
+                UNION
+                SELECT ticker FROM user_watchlists
+                UNION
+                SELECT ticker FROM stock_market_data
+            ) t WHERE ticker IS NOT NULL AND ticker != ''
+        """)
+        return {r["ticker"].strip().upper() for r in rows if r.get("ticker")}
+    except Exception as e:
+        logger.warning("Failed to fetch tracked tickers from DB: %s", str(e))
+        return set()
 
 
 def _generate_deterministic_id(url: str) -> str:
@@ -81,31 +121,60 @@ def _parse_date(date_str: Optional[str]) -> datetime:
             return datetime.now(timezone.utc)
 
 
-def extract_tickers(title: str, summary: str) -> List[str]:
+def extract_tickers(
+    title: str,
+    summary: str,
+    dynamic_tickers: Optional[Set[str]] = None
+) -> List[str]:
     """
-    Extracts stock tickers based on explicit symbols and company name keywords.
+    Extracts stock tickers based on:
+    1. Explicit financial syntaxes ($TICKER, (NASDAQ: TICKER), (TICKER))
+    2. Dynamically tracked tickers from the database (user holdings/watchlists)
+    3. Curated global company name aliases (e.g. 'NVIDIA' -> 'NVDA')
+    Filters out common word false positives using COMMON_WORD_BLACKLIST.
     """
     combined = f"{title} {summary}"
     combined_upper = combined.upper()
     combined_lower = combined.lower()
-    found = set()
+    found: Set[str] = set()
 
-    for ticker, keywords in KNOWN_TICKERS.items():
-        # Match explicit ticker with word boundaries: \bMU\b, \bNVDA\b
-        if re.search(rf"\b{ticker}\b", combined_upper):
+    # 1. Explicit Financial Symbol Patterns ($TICKER, (NASDAQ: TICKER), (TICKER))
+    for pattern in EXPLICIT_TICKER_PATTERNS:
+        for match in pattern.finditer(combined):
+            symbol = match.group(1).upper()
+            if symbol not in COMMON_WORD_BLACKLIST:
+                found.add(symbol)
+
+    # 2. Dynamic Tickers from Database (Watchlist, Portfolio, Market Data)
+    if dynamic_tickers:
+        for ticker in dynamic_tickers:
+            clean_ticker = ticker.strip().upper()
+            if clean_ticker and clean_ticker not in COMMON_WORD_BLACKLIST:
+                if re.search(rf"\b{re.escape(clean_ticker)}\b", combined_upper):
+                    found.add(clean_ticker)
+
+    # 3. Curated Global Company Name Aliases
+    for ticker, keywords in GLOBAL_COMPANY_ALIASES.items():
+        if ticker in found:
+            continue
+        # Direct ticker match as whole word
+        if re.search(rf"\b{re.escape(ticker)}\b", combined_upper) and ticker not in COMMON_WORD_BLACKLIST:
             found.add(ticker)
             continue
-
-        # Match company aliases/keywords
+        # Company name alias match
         for kw in keywords:
-            if kw in combined_lower:
+            if re.search(rf"\b{re.escape(kw)}\b", combined_lower):
                 found.add(ticker)
                 break
 
     return sorted(list(found))
 
 
-def _parse_xml_feed(xml_content: str, source_name: str) -> List[Dict[str, Any]]:
+def _parse_xml_feed(
+    xml_content: str,
+    source_name: str,
+    dynamic_tickers: Optional[Set[str]] = None
+) -> List[Dict[str, Any]]:
     """Parses RSS/Atom XML content into structured article dicts."""
     articles = []
     try:
@@ -147,7 +216,7 @@ def _parse_xml_feed(xml_content: str, source_name: str) -> List[Dict[str, Any]]:
         summary = _clean_text(desc_el.text if desc_el is not None else "")
         published_at = _parse_date(pub_el.text if pub_el is not None else "")
         article_id = _generate_deterministic_id(url)
-        tickers = extract_tickers(title, summary)
+        tickers = extract_tickers(title, summary, dynamic_tickers=dynamic_tickers)
 
         articles.append({
             "id": article_id,
@@ -164,7 +233,11 @@ def _parse_xml_feed(xml_content: str, source_name: str) -> List[Dict[str, Any]]:
     return articles
 
 
-async def fetch_rss_feed(url: str, source_name: str) -> List[Dict[str, Any]]:
+async def fetch_rss_feed(
+    url: str,
+    source_name: str,
+    dynamic_tickers: Optional[Set[str]] = None
+) -> List[Dict[str, Any]]:
     """Fetches and parses a single RSS feed over HTTP."""
     headers = {
         "User-Agent": "FinGent-News-Grounding/1.0 (iOS Investment Assistant; Contact: admin@fingent.app)"
@@ -173,7 +246,7 @@ async def fetch_rss_feed(url: str, source_name: str) -> List[Dict[str, Any]]:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
-                return _parse_xml_feed(resp.text, source_name)
+                return _parse_xml_feed(resp.text, source_name, dynamic_tickers=dynamic_tickers)
             else:
                 logger.warning("HTTP %d when fetching %s (%s)", resp.status_code, url, source_name)
                 return []
@@ -185,10 +258,12 @@ async def fetch_rss_feed(url: str, source_name: str) -> List[Dict[str, Any]]:
 async def sync_all_rss_feeds() -> int:
     """
     Ingests global news feeds from Yahoo Finance and CNBC and persists them to PostgreSQL.
+    Dynamically grounds incoming news against DB-tracked portfolio/watchlist tickers.
     """
+    tracked_tickers = await get_tracked_tickers_from_db()
     articles = []
-    yahoo_articles = await fetch_rss_feed(YAHOO_TOP_NEWS_URL, "Yahoo Finance")
-    cnbc_articles = await fetch_rss_feed(CNBC_TOP_NEWS_URL, "CNBC")
+    yahoo_articles = await fetch_rss_feed(YAHOO_TOP_NEWS_URL, "Yahoo Finance", dynamic_tickers=tracked_tickers)
+    cnbc_articles = await fetch_rss_feed(CNBC_TOP_NEWS_URL, "CNBC", dynamic_tickers=tracked_tickers)
 
     articles.extend(yahoo_articles)
     articles.extend(cnbc_articles)
@@ -205,7 +280,7 @@ async def sync_ticker_news(ticker: str) -> int:
     """
     clean_ticker = ticker.strip().upper().replace(".JK", "")
     feed_url = YAHOO_TICKER_FEED_URL.format(ticker=clean_ticker)
-    articles = await fetch_rss_feed(feed_url, f"Yahoo Finance ({clean_ticker})")
+    articles = await fetch_rss_feed(feed_url, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker})
 
     # Ensure this ticker is tagged in all returned articles
     for art in articles:

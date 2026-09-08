@@ -16,15 +16,18 @@ final class StockTickerExtractor: TickerExtractor {
     // MARK: - Known Alias Dictionary (Company Name / Keyword -> Ticker)
 
     private let companyAliases: [String: String] = [
-        // US Tech / Semis
+        // US Tech / Semis / Global Market Leaders
         "micron": "MU",
         "micron technology": "MU",
         "nvidia": "NVDA",
+        "nvidia corp": "NVDA",
         "advanced micro devices": "AMD",
+        "amd": "AMD",
         "broadcom": "AVGO",
         "taiwan semiconductor": "TSM",
         "tsmc": "TSM",
         "apple": "AAPL",
+        "apple inc": "AAPL",
         "microsoft": "MSFT",
         "google": "GOOGL",
         "alphabet": "GOOGL",
@@ -35,43 +38,42 @@ final class StockTickerExtractor: TickerExtractor {
         "tesla": "TSLA",
         "intel": "INTC",
         "qualcomm": "QCOM",
-
-        // Indonesia (IDX / BEI)
-        "bank central asia": "BBCA",
-        "bca": "BBCA",
-        "bank rakyat indonesia": "BBRI",
-        "bri": "BBRI",
-        "bank mandiri": "BMRI",
-        "mandiri": "BMRI",
-        "telkom indonesia": "TLKM",
-        "telkom": "TLKM",
-        "goto": "GOTO",
-        "gojek tokopedia": "GOTO",
-        "gojek": "GOTO",
-        "astra international": "ASII",
-        "astra": "ASII",
-        "unilever indonesia": "UNVR",
-        "unilever": "UNVR",
-        "barito renewables": "BREN",
-        "barito": "BREN",
-        "amman mineral": "AMMN",
-        "ace hardware": "ACES",
-        "indofood": "ICBP"
+        "arm holdings": "ARM",
+        "arm": "ARM",
+        "super micro": "SMCI",
+        "supermicro": "SMCI",
+        "palantir": "PLTR",
+        "netflix": "NFLX",
+        "coinbase": "COIN",
+        "oracle": "ORCL",
+        "salesforce": "CRM",
+        "uber": "UBER",
+        "alibaba": "BABA"
     ]
 
     // MARK: - Known Tickers Set
 
-    private let knownTickers: Set<String> = [
-        "NVDA", "MU", "AMD", "AVGO", "TSM", "AAPL", "MSFT", "GOOGL", "GOOG",
-        "AMZN", "META", "TSLA", "INTC", "QCOM", "ARM", "SMCI",
-        "BBCA", "BBRI", "BMRI", "TLKM", "GOTO", "ASII", "UNVR", "BREN", "AMMN", "ACES", "ICBP"
-    ]
+    private let knownTickers: Set<String>
 
     // Common words that could collide with 1-2 letter tickers
     private let blacklistWords: Set<String> = [
         "A", "I", "IN", "ON", "AN", "AT", "BY", "FOR", "IF", "IS", "IT", "OF",
-        "OR", "TO", "UP", "US", "BE", "DO", "GO", "HE", "ME", "MY", "NO", "SO", "WE"
+        "OR", "TO", "UP", "US", "BE", "DO", "GO", "HE", "ME", "MY", "NO", "SO", "WE",
+        "ALL", "ARE", "AND", "CAN", "OUT", "NEW", "NOW", "ONE", "SEE", "BUY", "PAY",
+        "KEY", "TOP", "BIG", "CEO", "CFO", "CTO", "GDP", "CPI", "FED", "SEC", "IPO", "ETF"
     ]
+
+    // MARK: - Initializer
+
+    nonisolated init(additionalTickers: Set<String> = []) {
+        var base: Set<String> = [
+            "NVDA", "MU", "AMD", "AVGO", "TSM", "AAPL", "MSFT", "GOOGL", "GOOG",
+            "AMZN", "META", "TSLA", "INTC", "QCOM", "ARM", "SMCI", "PLTR", "NFLX",
+            "COIN", "ORCL", "CRM", "UBER", "BABA"
+        ]
+        base.formUnion(additionalTickers.map { $0.uppercased() })
+        self.knownTickers = base
+    }
 
     // MARK: - Extraction Methods
 
@@ -94,14 +96,14 @@ final class StockTickerExtractor: TickerExtractor {
         }
 
         // 2. Explicit Stock Symbols (e.g. $MU, (NASDAQ:NVDA), (NYSE:TSLA), (MU))
-        let symbolPattern = #"(?:[\$]|(?:\((?:NASDAQ|NYSE|IDX):)|(?:\())(\b[A-Z]{1,5}\b)(?:\))?"#
-        if let regex = try? NSRegularExpression(pattern: symbolPattern) {
+        let symbolPattern = #"(?:[\$]|(?:\((?:NASDAQ|NYSE|AMEX|IDX):)|(?:\())(\b[A-Z]{1,5}\b)(?:\))?"#
+        if let regex = try? NSRegularExpression(pattern: symbolPattern, options: [.caseInsensitive]) {
             let nsText = text as NSString
             let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
             for match in matches {
                 if match.numberOfRanges > 1 {
                     let symbol = nsText.substring(with: match.range(at: 1)).uppercased()
-                    if !blacklistWords.contains(symbol) && knownTickers.contains(symbol) {
+                    if !blacklistWords.contains(symbol) {
                         detected.insert(symbol)
                     }
                 }
