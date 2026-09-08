@@ -6,8 +6,8 @@ final class StockApiClient: Sendable {
 
     static let shared = StockApiClient()
 
-    // 127.0.0.1 connects directly to the Mac FastAPI backend from iOS Simulator
-    let baseURL: String = "http://127.0.0.1:8000"
+    // Google Cloud Run production backend
+    let baseURL: String = "https://fingent-backend-321195005615.asia-southeast2.run.app"
 
     private let session: URLSession
 
