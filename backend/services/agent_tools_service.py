@@ -82,10 +82,13 @@ def compare_stocks(tickers: List[str]) -> Dict[str, Any]:
             "change_percent": quote.get("change_percent", 0.0),
             "sector": fund.get("sector", "N/A"),
             "pe_ratio": fund.get("pe_ratio", 0.0),
+            "forward_pe": fund.get("forward_pe"),
             "pbv_ratio": fund.get("pbv_ratio", 0.0),
+            "eps": fund.get("eps", 0.0),
             "roe": fund.get("roe", 0.0),
             "market_cap": fund.get("market_cap", 0.0),
-            "dividend_yield": fund.get("dividend_yield", 0.0)
+            "dividend_yield": fund.get("dividend_yield", 0.0),
+            "free_cashflow": fund.get("free_cashflow")
         })
 
     return {

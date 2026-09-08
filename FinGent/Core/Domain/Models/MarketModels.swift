@@ -14,6 +14,41 @@ struct StockFundamentals: Sendable {
     let roe: Double             // percentage
     let debtToEquity: Double
     let sector: String
+    let forwardPE: Double?
+    let forwardEps: Double?
+    let freeCashflow: Double?
+
+    init(
+        ticker: String,
+        name: String,
+        peRatio: Double,
+        eps: Double,
+        marketCap: Double,
+        dividendYield: Double,
+        beta: Double,
+        pbvRatio: Double,
+        roe: Double,
+        debtToEquity: Double,
+        sector: String,
+        forwardPE: Double? = nil,
+        forwardEps: Double? = nil,
+        freeCashflow: Double? = nil
+    ) {
+        self.ticker = ticker
+        self.name = name
+        self.peRatio = peRatio
+        self.eps = eps
+        self.marketCap = marketCap
+        self.dividendYield = dividendYield
+        self.beta = beta
+        self.pbvRatio = pbvRatio
+        self.roe = roe
+        self.debtToEquity = debtToEquity
+        self.sector = sector
+        self.forwardPE = forwardPE
+        self.forwardEps = forwardEps
+        self.freeCashflow = freeCashflow
+    }
 }
 
 struct StockPerformance: Sendable {

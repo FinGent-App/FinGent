@@ -43,6 +43,36 @@ enum NumberFormatters {
         }
     }
 
+    /// Formats large financial figures (e.g. Market Cap, Free Cash Flow) in Trillions / Billions / Millions
+    static func financialCompact(_ value: Double, currency: String = "IDR") -> String {
+        let absVal = abs(value)
+        let sign = value < 0 ? "-" : ""
+        let prefix = currency == "USD" ? "$" : "Rp "
+
+        if currency == "USD" {
+            if absVal >= 1_000_000_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.2fT", absVal / 1_000_000_000_000))"
+            } else if absVal >= 1_000_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.2fB", absVal / 1_000_000_000))"
+            } else if absVal >= 1_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.2fM", absVal / 1_000_000))"
+            } else {
+                return "\(sign)\(prefix)\(String(format: "%.0f", absVal))"
+            }
+        } else {
+            // IDR
+            if absVal >= 1_000_000_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.1f T", absVal / 1_000_000_000_000))"
+            } else if absVal >= 1_000_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.1f M", absVal / 1_000_000_000))"
+            } else if absVal >= 1_000_000 {
+                return "\(sign)\(prefix)\(String(format: "%.1f jt", absVal / 1_000_000))"
+            } else {
+                return "\(sign)\(prefix)\(String(format: "%.0f", absVal))"
+            }
+        }
+    }
+
     /// For text input fields — shows "1.000.000" style
     static func inputFormatted(_ value: Double) -> String {
         guard value > 0 else { return "" }

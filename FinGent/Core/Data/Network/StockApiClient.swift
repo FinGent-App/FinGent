@@ -53,24 +53,31 @@ final class StockApiClient: Sendable {
         let name: String
         let sector: String
         let pe_ratio: Double
+        let forward_pe: Double?
         let pbv_ratio: Double
+        let eps: Double?
+        let forward_eps: Double?
         let roe: Double
         let market_cap: Double
         let dividend_yield: Double
+        let free_cashflow: Double?
 
         func toDomain() -> StockFundamentals {
             StockFundamentals(
                 ticker: ticker,
                 name: name,
                 peRatio: pe_ratio,
-                eps: 0.0,
+                eps: eps ?? 0.0,
                 marketCap: market_cap / 1_000_000_000_000.0,
                 dividendYield: dividend_yield,
                 beta: 1.0,
                 pbvRatio: pbv_ratio,
                 roe: roe,
                 debtToEquity: 0.0,
-                sector: sector
+                sector: sector,
+                forwardPE: forward_pe,
+                forwardEps: forward_eps,
+                freeCashflow: free_cashflow
             )
         }
     }
@@ -454,10 +461,13 @@ final class StockApiClient: Sendable {
         let change_percent: Double
         let sector: String
         let pe_ratio: Double
+        let forward_pe: Double?
         let pbv_ratio: Double
+        let eps: Double?
         let roe: Double
         let market_cap: Double
         let dividend_yield: Double
+        let free_cashflow: Double?
     }
 
     struct StockComparisonResponseDTO: Decodable, Sendable {

@@ -420,20 +420,54 @@ struct DetailPortfolioView: View {
     // MARK: - Fundamentals Section
 
     private var fundamentalsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Fundamental Emiten")
-                .font(.subheadline.bold())
-                .foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.teal)
+                Text("Valuasi & Fundamental Emiten")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+            }
 
             if let fund = fundamentals {
                 let currPrefix = quote.currency == "USD" ? "$" : "Rp "
+                let isBank = fund.sector.lowercased().contains("financial") || fund.sector.lowercased().contains("bank")
+
+                // Formatted FCF
+                let fcfText: String = {
+                    if let fcf = fund.freeCashflow, abs(fcf) > 0 {
+                        return NumberFormatters.financialCompact(fcf, currency: quote.currency)
+                    } else if isBank {
+                        return "N/A (Sektor Bank)"
+                    } else {
+                        return "N/A"
+                    }
+                }()
+
+                // Formatted Forward P/E
+                let fwdPEText = fund.forwardPE != nil ? String(format: "%.2fx", fund.forwardPE!) : "N/A"
+                let trailingPESubtitle = "Trailing: \(String(format: "%.1fx", fund.peRatio))"
+
+                // Formatted EPS
+                let epsText = "\(currPrefix)\(String(format: quote.currency == "USD" ? "%.2f" : "%.1f", fund.eps))"
+                let epsSubtitle: String? = fund.forwardEps != nil ? "Fwd: \(currPrefix)\(String(format: quote.currency == "USD" ? "%.2f" : "%.1f", fund.forwardEps!))" : nil
+
+                // Formatted PBV
+                let pbvText = String(format: "%.2fx", fund.pbvRatio)
+
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    statTile(title: "P/E Ratio", value: String(format: "%.1fx", fund.peRatio))
-                    statTile(title: "PBV Ratio", value: String(format: "%.1fx", fund.pbvRatio))
+                    // 4 Key Highlighted Metrics (Forward P/E, EPS, PBV, FCF)
+                    statTile(title: "Forward P/E", value: fwdPEText, subtitle: trailingPESubtitle, highlight: true)
+                    statTile(title: "EPS (Laba / Lembar)", value: epsText, subtitle: epsSubtitle, highlight: true)
+                    statTile(title: "PBV Ratio", value: pbvText, subtitle: "Price to Book", highlight: true)
+                    statTile(title: "Free Cash Flow (FCF)", value: fcfText, subtitle: isBank ? "Non-Finansial Only" : "Arus Kas Bebas", highlight: true)
+
+                    // Supporting Fundamental Metrics
+                    statTile(title: "Trailing P/E", value: String(format: "%.1fx", fund.peRatio))
                     statTile(title: "ROE", value: String(format: "%.1f%%", fund.roe))
-                    statTile(title: "Market Cap", value: "\(currPrefix)\(NumberFormatters.compact(fund.marketCap * 1_000_000_000_000))")
+                    statTile(title: "Market Cap", value: NumberFormatters.financialCompact(fund.marketCap * 1_000_000_000_000, currency: quote.currency))
                     statTile(title: "Dividend Yield", value: String(format: "%.1f%%", fund.dividendYield))
-                    statTile(title: "Sektor", value: fund.sector)
                 }
             } else {
                 HStack {
@@ -447,18 +481,32 @@ struct DetailPortfolioView: View {
         }
     }
 
-    private func statTile(title: String, value: String) -> some View {
+    private func statTile(title: String, value: String, subtitle: String? = nil, highlight: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.5))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
             Text(value)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(highlight ? Color.teal : .white)
+            if let sub = subtitle, !sub.isEmpty {
+                Text(sub)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(highlight ? Color.teal.opacity(0.08) : Color.white.opacity(0.04))
+                .overlay {
+                    if highlight {
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.teal.opacity(0.25), lineWidth: 1)
+                    }
+                }
+        )
     }
 
     // MARK: - SEC Filings Section (US Stocks)
