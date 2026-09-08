@@ -63,7 +63,6 @@ struct DetailPortfolioView: View {
                     chartCard
                     timeframeSegmentedControl
                     statsGrid
-                    fundamentalsSection
                     secFilingsSection
                     actionButton
                 }
@@ -167,7 +166,7 @@ struct DetailPortfolioView: View {
     }
 
     private var stockHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(quote.ticker)
@@ -176,9 +175,10 @@ struct DetailPortfolioView: View {
                     Text(quote.name)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
                 }
 
-                Spacer()
+                Spacer(minLength: 12)
 
                 if let sector = fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector {
                     Text(sector)
@@ -190,44 +190,116 @@ struct DetailPortfolioView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(displayFormattedPrice)
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .contentTransition(.numericText())
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(displayFormattedPrice)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
 
-                let info = periodChangeInfo
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 11, weight: .bold))
+                    let info = periodChangeInfo
+                    HStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
+                                .font(.system(size: 10, weight: .bold))
 
-                        if isUSD {
-                            Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
+                            if isUSD {
+                                Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
+                            } else {
+                                Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
+                            }
+                        }
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(themeColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(themeColor.opacity(0.12), in: Capsule())
+
+                        if let scrub = selectedScrubPoint {
+                            Text(formatScrubDate(scrub.date))
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.6))
+                                .transition(.opacity)
                         } else {
-                            Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
+                            Text(selectedTimeframe.rawValue)
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.6))
                         }
                     }
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(themeColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(themeColor.opacity(0.12), in: Capsule())
-
-                    if let scrub = selectedScrubPoint {
-                        Text(formatScrubDate(scrub.date))
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
-                            .transition(.opacity)
-                    } else {
-                        Text(selectedTimeframe.rawValue)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
                 }
+
+                Spacer(minLength: 8)
+
+                headerFundamentalsCard
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerFundamentalsCard: some View {
+        let fund = fundamentals ?? marketRepo.getFundamentals(for: quote.ticker)
+        let currPrefix = isUSD ? "$" : "Rp "
+        let isBank = (fund?.sector ?? "").lowercased().contains("financial") || (fund?.sector ?? "").lowercased().contains("bank")
+
+        let fwdPEText: String = {
+            guard let fund = fund else { return "--" }
+            return fund.forwardPE != nil ? String(format: "%.2fx", fund.forwardPE!) : "N/A"
+        }()
+
+        let epsText: String = {
+            guard let fund = fund else { return "--" }
+            return "\(currPrefix)\(String(format: isUSD ? "%.2f" : "%.1f", fund.eps))"
+        }()
+
+        let pbvText: String = {
+            guard let fund = fund else { return "--" }
+            return fund.pbvRatio > 0 ? String(format: "%.2fx", fund.pbvRatio) : "N/A"
+        }()
+
+        let fcfText: String = {
+            guard let fund = fund else { return "--" }
+            if let fcf = fund.freeCashflow, abs(fcf) > 0 {
+                return NumberFormatters.financialCompact(fcf, currency: isUSD ? "USD" : "IDR")
+            } else if isBank {
+                return "N/A (Bank)"
+            } else {
+                return "N/A"
+            }
+        }()
+
+        return VStack(alignment: .leading, spacing: 3.5) {
+            headerMetricRow(label: "Forward P/E", value: fwdPEText)
+            headerMetricRow(label: "EPS", value: epsText)
+            headerMetricRow(label: "PBV", value: pbvText)
+            headerMetricRow(label: "FCF", value: fcfText)
+        }
+        .frame(width: 145)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+    }
+
+    private func headerMetricRow(label: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+            Spacer(minLength: 4)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
     }
 
     // MARK: - Interactive Swift Charts
@@ -428,67 +500,7 @@ struct DetailPortfolioView: View {
 
     // MARK: - Fundamentals Section
 
-    private var fundamentalsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.teal)
-                Text("Valuasi & Fundamental Emiten")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-            }
 
-            if let fund = fundamentals {
-                let currPrefix = isUSD ? "$" : "Rp "
-                let isBank = fund.sector.lowercased().contains("financial") || fund.sector.lowercased().contains("bank")
-
-                // Formatted FCF
-                let fcfText: String = {
-                    if let fcf = fund.freeCashflow, abs(fcf) > 0 {
-                        return NumberFormatters.financialCompact(fcf, currency: isUSD ? "USD" : "IDR")
-                    } else if isBank {
-                        return "N/A (Sektor Bank)"
-                    } else {
-                        return "N/A"
-                    }
-                }()
-
-                // Formatted Forward P/E
-                let fwdPEText = fund.forwardPE != nil ? String(format: "%.2fx", fund.forwardPE!) : "N/A"
-                let trailingPESubtitle = "Trailing: \(String(format: "%.1fx", fund.peRatio))"
-
-                // Formatted EPS
-                let epsText = "\(currPrefix)\(String(format: isUSD ? "%.2f" : "%.1f", fund.eps))"
-                let epsSubtitle: String? = fund.forwardEps != nil ? "Fwd: \(currPrefix)\(String(format: isUSD ? "%.2f" : "%.1f", fund.forwardEps!))" : nil
-
-                // Formatted PBV
-                let pbvText = String(format: "%.2fx", fund.pbvRatio)
-
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    // 4 Key Highlighted Metrics (Forward P/E, EPS, PBV, FCF)
-                    statTile(title: "Forward P/E", value: fwdPEText, subtitle: trailingPESubtitle, highlight: true)
-                    statTile(title: "EPS (Laba / Lembar)", value: epsText, subtitle: epsSubtitle, highlight: true)
-                    statTile(title: "PBV Ratio", value: pbvText, subtitle: "Price to Book", highlight: true)
-                    statTile(title: "Free Cash Flow (FCF)", value: fcfText, subtitle: isBank ? "Non-Finansial Only" : "Arus Kas Bebas", highlight: true)
-
-                    // Supporting Fundamental Metrics
-                    statTile(title: "Trailing P/E", value: String(format: "%.1fx", fund.peRatio))
-                    statTile(title: "ROE", value: String(format: "%.1f%%", fund.roe))
-                    statTile(title: "Market Cap", value: NumberFormatters.financialCompact(fund.marketCap * 1_000_000_000_000, currency: isUSD ? "USD" : "IDR"))
-                    statTile(title: "Dividend Yield", value: String(format: "%.1f%%", fund.dividendYield))
-                }
-            } else {
-                HStack {
-                    ProgressView().tint(.teal).scaleEffect(0.8)
-                    Text("Memuat data fundamental...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(12)
-            }
-        }
-    }
 
     private func statTile(title: String, value: String, subtitle: String? = nil, highlight: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 3) {
