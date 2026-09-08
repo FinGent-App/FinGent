@@ -29,6 +29,7 @@ from services.portfolio_db_service import (
     record_transaction,
     get_user_transactions
 )
+from services.stock_market_db_service import get_or_sync_market_data
 from services.milvus_service import (
     search_knowledge_hybrid,
     sync_portfolio_to_milvus,
@@ -419,6 +420,24 @@ def get_fundamentals(ticker: str):
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/api/v1/stocks/{ticker}/market-data")
+async def get_market_data_endpoint(
+    ticker: str,
+    refresh: bool = Query(False, description="Force refresh market data from Yahoo Finance")
+):
+    """
+    Get consolidated market snapshot containing 7-period performance changes (24h, 1w, 1m, 3m, ytd, 1y, 5y)
+    and fundamental valuation metrics (Forward P/E, EPS, Forward EPS, PBV, FCF) cached in PostgreSQL.
+    """
+    try:
+        data = await get_or_sync_market_data(ticker, force_refresh=refresh)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"Market data not found for '{ticker}'")
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch market data: {str(e)}")
 
 
 @app.get("/api/v1/stocks/{ticker}/history")

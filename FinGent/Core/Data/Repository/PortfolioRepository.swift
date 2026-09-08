@@ -150,13 +150,44 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
                         name: dto.name,
                         investedAmount: dto.invested_amount,
                         pricePerShare: dto.price_per_share,
-                        sector: dto.sector ?? "Technology"
+                        sector: dto.sector ?? "Technology",
+                        currency: dto.currency
                     )
                 }
                 await MainActor.run {
                     self.userHoldings = mapped
+
+                    // 3. Prime MarketDataRepository with enriched performance and fundamentals from PostgreSQL snapshot
+                    for dto in remoteHoldings {
+                        if let currentPrice = dto.current_price, currentPrice > 0 {
+                            let curr = dto.currency ?? (dto.ticker.uppercased() == "MU" ? "USD" : "IDR")
+                            MarketDataRepository.shared.registerRemoteHoldingMarketData(
+                                ticker: dto.ticker,
+                                name: dto.name,
+                                price: currentPrice,
+                                currency: curr,
+                                change24h: dto.change_24h,
+                                weekly: dto.change_1w,
+                                monthly: dto.change_1m,
+                                threeMonth: dto.change_3m,
+                                ytd: dto.change_ytd,
+                                yearly: dto.change_1y,
+                                fiveYear: dto.change_5y,
+                                forwardPE: dto.forward_pe,
+                                eps: dto.eps,
+                                forwardEps: dto.forward_eps,
+                                pbvRatio: dto.pbv_ratio,
+                                freeCashflow: dto.free_cashflow,
+                                trailingPE: dto.trailing_pe,
+                                roe: dto.roe,
+                                marketCap: dto.market_cap,
+                                dividendYield: dto.dividend_yield,
+                                sector: dto.sector ?? "Technology"
+                            )
+                        }
+                    }
                 }
-                print("✅ [PortfolioRepository] Pulled \(mapped.count) holdings from PostgreSQL.")
+                print("✅ [PortfolioRepository] Pulled \(mapped.count) holdings & primed market data from PostgreSQL.")
             }
         } catch {
             print("ℹ️ [PortfolioRepository] Backend offline or unreachable. Using local cache.")

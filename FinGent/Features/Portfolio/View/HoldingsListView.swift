@@ -60,7 +60,7 @@ struct HoldingRowView: View {
             high: row.currentPrice,
             low: row.currentPrice,
             volume: 0,
-            currency: "IDR"
+            currency: row.currency
         )
     }
 

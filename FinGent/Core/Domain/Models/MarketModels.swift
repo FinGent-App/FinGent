@@ -59,6 +59,30 @@ struct StockPerformance: Sendable {
     let monthly: Double
     let ytd: Double
     let yearly: Double
+    let threeMonth: Double?
+    let fiveYear: Double?
+
+    init(
+        ticker: String,
+        name: String,
+        daily: Double,
+        weekly: Double,
+        monthly: Double,
+        ytd: Double,
+        yearly: Double,
+        threeMonth: Double? = nil,
+        fiveYear: Double? = nil
+    ) {
+        self.ticker = ticker
+        self.name = name
+        self.daily = daily
+        self.weekly = weekly
+        self.monthly = monthly
+        self.ytd = ytd
+        self.yearly = yearly
+        self.threeMonth = threeMonth
+        self.fiveYear = fiveYear
+    }
 }
 
 struct MarketMover: Sendable {

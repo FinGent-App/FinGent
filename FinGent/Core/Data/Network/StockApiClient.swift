@@ -122,6 +122,57 @@ final class StockApiClient: Sendable {
         let invested_amount: Double
         let sector: String?
         let updated_at: String?
+
+        // Market Performance & Quotes Snapshot
+        let current_price: Double?
+        let currency: String?
+        let change_24h: Double?
+        let change_1w: Double?
+        let change_1m: Double?
+        let change_3m: Double?
+        let change_ytd: Double?
+        let change_1y: Double?
+        let change_5y: Double?
+
+        // Key Fundamental Metrics
+        let forward_pe: Double?
+        let eps: Double?
+        let forward_eps: Double?
+        let pbv_ratio: Double?
+        let free_cashflow: Double?
+
+        // Supplementary Metrics
+        let trailing_pe: Double?
+        let roe: Double?
+        let market_cap: Double?
+        let dividend_yield: Double?
+        let market_updated_at: String?
+    }
+
+    struct StockMarketDataDTO: Decodable, Sendable {
+        let ticker: String
+        let name: String
+        let sector: String?
+        let currency: String?
+        let current_price: Double
+        let change_24h: Double?
+        let change_1w: Double?
+        let change_1m: Double?
+        let change_3m: Double?
+        let change_ytd: Double?
+        let change_1y: Double?
+        let change_5y: Double?
+        let forward_pe: Double?
+        let eps: Double?
+        let forward_eps: Double?
+        let pbv_ratio: Double?
+        let free_cashflow: Double?
+        let trailing_pe: Double?
+        let roe: Double?
+        let market_cap: Double?
+        let dividend_yield: Double?
+        let updated_at: String?
+        let is_fresh: Bool?
     }
 
     struct HoldingsResponseDTO: Decodable, Sendable {
@@ -184,6 +235,18 @@ final class StockApiClient: Sendable {
         }
         let dto = try JSONDecoder().decode(FundamentalsDTO.self, from: data)
         return dto.toDomain()
+    }
+
+    func fetchMarketData(ticker: String, refresh: Bool = false) async throws -> StockMarketDataDTO {
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        guard let url = URL(string: "\(baseURL)/api/v1/stocks/\(clean)/market-data?refresh=\(refresh)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(StockMarketDataDTO.self, from: data)
     }
 
     func fetchHistory(ticker: String, period: String = "1mo") async throws -> [StockHistoryPoint] {

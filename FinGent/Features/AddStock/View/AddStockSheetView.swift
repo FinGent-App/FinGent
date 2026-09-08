@@ -167,10 +167,14 @@ struct AddStockSheetView: View {
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.7))
                 Spacer()
+                let isUSD = stock.isUSD
                 let lotCount = viewModel.estimatedShares / 100
-                let lotText = lotCount > 0
-                    ? "\(lotCount) lot (\(NumberFormatters.stockPrice(Double(viewModel.estimatedShares))) lembar)"
-                    : "\(viewModel.estimatedShares) lembar"
+                let lotText: String = {
+                    if !isUSD && lotCount > 0 {
+                        return "\(lotCount) lot (\(NumberFormatters.stockPrice(Double(viewModel.estimatedShares))) lembar)"
+                    }
+                    return "\(viewModel.estimatedShares) lembar"
+                }()
                 Text(lotText)
                     .font(.subheadline.bold())
                     .foregroundStyle(.cyan)
@@ -180,7 +184,10 @@ struct AddStockSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                 Spacer()
-                Text("Rp \(NumberFormatters.stockPrice(viewModel.effectiveInvestment))")
+                let effText = stock.isUSD
+                    ? String(format: "$%.2f", viewModel.effectiveInvestment)
+                    : "Rp \(NumberFormatters.stockPrice(viewModel.effectiveInvestment))"
+                Text(effText)
                     .font(.caption.bold())
                     .foregroundStyle(.white.opacity(0.7))
             }
@@ -276,7 +283,7 @@ private struct StockPickerRowView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("Rp \(NumberFormatters.stockPrice(stock.price))")
+                    Text(stock.formattedPrice)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                     if isOwned {

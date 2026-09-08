@@ -67,11 +67,30 @@ final class PortfolioViewModel {
             let currentVal = holding.currentValue(at: currentPrice)
             let direction = marketDataRepository.priceDirections[holding.ticker] ?? .unchanged
 
+            let isUSD = holding.isUSD || quote?.isUSD == true
+            let curr = isUSD ? "USD" : "IDR"
+
             let lotText: String = {
-                if holding.lots > 0 {
+                if !isUSD && holding.lots > 0 {
                     return "\(holding.lots) lot (\(NumberFormatters.compact(Double(holding.shares))) lbr)"
                 }
                 return "\(holding.shares) lbr"
+            }()
+
+            let formattedPrice: String = {
+                if isUSD {
+                    return String(format: "$%.2f", currentPrice)
+                } else {
+                    return "Rp \(NumberFormatters.stockPrice(currentPrice))"
+                }
+            }()
+
+            let formattedValue: String = {
+                if isUSD {
+                    return String(format: "$%.2f", currentVal)
+                } else {
+                    return "Rp \(NumberFormatters.compact(currentVal))"
+                }
             }()
 
             return HoldingRowState(
@@ -84,9 +103,10 @@ final class PortfolioViewModel {
                 isProfit: pnl >= 0,
                 direction: direction,
                 lotText: lotText,
-                formattedPrice: "Rp \(NumberFormatters.stockPrice(currentPrice))",
-                formattedValue: "Rp \(NumberFormatters.compact(currentVal))",
-                formattedPnlPercent: String(format: "%+.1f%%", pnlPct)
+                formattedPrice: formattedPrice,
+                formattedValue: formattedValue,
+                formattedPnlPercent: String(format: "%+.1f%%", pnlPct),
+                currency: curr
             )
         }
     }
@@ -103,18 +123,25 @@ final class PortfolioViewModel {
         let totalPnL = totalMarket - totalInvested
         let totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
 
+        let allUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+
         let displayValue: String = {
             if !holdings.isEmpty {
-                return "Rp \(NumberFormatters.compact(totalMarket))"
+                return allUSD ? String(format: "$%.2f", totalMarket) : "Rp \(NumberFormatters.compact(totalMarket))"
             }
             return repo.formattedValue
         }()
 
+        let totalInvestedText = allUSD ? String(format: "$%.2f", totalInvested) : "Rp \(NumberFormatters.compact(totalInvested))"
+        let totalPnLText = allUSD
+            ? String(format: "%+.1f%% ($%.2f)", totalPnLPct, abs(totalPnL))
+            : String(format: "%+.1f%% (Rp %@)", totalPnLPct, NumberFormatters.compact(abs(totalPnL)))
+
         return PortfolioSummaryState(
             displayValue: displayValue,
             hasValue: true,
-            totalInvestedText: "Rp \(NumberFormatters.compact(totalInvested))",
-            totalPnLText: String(format: "%+.1f%% (Rp %@)", totalPnLPct, NumberFormatters.compact(abs(totalPnL))),
+            totalInvestedText: totalInvestedText,
+            totalPnLText: totalPnLText,
             isPnLProfit: totalPnL >= 0,
             holdingCount: holdings.count,
             totalMarketValue: totalMarket
@@ -138,6 +165,7 @@ struct HoldingRowState: Identifiable {
     let formattedPrice: String
     let formattedValue: String
     let formattedPnlPercent: String
+    let currency: String
 }
 
 struct PortfolioSummaryState {

@@ -49,7 +49,9 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
             weekly: p.weekly,
             monthly: p.monthly,
             ytd: p.ytd,
-            yearly: p.yearly
+            yearly: p.yearly,
+            threeMonth: p.threeMonth,
+            fiveYear: p.fiveYear
         )
     }
 
@@ -117,6 +119,73 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         if let f = fundamentals {
             Self.fundamentalsData[quote.ticker] = f
         }
+        self.lastTick = Date()
+    }
+
+    @MainActor
+    func registerRemoteHoldingMarketData(
+        ticker: String,
+        name: String,
+        price: Double,
+        currency: String = "IDR",
+        change24h: Double?,
+        weekly: Double?,
+        monthly: Double?,
+        threeMonth: Double?,
+        ytd: Double?,
+        yearly: Double?,
+        fiveYear: Double?,
+        forwardPE: Double?,
+        eps: Double?,
+        forwardEps: Double?,
+        pbvRatio: Double?,
+        freeCashflow: Double?,
+        trailingPE: Double?,
+        roe: Double?,
+        marketCap: Double?,
+        dividendYield: Double?,
+        sector: String
+    ) {
+        let upper = ticker.uppercased()
+        let changePct = change24h ?? 0.0
+        let prevClose = (changePct != 0 && (1.0 + (changePct / 100.0)) > 0) ? (price / (1.0 + (changePct / 100.0))) : price
+        let quote = StockQuote(
+            ticker: upper,
+            name: name,
+            price: price,
+            previousClose: prevClose,
+            open: price,
+            high: price,
+            low: price,
+            volume: 10_000_000,
+            currency: currency
+        )
+        self.quotes[upper] = quote
+        self.priceDirections[upper] = .unchanged
+
+        let w = weekly ?? 0.0
+        let m = monthly ?? 0.0
+        let y = ytd ?? 0.0
+        let yr = yearly ?? 0.0
+        Self.performanceData[upper] = (w, m, y, yr, threeMonth, fiveYear)
+
+        let fund = StockFundamentals(
+            ticker: upper,
+            name: name,
+            peRatio: trailingPE ?? 0.0,
+            eps: eps ?? 0.0,
+            marketCap: (marketCap ?? 0.0) / 1_000_000_000_000.0,
+            dividendYield: dividendYield ?? 0.0,
+            beta: 1.0,
+            pbvRatio: pbvRatio ?? 0.0,
+            roe: roe ?? 0.0,
+            debtToEquity: 1.0,
+            sector: sector,
+            forwardPE: forwardPE,
+            forwardEps: forwardEps,
+            freeCashflow: freeCashflow
+        )
+        Self.fundamentalsData[upper] = fund
         self.lastTick = Date()
     }
 
@@ -193,14 +262,14 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         "EMTK": StockFundamentals(ticker: "EMTK", name: "Elang Mahkota Teknologi", peRatio: 18.5, eps: 114.9, marketCap: 45, dividendYield: 0.5, beta: 1.3, pbvRatio: 1.6, roe: 8.7, debtToEquity: 0.4, sector: "Technology")
     ]
 
-    private static let performanceData: [String: (weekly: Double, monthly: Double, ytd: Double, yearly: Double)] = [
-        "BBCA": (2.1, 4.3, 12.8, 18.5),
-        "BBRI": (3.2, 5.1, 8.5, 14.2),
-        "TLKM": (-2.5, -3.8, -5.2, -8.1),
-        "ASII": (1.8, 3.2, 7.2, 11.5),
-        "UNVR": (-3.1, -5.5, -9.2, -15.3),
-        "BMRI": (2.8, 4.8, 10.2, 16.8),
-        "GOTO": (5.0, 10.5, 25.4, 40.2),
-        "EMTK": (3.5, 8.9, 15.1, 22.3)
+    private static var performanceData: [String: (weekly: Double, monthly: Double, ytd: Double, yearly: Double, threeMonth: Double?, fiveYear: Double?)] = [
+        "BBCA": (2.1, 4.3, 12.8, 18.5, nil, nil),
+        "BBRI": (3.2, 5.1, 8.5, 14.2, nil, nil),
+        "TLKM": (-2.5, -3.8, -5.2, -8.1, nil, nil),
+        "ASII": (1.8, 3.2, 7.2, 11.5, nil, nil),
+        "UNVR": (-3.1, -5.5, -9.2, -15.3, nil, nil),
+        "BMRI": (2.8, 4.8, 10.2, 16.8, nil, nil),
+        "GOTO": (5.0, 10.5, 25.4, 40.2, nil, nil),
+        "EMTK": (3.5, 8.9, 15.1, 22.3, nil, nil)
     ]
 }

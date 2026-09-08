@@ -1,22 +1,58 @@
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from database import fetch_all, fetch_one, execute, is_connected
+
+from services.stock_market_db_service import ensure_tickers_market_data
 
 logger = logging.getLogger("FinGent.PortfolioDB")
 
 
 async def get_user_holdings(user_id: str = "default_user") -> List[Dict[str, Any]]:
     """
-    Retrieves all portfolio holdings for a user matching the Swift UserHolding model.
+    Retrieves all portfolio holdings for a user matching the Swift UserHolding model,
+    enriched with real-time market price, 7-period historical performance changes,
+    and fundamental valuation metrics via LEFT JOIN stock_market_data.
     """
     if not is_connected():
         return []
 
+    # 1. Fetch user's tickers to ensure market data cache is warm
+    try:
+        user_tickers = await fetch_all("SELECT DISTINCT ticker FROM portfolio_holdings WHERE user_id = $1;", user_id)
+        ticker_list = [r["ticker"] for r in user_tickers if r.get("ticker")]
+        if ticker_list:
+            await ensure_tickers_market_data(ticker_list)
+    except Exception as e:
+        logger.warning("Error ensuring market data for user holdings: %s", e)
+
+    # 2. Query enriched holdings joined with market and fundamental data
     query = """
-    SELECT id, user_id, ticker, name, shares, price_per_share, invested_amount, sector, updated_at
-    FROM portfolio_holdings
-    WHERE user_id = $1
-    ORDER BY updated_at DESC;
+    SELECT 
+        h.id, h.user_id, h.ticker, h.name, h.shares, h.price_per_share, h.invested_amount, h.sector, h.updated_at,
+        m.current_price,
+        m.currency,
+        m.change_24h,
+        m.change_1w,
+        m.change_1m,
+        m.change_3m,
+        m.change_ytd,
+        m.change_1y,
+        m.change_5y,
+        m.forward_pe,
+        m.eps,
+        m.forward_eps,
+        m.pbv_ratio,
+        m.free_cashflow,
+        m.trailing_pe,
+        m.roe,
+        m.market_cap,
+        m.dividend_yield,
+        m.updated_at AS market_updated_at
+    FROM portfolio_holdings h
+    LEFT JOIN stock_market_data m ON h.ticker = m.ticker
+    WHERE h.user_id = $1
+    ORDER BY h.updated_at DESC;
     """
     return await fetch_all(query, user_id)
 
@@ -56,6 +92,8 @@ async def upsert_holding(
     record = await fetch_one(
         query, user_id, clean_ticker, name, shares, price_per_share, invested_amount, sector
     )
+    # Warm market data in background
+    asyncio.create_task(ensure_tickers_market_data([clean_ticker]))
     return record or {}
 
 

@@ -127,13 +127,17 @@ struct DetailPortfolioView: View {
 
     // MARK: - Header
 
+    private var isUSD: Bool {
+        quote.currency.uppercased() == "USD" || quote.isUSD
+    }
+
     private var displayPrice: Double {
         selectedScrubPoint?.price ?? quote.price
     }
 
     private var displayFormattedPrice: String {
         let p = displayPrice
-        if quote.currency.uppercased() == "USD" {
+        if isUSD {
             return String(format: "$%.2f", p)
         } else {
             return "Rp \(NumberFormatters.stockPrice(p))"
@@ -166,12 +170,12 @@ struct DetailPortfolioView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(quote.name)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
                     Text(quote.ticker)
                         .font(.title2.bold())
                         .foregroundStyle(.white)
+                    Text(quote.name)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.6))
                 }
 
                 Spacer()
@@ -198,7 +202,7 @@ struct DetailPortfolioView: View {
                         Image(systemName: isGain ? "arrow.up.right" : "arrow.down.right")
                             .font(.system(size: 11, weight: .bold))
 
-                        if quote.currency.uppercased() == "USD" {
+                        if isUSD {
                             Text(String(format: "%@$%.2f (%.2f%%)", info.change >= 0 ? "+" : "-", abs(info.change), info.changePct))
                         } else {
                             Text(String(format: "%@Rp %@ (%.2f%%)", info.change >= 0 ? "+" : "-", NumberFormatters.stockPrice(abs(info.change)), info.changePct))
@@ -399,11 +403,14 @@ struct DetailPortfolioView: View {
     // MARK: - Stats Grid (OHLC & Volume)
 
     private var statsGrid: some View {
-        let prefix = quote.currency == "USD" ? "$" : "Rp "
+        let prefix = isUSD ? "$" : "Rp "
         let low = historyPoints.map(\.low).min() ?? quote.low
         let high = historyPoints.map(\.high).max() ?? quote.high
         let open = historyPoints.first?.open ?? quote.open
         let vol = historyPoints.reduce(0) { $0 + $1.volume }
+        let formatVal: (Double) -> String = { val in
+            isUSD ? String(format: "%.2f", val) : NumberFormatters.stockPrice(val)
+        }
 
         return VStack(alignment: .leading, spacing: 10) {
             Text("Ringkasan Perdagangan")
@@ -411,9 +418,9 @@ struct DetailPortfolioView: View {
                 .foregroundStyle(.white)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                statTile(title: "Tertinggi (\(selectedTimeframe.rawValue))", value: "\(prefix)\(NumberFormatters.stockPrice(high))")
-                statTile(title: "Terendah (\(selectedTimeframe.rawValue))", value: "\(prefix)\(NumberFormatters.stockPrice(low))")
-                statTile(title: "Harga Pembukaan", value: "\(prefix)\(NumberFormatters.stockPrice(open))")
+                statTile(title: "Tertinggi (\(selectedTimeframe.rawValue))", value: "\(prefix)\(formatVal(high))")
+                statTile(title: "Terendah (\(selectedTimeframe.rawValue))", value: "\(prefix)\(formatVal(low))")
+                statTile(title: "Harga Pembukaan", value: "\(prefix)\(formatVal(open))")
                 statTile(title: "Volume Total", value: NumberFormatters.compact(Double(vol > 0 ? vol : quote.volume)))
             }
         }
@@ -433,13 +440,13 @@ struct DetailPortfolioView: View {
             }
 
             if let fund = fundamentals {
-                let currPrefix = quote.currency == "USD" ? "$" : "Rp "
+                let currPrefix = isUSD ? "$" : "Rp "
                 let isBank = fund.sector.lowercased().contains("financial") || fund.sector.lowercased().contains("bank")
 
                 // Formatted FCF
                 let fcfText: String = {
                     if let fcf = fund.freeCashflow, abs(fcf) > 0 {
-                        return NumberFormatters.financialCompact(fcf, currency: quote.currency)
+                        return NumberFormatters.financialCompact(fcf, currency: isUSD ? "USD" : "IDR")
                     } else if isBank {
                         return "N/A (Sektor Bank)"
                     } else {
@@ -452,8 +459,8 @@ struct DetailPortfolioView: View {
                 let trailingPESubtitle = "Trailing: \(String(format: "%.1fx", fund.peRatio))"
 
                 // Formatted EPS
-                let epsText = "\(currPrefix)\(String(format: quote.currency == "USD" ? "%.2f" : "%.1f", fund.eps))"
-                let epsSubtitle: String? = fund.forwardEps != nil ? "Fwd: \(currPrefix)\(String(format: quote.currency == "USD" ? "%.2f" : "%.1f", fund.forwardEps!))" : nil
+                let epsText = "\(currPrefix)\(String(format: isUSD ? "%.2f" : "%.1f", fund.eps))"
+                let epsSubtitle: String? = fund.forwardEps != nil ? "Fwd: \(currPrefix)\(String(format: isUSD ? "%.2f" : "%.1f", fund.forwardEps!))" : nil
 
                 // Formatted PBV
                 let pbvText = String(format: "%.2fx", fund.pbvRatio)
@@ -468,7 +475,7 @@ struct DetailPortfolioView: View {
                     // Supporting Fundamental Metrics
                     statTile(title: "Trailing P/E", value: String(format: "%.1fx", fund.peRatio))
                     statTile(title: "ROE", value: String(format: "%.1f%%", fund.roe))
-                    statTile(title: "Market Cap", value: NumberFormatters.financialCompact(fund.marketCap * 1_000_000_000_000, currency: quote.currency))
+                    statTile(title: "Market Cap", value: NumberFormatters.financialCompact(fund.marketCap * 1_000_000_000_000, currency: isUSD ? "USD" : "IDR"))
                     statTile(title: "Dividend Yield", value: String(format: "%.1f%%", fund.dividendYield))
                 }
             } else {

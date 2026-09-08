@@ -97,24 +97,26 @@ def is_connected() -> bool:
 
 async def apply_migrations():
     """
-    Applies initial schema from migrations/001_initial_schema.sql if connected.
+    Applies schema migrations from migrations/*.sql in alphabetical order.
     Ensures tables and indices exist in local or Supabase database.
     """
     if _pool is None:
         return
 
-    migration_file = os.path.join(os.path.dirname(__file__), "migrations", "001_initial_schema.sql")
-    if not os.path.exists(migration_file):
-        logger.warning("Migration file not found at %s", migration_file)
+    migrations_dir = os.path.join(os.path.dirname(__file__), "migrations")
+    if not os.path.exists(migrations_dir):
+        logger.warning("Migrations directory not found at %s", migrations_dir)
         return
 
     try:
-        with open(migration_file, "r", encoding="utf-8") as f:
-            sql = f.read()
-
+        sql_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith(".sql")])
         async with _pool.acquire() as conn:
-            await conn.execute(sql)
-            logger.info("✅ Database schema verified & migrations applied successfully.")
+            for sql_file in sql_files:
+                file_path = os.path.join(migrations_dir, sql_file)
+                with open(file_path, "r", encoding="utf-8") as f:
+                    sql = f.read()
+                await conn.execute(sql)
+                logger.info("✅ Migration applied: %s", sql_file)
     except Exception as e:
         logger.error("❌ Failed to apply database migrations: %s", str(e))
 

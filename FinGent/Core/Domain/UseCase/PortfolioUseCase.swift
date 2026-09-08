@@ -56,7 +56,8 @@ final class PortfolioUseCase {
                 ticker: quote.ticker,
                 name: quote.name,
                 price: quote.price,
-                sector: sector
+                sector: sector,
+                currency: quote.currency
             )
         }
     }
@@ -89,7 +90,8 @@ final class PortfolioUseCase {
             name: existing.name,
             investedAmount: totalInvested,
             pricePerShare: weightedPrice,
-            sector: existing.sector
+            sector: existing.sector,
+            currency: existing.currency
         )
     }
 }
@@ -101,4 +103,17 @@ struct AvailableStock {
     let name: String
     let price: Double
     let sector: String
+    var currency: String = "IDR"
+
+    var isUSD: Bool {
+        currency.uppercased() == "USD"
+    }
+
+    var formattedPrice: String {
+        if isUSD {
+            return String(format: "$%.2f", price)
+        } else {
+            return "Rp \(NumberFormatters.stockPrice(price))"
+        }
+    }
 }

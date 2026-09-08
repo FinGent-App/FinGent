@@ -11,6 +11,39 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
     var investedAmount: Double
     let pricePerShare: Double
     let sector: String
+    var currency: String? = nil
+
+    var effectiveCurrency: String {
+        if let c = currency, !c.isEmpty {
+            return c.uppercased()
+        }
+        let upper = ticker.uppercased()
+        let knownIndo = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "UNVR", "GOTO", "BBNI", "ICBP", "AMMN", "ACES", "BREN", "EMTK", "KLBF", "MDKA", "INDF", "PGAS", "PTBA", "ADRO", "ANTM"]
+        if upper.hasSuffix(".JK") || knownIndo.contains(upper) {
+            return "IDR"
+        }
+        return "USD"
+    }
+
+    var isUSD: Bool {
+        effectiveCurrency == "USD"
+    }
+
+    init(
+        ticker: String,
+        name: String,
+        investedAmount: Double,
+        pricePerShare: Double,
+        sector: String,
+        currency: String? = nil
+    ) {
+        self.ticker = ticker
+        self.name = name
+        self.investedAmount = investedAmount
+        self.pricePerShare = pricePerShare
+        self.sector = sector
+        self.currency = currency
+    }
 
     var shares: Int {
         guard pricePerShare > 0 else { return 0 }
