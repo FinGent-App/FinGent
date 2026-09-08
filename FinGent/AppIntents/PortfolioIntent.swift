@@ -3,35 +3,52 @@
 import AppIntents
 import Foundation
 
-// MARK: - IDX Stocks Enum
+// MARK: - General Stock Enum
 
-enum SahamIDX: String, AppEnum {
+enum StockChoice: String, AppEnum {
     case portfolio = "PORTFOLIO"
-    case bbca = "BBCA"; case bbri = "BBRI"; case goto = "GOTO"
-    case tlkm = "TLKM"; case bmri = "BMRI"; case asii = "ASII"
-    case unvr = "UNVR"; case emtk = "EMTK"; case bren = "BREN"
-    case ammn = "AMMN"; case aces = "ACES"; case icbp = "ICBP"
+    case aapl = "AAPL"
+    case nvda = "NVDA"
+    case msft = "MSFT"
+    case goog = "GOOGL"
+    case amzn = "AMZN"
+    case meta = "META"
+    case tsla = "TSLA"
+    case mu = "MU"
+    case spy = "SPY"
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Stock or Portfolio"
-    static var caseDisplayRepresentations: [SahamIDX: DisplayRepresentation] = [
+    static var caseDisplayRepresentations: [StockChoice: DisplayRepresentation] = [
         .portfolio: DisplayRepresentation(
             title: "My Portfolio",
             subtitle: "All holdings in portfolio",
-            synonyms: ["portfolio", "my portfolio", "portofolio", "all holdings", "holdings", "portfolio today", "portfolio today's", "saham saya", "holding saya"]
+            synonyms: ["portfolio", "my portfolio", "all holdings", "holdings", "my stocks", "portfolio today", "portfolio summary"]
         ),
-        .bbca: DisplayRepresentation(title: "BBCA", subtitle: "Bank Central Asia", synonyms: ["BCA", "Bank Central Asia", "B B C A"]),
-        .bbri: DisplayRepresentation(title: "BBRI", subtitle: "Bank Rakyat Indonesia", synonyms: ["BRI", "Bank Rakyat Indonesia", "B B R I"]),
-        .goto: DisplayRepresentation(title: "GOTO", subtitle: "GoTo Gojek Tokopedia", synonyms: ["GoTo", "Gojek", "Tokopedia", "G O T O"]),
-        .tlkm: DisplayRepresentation(title: "TLKM", subtitle: "Telkom Indonesia", synonyms: ["Telkom", "T L K M"]),
-        .bmri: DisplayRepresentation(title: "BMRI", subtitle: "Bank Mandiri", synonyms: ["Mandiri", "B M R I"]),
-        .asii: DisplayRepresentation(title: "ASII", subtitle: "Astra International", synonyms: ["Astra", "A S I I"]),
-        .unvr: DisplayRepresentation(title: "UNVR", subtitle: "Unilever Indonesia", synonyms: ["Unilever", "U N V R"]),
-        .emtk: DisplayRepresentation(title: "EMTK", subtitle: "Elang Mahkota Teknologi", synonyms: ["Emtek", "E M T K"]),
-        .bren: DisplayRepresentation(title: "BREN", subtitle: "Barito Renewables", synonyms: ["Barito", "B R E N"]),
-        .ammn: DisplayRepresentation(title: "AMMN", subtitle: "Amman Mineral", synonyms: ["Amman", "A M M N"]),
-        .aces: DisplayRepresentation(title: "ACES", subtitle: "Ace Hardware", synonyms: ["Ace Hardware", "A C E S"]),
-        .icbp: DisplayRepresentation(title: "ICBP", subtitle: "Indofood CBP", synonyms: ["Indofood", "I C B P"])
+        .aapl: DisplayRepresentation(title: "AAPL", subtitle: "Apple Inc.", synonyms: ["Apple", "A A P L"]),
+        .nvda: DisplayRepresentation(title: "NVDA", subtitle: "NVIDIA Corp.", synonyms: ["Nvidia", "N V D A"]),
+        .msft: DisplayRepresentation(title: "MSFT", subtitle: "Microsoft Corp.", synonyms: ["Microsoft", "M S F T"]),
+        .goog: DisplayRepresentation(title: "GOOGL", subtitle: "Alphabet Inc.", synonyms: ["Google", "Alphabet", "G O O G L"]),
+        .amzn: DisplayRepresentation(title: "AMZN", subtitle: "Amazon.com Inc.", synonyms: ["Amazon", "A M Z N"]),
+        .meta: DisplayRepresentation(title: "META", subtitle: "Meta Platforms", synonyms: ["Meta", "Facebook", "M E T A"]),
+        .tsla: DisplayRepresentation(title: "TSLA", subtitle: "Tesla Inc.", synonyms: ["Tesla", "T S L A"]),
+        .mu: DisplayRepresentation(title: "MU", subtitle: "Micron Technology", synonyms: ["Micron", "M U"]),
+        .spy: DisplayRepresentation(title: "SPY", subtitle: "SPDR S&P 500 ETF", synonyms: ["S&P 500", "S P Y"])
     ]
+}
+
+// Backward compatibility alias
+typealias SahamIDX = StockChoice
+
+// MARK: - Currency Formatting Helper
+
+fileprivate func formatCurrency(value: Double, ticker: String) -> String {
+    let quote = MarketDataRepository.shared.getQuote(for: ticker)
+    let isUSD = quote?.isUSD ?? (quote?.currency.uppercased() == "USD" || !ticker.hasSuffix(".JK"))
+    if isUSD {
+        return String(format: "$%.2f", value)
+    } else {
+        return "Rp " + NumberFormatters.englishDecimal(value)
+    }
 }
 
 // MARK: - 1. AskFinGentIntent
@@ -61,7 +78,7 @@ struct AskFinGentIntent: AppIntent {
         let holdings = PortfolioRepository.shared.userHoldings
         let market = MarketDataRepository.shared
         let news = NewsRepository.shared
-        let isNewsQuery = q.contains("NEWS") || q.contains("BERITA")
+        let isNewsQuery = q.contains("NEWS")
 
         if let ticker = matchTicker(in: q) {
             if isNewsQuery {
@@ -104,21 +121,44 @@ struct AskFinGentIntent: AppIntent {
     }
 
     private func matchTicker(in text: String) -> String? {
-        let aliases: [(String, String)] = [
-            ("BANK CENTRAL ASIA", "BBCA"), ("BBCA", "BBCA"), ("BCA", "BBCA"),
-            ("BANK RAKYAT INDONESIA", "BBRI"), ("BBRI", "BBRI"), ("BRI", "BBRI"),
-            ("GOJEK TOKOPEDIA", "GOTO"), ("GOTO", "GOTO"), ("GOJEK", "GOTO"), ("TOKOPEDIA", "GOTO"),
-            ("TELKOM INDONESIA", "TLKM"), ("TLKM", "TLKM"), ("TELKOM", "TLKM"),
-            ("BANK MANDIRI", "BMRI"), ("BMRI", "BMRI"), ("MANDIRI", "BMRI"),
-            ("ASTRA INTERNATIONAL", "ASII"), ("ASII", "ASII"), ("ASTRA", "ASII"),
-            ("UNILEVER INDONESIA", "UNVR"), ("UNVR", "UNVR"), ("UNILEVER", "UNVR"),
-            ("ELANG MAHKOTA", "EMTK"), ("EMTK", "EMTK"), ("EMTEK", "EMTK"),
-            ("BARITO RENEWABLES", "BREN"), ("BREN", "BREN"), ("BARITO", "BREN"),
-            ("AMMAN MINERAL", "AMMN"), ("AMMN", "AMMN"), ("AMMAN", "AMMN"),
-            ("ACE HARDWARE", "ACES"), ("ACES", "ACES"),
-            ("INDOFOOD CBP", "ICBP"), ("ICBP", "ICBP"), ("INDOFOOD", "ICBP")
+        let holdings = PortfolioRepository.shared.userHoldings
+
+        // 1. Dynamic match from user's current holdings (ticker or company name)
+        for h in holdings {
+            if text.contains(h.ticker.uppercased()) || text.contains(h.name.uppercased()) {
+                return h.ticker.uppercased()
+            }
+        }
+
+        // 2. Common general stock aliases
+        let generalAliases: [(String, String)] = [
+            ("APPLE", "AAPL"), ("AAPL", "AAPL"),
+            ("NVIDIA", "NVDA"), ("NVDA", "NVDA"),
+            ("MICROSOFT", "MSFT"), ("MSFT", "MSFT"),
+            ("GOOGLE", "GOOGL"), ("ALPHABET", "GOOGL"), ("GOOGL", "GOOGL"), ("GOOG", "GOOGL"),
+            ("AMAZON", "AMZN"), ("AMZN", "AMZN"),
+            ("META", "META"), ("FACEBOOK", "META"),
+            ("TESLA", "TSLA"), ("TSLA", "TSLA"),
+            ("MICRON", "MU"), ("MU", "MU"),
+            ("AMD", "AMD"), ("ADVANCED MICRO", "AMD"),
+            ("INTEL", "INTC"), ("INTC", "INTC"),
+            ("NETFLIX", "NFLX"), ("NFLX", "NFLX"),
+            ("S&P 500", "SPY"), ("SPDR", "SPY"), ("SPY", "SPY")
         ]
-        for (alias, ticker) in aliases where text.contains(alias) { return ticker }
+        for (alias, ticker) in generalAliases where text.contains(alias) {
+            return ticker
+        }
+
+        // 3. Dynamic token check against marketRepo
+        let words = text.components(separatedBy: CharacterSet.alphanumerics.inverted)
+        for word in words {
+            let w = word.trimmingCharacters(in: .whitespaces).uppercased()
+            if w.count >= 2 && w.count <= 5 && !["THE", "FOR", "HOW", "ABOUT", "WHAT", "NEWS", "STOCK", "TODAY", "PRICE", "CHECK", "SHOW"].contains(w) {
+                if MarketDataRepository.shared.getQuote(for: w) != nil {
+                    return w
+                }
+            }
+        }
         return nil
     }
 
@@ -128,24 +168,27 @@ struct AskFinGentIntent: AppIntent {
             return "Here is the latest news for \(ticker) from \(first.source): \(first.title). \(first.summary) Overall sentiment is \(first.sentiment.label)."
         }
         let price = market.getQuote(for: ticker)?.price ?? 0
-        return "There are no major news headlines for \(ticker) today. The stock is currently trading at \(NumberFormatters.englishDecimal(price)) Rupiah."
+        let priceText = formatCurrency(value: price, ticker: ticker)
+        return "There are no major news headlines for \(ticker) today. The stock is currently trading at \(priceText)."
     }
 
     private func buildStockReply(ticker: String, holdings: [UserHolding], market: MarketDataRepositoryProtocol) -> String {
         let quote = market.getQuote(for: ticker)
         let price = quote?.price ?? 0
-        let priceText = NumberFormatters.englishDecimal(price)
+        let priceText = formatCurrency(value: price, ticker: ticker)
 
         if let h = holdings.first(where: { $0.ticker.uppercased() == ticker }) {
             let pnl = h.pnl(at: price)
             let pnlPct = h.pnlPercent(at: price)
             let status = pnl >= 0 ? "profit" : "loss"
-            let lotText = h.lots > 0 ? "\(h.lots) lots" : "\(h.shares) shares"
-            return "You own \(lotText) of \(ticker). The current price is \(priceText) Rupiah. Total value is \(NumberFormatters.englishDecimal(h.currentValue(at: price))) Rupiah, with an unrealized \(status) of \(NumberFormatters.englishDecimal(abs(pnl))) Rupiah (\(String(format: "%+.1f", pnlPct))%)."
+            let sharesText = "\(h.shares) shares"
+            let valueText = formatCurrency(value: h.currentValue(at: price), ticker: ticker)
+            let pnlText = formatCurrency(value: abs(pnl), ticker: ticker)
+            return "You own \(sharesText) of \(ticker). The current price is \(priceText). Total value is \(valueText), with an unrealized \(status) of \(pnlText) (\(String(format: "%+.1f", pnlPct))%)."
         }
 
         let changeText = quote.map { q in ", \(q.changePercent >= 0 ? "up" : "down") \(String(format: "%.1f", abs(q.changePercent)))% today" } ?? ""
-        return "\(ticker) is at \(priceText) Rupiah today\(changeText). You don't have this stock in your FinGent portfolio yet."
+        return "\(ticker) is currently trading at \(priceText)\(changeText). You do not have this stock in your FinGent portfolio."
     }
 
     private func buildPortfolioSummaryReply(holdings: [UserHolding]) -> String {
@@ -162,13 +205,15 @@ struct AskFinGentIntent: AppIntent {
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "profit" : "loss"
-        return "Your FinGent portfolio is currently valued at \(NumberFormatters.englishDecimal(totalValue)) Rupiah across \(holdings.count) stocks, with an overall \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
+        let isAllUSD = holdings.allSatisfy { $0.isUSD }
+        let totalValueText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        return "Your FinGent portfolio is currently valued at \(totalValueText) across \(holdings.count) stocks, with an overall \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
     }
 }
 
-// MARK: - 2. CekPortfolioIntent
+// MARK: - 2. CheckPortfolioIntent
 
-struct CekPortfolioIntent: AppIntent {
+struct CheckPortfolioIntent: AppIntent {
     static var title: LocalizedStringResource = "Check Portfolio"
     static var description: IntentDescription = IntentDescription("Check your overall portfolio value and performance today.")
     static var openAppWhenRun: Bool = false
@@ -193,48 +238,58 @@ struct CekPortfolioIntent: AppIntent {
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "gain" : "loss"
-        let valText = NumberFormatters.englishDecimal(totalValue)
-        let reply = "\(greeting)Your portfolio is valued at \(valText) Rupiah across \(holdings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
+        let isAllUSD = holdings.allSatisfy { $0.isUSD }
+        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        let reply = "\(greeting)Your portfolio is valued at \(valText) across \(holdings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
         return .result(dialog: IntentDialog(stringLiteral: reply))
     }
 }
 
-// MARK: - 3. CekSahamIntent
+// MARK: - 3. CheckStockIntent
 
-struct CekSahamIntent: AppIntent {
+struct CheckStockIntent: AppIntent {
     static var title: LocalizedStringResource = "Check Stock"
     static var description: IntentDescription = IntentDescription("Check the live price and holding details of a specific stock.")
     static var openAppWhenRun: Bool = false
 
-    @Parameter(title: "Stock", description: "The stock ticker symbol, such as BBCA, BBRI, or GOTO")
-    var stock: SahamIDX
+    @Parameter(title: "Stock", description: "The stock ticker symbol or portfolio.")
+    var stock: StockChoice
+
+    @Parameter(title: "Custom Ticker", description: "Optional custom stock ticker symbol, e.g. AMD, INTC, or AAPL.")
+    var customTicker: String?
 
     static var parameterSummary: some ParameterSummary { Summary("Check \(\.$stock) in FinGent") }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        if stock == .portfolio {
+        let ticker: String
+        if let custom = customTicker?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+            ticker = custom.uppercased()
+        } else if stock == .portfolio {
             let reply = checkPortfolioSummary()
             return .result(dialog: IntentDialog(stringLiteral: reply))
+        } else {
+            ticker = stock.rawValue
         }
 
-        let ticker = stock.rawValue
         let market = MarketDataRepository.shared
         let holdings = PortfolioRepository.shared.userHoldings
         let quote = market.getQuote(for: ticker)
         let currentPrice = quote?.price ?? 0
-        let priceText = NumberFormatters.englishDecimal(currentPrice)
+        let priceText = formatCurrency(value: currentPrice, ticker: ticker)
 
         if let h = holdings.first(where: { $0.ticker.uppercased() == ticker }) {
             let pnl = h.pnl(at: currentPrice)
             let pnlPct = h.pnlPercent(at: currentPrice)
             let status = pnl >= 0 ? "profit" : "loss"
-            let lotText = h.lots > 0 ? "\(h.lots) lots" : "\(h.shares) shares"
-            let reply = "Your \(ticker) is at \(priceText) Rupiah today. You own \(lotText) worth \(NumberFormatters.englishDecimal(h.currentValue(at: currentPrice))) Rupiah, with an unrealized \(status) of \(NumberFormatters.englishDecimal(abs(pnl))) Rupiah (\(String(format: "%+.1f", pnlPct))%)."
+            let sharesText = "\(h.shares) shares"
+            let valueText = formatCurrency(value: h.currentValue(at: currentPrice), ticker: ticker)
+            let pnlText = formatCurrency(value: abs(pnl), ticker: ticker)
+            let reply = "Your \(ticker) is at \(priceText) today. You own \(sharesText) worth \(valueText), with an unrealized \(status) of \(pnlText) (\(String(format: "%+.1f", pnlPct))%)."
             return .result(dialog: IntentDialog(stringLiteral: reply))
         }
 
         let changeText = quote.map { q in ", \(q.changePercent >= 0 ? "up" : "down") \(String(format: "%.1f", abs(q.changePercent)))% today" } ?? ""
-        return .result(dialog: IntentDialog(stringLiteral: "\(ticker) is at \(priceText) Rupiah today\(changeText). You don't have this stock in your FinGent portfolio yet."))
+        return .result(dialog: IntentDialog(stringLiteral: "\(ticker) is at \(priceText) today\(changeText). You do not have this stock in your FinGent portfolio."))
     }
 
     private func checkPortfolioSummary() -> String {
@@ -244,62 +299,68 @@ struct CekSahamIntent: AppIntent {
         let userName = repo.userName
         let greeting = userName.isEmpty ? "" : "Hey \(userName)! "
 
-        let effectiveHoldings: [UserHolding]
-        if holdings.isEmpty {
-            effectiveHoldings = [
-                UserHolding(ticker: "BBCA", name: "Bank Central Asia", investedAmount: 10_000_000, pricePerShare: 10_125, sector: "Financials"),
-                UserHolding(ticker: "TLKM", name: "Telkom Indonesia", investedAmount: 5_000_000, pricePerShare: 2_950, sector: "Technology")
-            ]
-        } else {
-            effectiveHoldings = holdings
+        guard !holdings.isEmpty else {
+            return "\(greeting)Your portfolio is currently empty. Please open FinGent to add your stocks."
         }
 
-        let resolved = effectiveHoldings.map { h -> StockHolding in
+        let resolved = holdings.map { h -> StockHolding in
             let price = market.getQuote(for: h.ticker)?.price ?? h.pricePerShare
             return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector)
         }
         let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = effectiveHoldings.reduce(0) { $0 + $1.investedAmount }
+        let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "gain" : "loss"
-        let valText = NumberFormatters.englishDecimal(totalValue)
-        return "\(greeting)Your portfolio is valued at \(valText) Rupiah across \(effectiveHoldings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
+        let isAllUSD = holdings.allSatisfy { $0.isUSD }
+        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        return "\(greeting)Your portfolio is valued at \(valText) across \(holdings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
     }
 }
 
-// MARK: - 4. CekBeritaIntent
+// MARK: - 4. CheckNewsIntent
 
-struct CekBeritaIntent: AppIntent {
+struct CheckNewsIntent: AppIntent {
     static var title: LocalizedStringResource = "Check News"
     static var description: IntentDescription = IntentDescription("Check the latest news headlines for your portfolio or a specific stock.")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Stock or Portfolio", description: "The stock ticker symbol or portfolio to check news for.")
-    var stock: SahamIDX
+    var stock: StockChoice
+
+    @Parameter(title: "Custom Ticker", description: "Optional custom stock ticker symbol, e.g. AMD, INTC, or AAPL.")
+    var customTicker: String?
 
     static var parameterSummary: some ParameterSummary { Summary("Check news for \(\.$stock) in FinGent") }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        if stock == .portfolio {
+        let ticker: String
+        if let custom = customTicker?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+            ticker = custom.uppercased()
+        } else if stock == .portfolio {
             let reply = readPortfolioNews()
             return .result(dialog: IntentDialog(stringLiteral: reply))
+        } else {
+            ticker = stock.rawValue
         }
 
-        let ticker = stock.rawValue
         let articles = NewsRepository.shared.getArticles(for: [ticker])
         if let first = articles.first {
             let reply = "Here is the latest news for \(ticker) from \(first.source): \(first.title). \(first.summary) Overall sentiment is \(first.sentiment.label)."
             return .result(dialog: IntentDialog(stringLiteral: reply))
         }
         let price = MarketDataRepository.shared.getQuote(for: ticker)?.price ?? 0
-        let reply = "There are no breaking news stories for \(ticker) today. The stock is currently trading at \(NumberFormatters.englishDecimal(price)) Rupiah."
+        let priceText = formatCurrency(value: price, ticker: ticker)
+        let reply = "There are no breaking news stories for \(ticker) today. The stock is currently trading at \(priceText)."
         return .result(dialog: IntentDialog(stringLiteral: reply))
     }
 
     private func readPortfolioNews() -> String {
         let holdings = PortfolioRepository.shared.userHoldings
-        let tickers = holdings.isEmpty ? ["BBCA", "TLKM"] : holdings.map(\.ticker)
+        guard !holdings.isEmpty else {
+            return "Your portfolio is currently empty. Please add stocks in FinGent to receive personalized news updates."
+        }
+        let tickers = holdings.map(\.ticker)
         let articles = NewsRepository.shared.getArticles(for: tickers)
 
         var newsSnippets: [String] = []
@@ -319,17 +380,23 @@ struct CekBeritaIntent: AppIntent {
     }
 }
 
-// MARK: - 5. CekBeritaPortfolioIntent
+// MARK: - 5. CheckPortfolioNewsIntent
 
-struct CekBeritaPortfolioIntent: AppIntent {
+struct CheckPortfolioNewsIntent: AppIntent {
     static var title: LocalizedStringResource = "Check Portfolio News"
     static var description: IntentDescription = IntentDescription("Check the latest news headlines for all stocks in your portfolio.")
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        var intent = CekBeritaIntent()
+        var intent = CheckNewsIntent()
         intent.stock = .portfolio
         return try await intent.perform()
     }
 }
 
+// MARK: - Backward Compatibility Aliases
+
+typealias CekPortfolioIntent = CheckPortfolioIntent
+typealias CekSahamIntent = CheckStockIntent
+typealias CekBeritaIntent = CheckNewsIntent
+typealias CekBeritaPortfolioIntent = CheckPortfolioNewsIntent

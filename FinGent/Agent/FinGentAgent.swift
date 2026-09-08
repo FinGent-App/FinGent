@@ -12,9 +12,9 @@ final class FinGentAgent {
     private(set) var isProcessing = false
 
     private static let toolInstructions = """
-    You are FinGent, an intelligent Indonesian stock market portfolio assistant.
+    You are FinGent, an intelligent stock market and portfolio assistant.
     Use the available tools to fetch data before responding. Do not make up numbers.
-    Always provide actionable, concise answers.
+    Always provide actionable, concise answers in English.
     """
 
     private static let groundedInstructions = """

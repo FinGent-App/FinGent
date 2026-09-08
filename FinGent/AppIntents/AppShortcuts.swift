@@ -5,7 +5,7 @@ import AppIntents
 struct FinGentShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: CekSahamIntent(),
+            intent: CheckStockIntent(),
             phrases: [
                 "How about my \(\.$stock) in \(.applicationName)",
                 "How about my \(\.$stock) today in \(.applicationName)",
@@ -34,7 +34,7 @@ struct FinGentShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
-            intent: CekPortfolioIntent(),
+            intent: CheckPortfolioIntent(),
             phrases: [
                 "Check my portfolio in \(.applicationName)",
                 "Check my \(.applicationName) portfolio",
@@ -48,7 +48,7 @@ struct FinGentShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
-            intent: CekBeritaIntent(),
+            intent: CheckNewsIntent(),
             phrases: [
                 "Is there any news about my \(\.$stock) in \(.applicationName)",
                 "Is there any news about my \(\.$stock) today in \(.applicationName)",
