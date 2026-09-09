@@ -46,10 +46,10 @@ struct SearchView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Cari ticker (misal: TSLA, AAPL, BBCA, MU)...", text: $viewModel.query)
+            TextField("Cari emiten atau ticker (misal: Micron, Apple, BBCA)...", text: $viewModel.query)
                 .foregroundStyle(.white)
                 .autocorrectionDisabled()
-                .textInputAutocapitalization(.characters)
+                .textInputAutocapitalization(.never)
             if viewModel.isSearching {
                 ProgressView()
                     .tint(.teal)
@@ -147,7 +147,7 @@ struct SearchView: View {
                 .font(.headline.bold())
                 .foregroundStyle(.white)
 
-            Text("Ketik simbol ticker saham (misal: TSLA, AAPL, BBCA, MU) untuk melihat data harga real-time.")
+            Text("Ketik nama perusahaan atau simbol ticker (misal: Micron, Apple, BBCA, MU) untuk melihat data harga real-time.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -179,7 +179,7 @@ struct SearchView: View {
                 .font(.headline)
                 .foregroundStyle(.white)
 
-            Text("Tidak ditemukan hasil untuk '\(viewModel.query)'. Coba periksa kembali simbol ticker.")
+            Text("Tidak ditemukan hasil untuk '\(viewModel.query)'. Coba periksa kembali nama perusahaan atau simbol ticker.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

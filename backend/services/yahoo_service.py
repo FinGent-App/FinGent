@@ -24,10 +24,111 @@ sec_filings_cache = TTLCache(maxsize=100, ttl=7200)
 
 POPULAR_IDX_TICKERS = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO", "BBNI", "ICBP", "UNVR", "AMMN"]
 
+COMPANY_ALIASES: Dict[str, str] = {
+    # US Tech & Global Leaders
+    "micron": "MU",
+    "micron technology": "MU",
+    "apple": "AAPL",
+    "nvidia": "NVDA",
+    "tesla": "TSLA",
+    "microsoft": "MSFT",
+    "google": "GOOGL",
+    "alphabet": "GOOGL",
+    "amazon": "AMZN",
+    "meta": "META",
+    "facebook": "META",
+    "netflix": "NFLX",
+    "amd": "AMD",
+    "intel": "INTC",
+    "palantir": "PLTR",
+    "uber": "UBER",
+    "broadcom": "AVGO",
+    "qualcomm": "QCOM",
+    "tsmc": "TSM",
+    "taiwan semiconductor": "TSM",
+    "arm": "ARM",
+    "asml": "ASML",
+
+    # Indonesian Blue Chips & Popular IDX
+    "bca": "BBCA.JK",
+    "bank bca": "BBCA.JK",
+    "bank central asia": "BBCA.JK",
+    "bri": "BBRI.JK",
+    "bank bri": "BBRI.JK",
+    "bank rakyat indonesia": "BBRI.JK",
+    "mandiri": "BMRI.JK",
+    "bank mandiri": "BMRI.JK",
+    "bni": "BBNI.JK",
+    "bank bni": "BBNI.JK",
+    "bank negara indonesia": "BBNI.JK",
+    "telkom": "TLKM.JK",
+    "telkom indonesia": "TLKM.JK",
+    "astra": "ASII.JK",
+    "astra international": "ASII.JK",
+    "goto": "GOTO.JK",
+    "gojek": "GOTO.JK",
+    "tokopedia": "GOTO.JK",
+    "indofood": "ICBP.JK",
+    "indofood cbp": "ICBP.JK",
+    "unilever": "UNVR.JK",
+    "unilever indonesia": "UNVR.JK",
+    "antam": "ANTM.JK",
+    "amman": "AMMN.JK",
+    "amman mineral": "AMMN.JK",
+    "pertagas": "PGAS.JK",
+    "pgas": "PGAS.JK",
+    "perusahaan gas negara": "PGAS.JK",
+    "adaro": "ADRO.JK",
+    "adaro energy": "ADRO.JK",
+    "kalbe": "KLBF.JK",
+    "kalbe farma": "KLBF.JK",
+    "barito": "BREN.JK",
+    "barito renewables": "BREN.JK",
+    "ace hardware": "ACES.JK",
+}
+
+
+def resolve_ticker_symbol(symbol_or_name: str) -> str:
+    """
+    Resolves a ticker symbol or company name/alias into an authoritative ticker symbol.
+    e.g. 'micron' -> 'MU', 'bca' -> 'BBCA.JK', 'Apple' -> 'AAPL'.
+    """
+    raw = symbol_or_name.strip()
+    if not raw:
+        return raw
+
+    low = raw.lower()
+    if low in COMPANY_ALIASES:
+        return COMPANY_ALIASES[low]
+
+    up = raw.upper()
+    if up.startswith("^") or up.endswith(".JK"):
+        return up
+
+    # If 1-5 letters, test if it's already a standard ticker
+    if len(up) <= 5 and up.isalpha():
+        if up in POPULAR_IDX_TICKERS:
+            return f"{up}.JK"
+        return up
+
+    # Attempt lookup via yfinance search
+    try:
+        s = yf.Search(raw, max_results=5)
+        for item in s.quotes:
+            if item.get("quoteType") in ("EQUITY", "ETF"):
+                sym = item.get("symbol")
+                if sym:
+                    return sym
+    except Exception:
+        pass
+
+    return up
+
 
 def normalize_ticker(ticker: str) -> str:
     """Ensure Indonesian stock tickers end with .JK, while US and global equities remain clean."""
-    t = ticker.strip().upper()
+    resolved = resolve_ticker_symbol(ticker)
+    t = resolved.strip().upper()
     if t.startswith("^"):
         return t
     if t.endswith(".JK"):
@@ -39,7 +140,79 @@ def normalize_ticker(ticker: str) -> str:
 
 def strip_jk(ticker: str) -> str:
     """Return clean ticker symbol without .JK suffix."""
-    return ticker.replace(".JK", "").replace(".jk", "").upper()
+    resolved = resolve_ticker_symbol(ticker)
+    return resolved.replace(".JK", "").replace(".jk", "").upper()
+
+
+def search_stocks(query: str, limit: int = 6) -> List[Dict[str, Any]]:
+    """
+    Search stocks by company name, alias, or ticker symbol.
+    Returns full quote information for matching stocks.
+    """
+    q_clean = query.strip()
+    if not q_clean:
+        return []
+
+    symbols_order: List[str] = []
+    seen = set()
+
+    def add_sym(s: str):
+        if s and s not in seen:
+            seen.add(s)
+            symbols_order.append(s)
+
+    q_lower = q_clean.lower()
+    q_upper = q_clean.upper()
+
+    # 1. Alias dictionary
+    if q_lower in COMPANY_ALIASES:
+        add_sym(COMPANY_ALIASES[q_lower])
+
+    # 2. Direct ticker pattern
+    if q_upper in POPULAR_IDX_TICKERS:
+        add_sym(f"{q_upper}.JK")
+    elif q_upper.endswith(".JK"):
+        add_sym(q_upper)
+    elif len(q_upper) <= 5 and q_upper.isalpha():
+        add_sym(q_upper)
+
+    # 3. YFinance Search
+    try:
+        s = yf.Search(q_clean, max_results=10)
+        for item in s.quotes:
+            qtype = item.get("quoteType")
+            if qtype in ("EQUITY", "ETF"):
+                sym = item.get("symbol")
+                if sym:
+                    add_sym(sym)
+    except Exception as e:
+        logger.warning("yfinance search error for '%s': %s", q_clean, str(e))
+
+    # Sort candidates: prioritize primary Indonesian (.JK) and clean US tickers (no foreign dot)
+    def priority_score(sym: str) -> int:
+        if sym.endswith(".JK"):
+            return 0
+        if "." not in sym:
+            return 1
+        return 2
+
+    symbols_order.sort(key=priority_score)
+
+    seen_tickers = set()
+    results: List[Dict[str, Any]] = []
+    for sym in symbols_order:
+        if len(results) >= limit:
+            break
+        try:
+            quote = get_single_quote(sym)
+            t = quote.get("ticker")
+            if t and t not in seen_tickers and float(quote.get("price", 0.0)) > 0:
+                seen_tickers.add(t)
+                results.append(quote)
+        except Exception:
+            continue
+
+    return results
 
 
 def get_single_quote(ticker: str) -> Dict[str, Any]:

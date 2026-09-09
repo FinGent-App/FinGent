@@ -44,7 +44,7 @@ final class SearchViewModel {
     // MARK: - Filter Logic
 
     func applyFilter() {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let q = query.trimmingCharacters(in: .whitespaces)
 
         searchTask?.cancel()
 
@@ -62,24 +62,33 @@ final class SearchViewModel {
             try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
 
-            let ticker = q.uppercased()
-            if let remoteQuote = try? await StockApiClient.shared.fetchQuote(ticker: ticker) {
-                if !Task.isCancelled {
+            var results: [StockQuote] = []
+
+            // 1. Search by company name or ticker symbol via backend search API
+            if let searchResults = try? await StockApiClient.shared.searchStocks(query: q), !searchResults.isEmpty {
+                results = searchResults
+            } else {
+                // 2. Fallback to direct ticker quote
+                let ticker = q.uppercased()
+                if let remoteQuote = try? await StockApiClient.shared.fetchQuote(ticker: ticker) {
                     var remoteFundamentals: StockFundamentals? = nil
                     if let fund = try? await StockApiClient.shared.fetchFundamentals(ticker: ticker) {
                         remoteFundamentals = fund
                     }
                     (self.marketDataRepository as? MarketDataRepository)?.registerRemoteQuote(remoteQuote, fundamentals: remoteFundamentals)
-                    self.filteredQuotes = [remoteQuote]
-                }
-            } else {
-                if !Task.isCancelled {
-                    self.filteredQuotes = []
+                    results = [remoteQuote]
                 }
             }
-            if !Task.isCancelled {
-                self.isSearching = false
+
+            guard !Task.isCancelled else { return }
+
+            // Register all returned quotes in repository
+            for quote in results {
+                (self.marketDataRepository as? MarketDataRepository)?.registerRemoteQuote(quote, fundamentals: nil)
             }
+
+            self.filteredQuotes = results
+            self.isSearching = false
         }
     }
 

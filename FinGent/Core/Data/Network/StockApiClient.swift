@@ -239,6 +239,21 @@ final class StockApiClient: Sendable {
         return batch.data.map { $0.toDomain() }
     }
 
+    func searchStocks(query: String, limit: Int = 6) async throws -> [StockQuote] {
+        let clean = query.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty else { return [] }
+        guard let encoded = clean.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "\(baseURL)/api/v1/stocks/search?q=\(encoded)&limit=\(limit)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let batch = try JSONDecoder().decode(BatchDTO.self, from: data)
+        return batch.data.map { $0.toDomain() }
+    }
+
     func fetchFundamentals(ticker: String) async throws -> StockFundamentals {
         let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
         guard let url = URL(string: "\(baseURL)/api/v1/stocks/\(clean)/fundamentals") else {

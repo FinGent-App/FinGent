@@ -15,18 +15,33 @@ struct GetStockQuoteTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        guard let quote = MarketDataRepository.shared.getQuote(for: arguments.ticker) else {
-            return "No quote data found for ticker '\(arguments.ticker)'."
+        var resolvedQuote = MarketDataRepository.shared.getQuote(for: arguments.ticker)
+        if resolvedQuote == nil {
+            if let searchResults = try? await StockApiClient.shared.searchStocks(query: arguments.ticker), let first = searchResults.first {
+                await MainActor.run {
+                    (MarketDataRepository.shared as? MarketDataRepository)?.registerRemoteQuote(first, fundamentals: nil)
+                }
+                resolvedQuote = first
+            } else if let remote = try? await StockApiClient.shared.fetchQuote(ticker: arguments.ticker) {
+                await MainActor.run {
+                    (MarketDataRepository.shared as? MarketDataRepository)?.registerRemoteQuote(remote, fundamentals: nil)
+                }
+                resolvedQuote = remote
+            }
+        }
+        guard let quote = resolvedQuote else {
+            return "No quote data found for ticker or company '\(arguments.ticker)'."
         }
         let changeEmoji = quote.change >= 0 ? "📈" : "📉"
         let changeSign = quote.change >= 0 ? "+" : ""
+        let currPrefix = quote.currency == "USD" ? "$" : "Rp "
         return """
         Stock Quote — \(quote.ticker) (\(quote.name)) \(changeEmoji):
-        - Price: Rp \(formatNumber(quote.price))
-        - Change: \(changeSign)Rp \(formatNumber(quote.change)) (\(String(format: "%+.2f", quote.changePercent))%)
-        - Previous Close: Rp \(formatNumber(quote.previousClose))
-        - Open: Rp \(formatNumber(quote.open))
-        - Day Range: Rp \(formatNumber(quote.low)) — Rp \(formatNumber(quote.high))
+        - Price: \(currPrefix)\(formatNumber(quote.price)) (\(quote.currency))
+        - Change: \(changeSign)\(currPrefix)\(formatNumber(quote.change)) (\(String(format: "%+.2f", quote.changePercent))%)
+        - Previous Close: \(currPrefix)\(formatNumber(quote.previousClose))
+        - Open: \(currPrefix)\(formatNumber(quote.open))
+        - Day Range: \(currPrefix)\(formatNumber(quote.low)) — \(currPrefix)\(formatNumber(quote.high))
         - Volume: \(formatVolume(quote.volume))
         """
     }

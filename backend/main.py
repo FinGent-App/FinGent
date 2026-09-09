@@ -12,7 +12,8 @@ from services.yahoo_service import (
     get_stock_fundamentals,
     get_market_summary,
     get_stock_history,
-    get_sec_filings
+    get_sec_filings,
+    search_stocks
 )
 from services.news_db_service import get_news_by_ticker, get_recent_news, get_news_count
 from services.rss_ingestion_service import sync_all_rss_feeds, sync_ticker_news
@@ -405,6 +406,20 @@ def get_batch(
         return {"count": len(quotes), "data": quotes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch batch quotes: {str(e)}")
+
+
+@app.get("/api/v1/stocks/search")
+def search_stocks_endpoint(
+    q: str = Query(..., description="Company name, alias, or ticker symbol (e.g. micron, apple, bca, TSLA)"),
+    limit: int = Query(6, ge=1, le=20, description="Max search results to return")
+):
+    """Search stocks by company name, alias, or ticker symbol."""
+    try:
+        results = search_stocks(q, limit)
+        return {"count": len(results), "data": results}
+    except Exception as e:
+        logger.error("Stock search endpoint error: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Stock search failed: {str(e)}")
 
 
 @app.get("/api/v1/stocks/{ticker}")

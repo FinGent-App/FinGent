@@ -29,11 +29,25 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
     // MARK: - MarketDataRepositoryProtocol
 
     func getQuote(for ticker: String) -> StockQuote? {
-        quotes[ticker.uppercased()]
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        if let direct = quotes[clean] {
+            return direct
+        }
+        return quotes.values.first {
+            $0.ticker.caseInsensitiveCompare(clean) == .orderedSame ||
+            $0.name.localizedCaseInsensitiveContains(ticker)
+        }
     }
 
     func getFundamentals(for ticker: String) -> StockFundamentals? {
-        Self.fundamentalsData[ticker.uppercased()]
+        let clean = ticker.trimmingCharacters(in: .whitespaces).uppercased()
+        if let direct = Self.fundamentalsData[clean] {
+            return direct
+        }
+        return Self.fundamentalsData.values.first {
+            $0.ticker.caseInsensitiveCompare(clean) == .orderedSame ||
+            $0.name.localizedCaseInsensitiveContains(ticker)
+        }
     }
 
     func getPerformance(for ticker: String) -> StockPerformance? {
