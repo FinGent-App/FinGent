@@ -1,6 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -750,6 +750,33 @@ async def list_mcp_tools():
     except Exception as e:
         logger.error("Failed to list MCP tools: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class MCPCallRequest(BaseModel):
+    name: str = Field(..., description="Name of the MCP tool to call")
+    arguments: Dict[str, Any] = Field(default_factory=dict, description="Arguments for the MCP tool")
+
+
+@app.post("/api/v1/mcp/call")
+async def call_mcp_tool_endpoint(req: MCPCallRequest):
+    """
+    Direct stateless execution endpoint for MCP tools over HTTP.
+    Provides resilience for mobile clients when persistent SSE streams fluctuate.
+    """
+    try:
+        from mcp_server import mcp_server
+        result = await mcp_server.call_tool(req.name, req.arguments)
+        text_content = ""
+        if result and result.content:
+            text_content = "\n".join([item.text for item in result.content if hasattr(item, "text") and item.text])
+        return {
+            "tool": req.name,
+            "is_error": result.is_error if hasattr(result, "is_error") else False,
+            "content": text_content
+        }
+    except Exception as e:
+        logger.error("MCP tool '%s' execution failed: %s", req.name, str(e))
+        raise HTTPException(status_code=500, detail=f"MCP tool execution failed: {str(e)}")
 
 
 if __name__ == "__main__":

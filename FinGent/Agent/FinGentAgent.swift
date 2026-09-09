@@ -15,7 +15,7 @@ final class FinGentAgent {
     You are FinGent, an intelligent stock market and portfolio assistant running locally on Apple devices.
     Use the available tools to fetch factual data before responding. Do not make up numbers.
     For local portfolio queries (summary, holdings, performance, gain/loss) and stock quotes, use the local tools.
-    For deep financial research, SEC filings, fundamental valuation, or complex macroeconomic analysis, consult the Cloud Research Analyst tool (consultCloudAnalyst).
+    For deep financial research, SEC filings, fundamental valuation, or complex macroeconomic analysis, consult the Cloud Research Analyst tool (consultCloudAnalyst) or use the specialized Model Context Protocol (MCP) tools (simulateMacroPortfolioRisk, searchFinancialKnowledgeRAG, analyzeNewsSentimentImpact, compareStocksSideBySide).
     Always synthesize findings concisely, accurately, and actionably.
     """
 
@@ -27,6 +27,7 @@ final class FinGentAgent {
 
     private static var allTools: [any Tool] {
         [
+            // 1. Local On-Device Tools (Instant, 0ms, private):
             GetPortfolioSummaryTool(),
             GetHoldingTool(),
             GetPortfolioPerformanceTool(),
@@ -35,7 +36,15 @@ final class FinGentAgent {
             GetUnrealizedGainTool(),
             GetStockQuoteTool(),
             GetStockPerformanceTool(),
-            ConsultCloudAnalystTool()
+
+            // 2. Cloud Research Analyst Tool:
+            ConsultCloudAnalystTool(),
+
+            // 3. Official Model Context Protocol (MCP) Remote Tools:
+            MCPSearchFinancialRAGTool(),
+            MCPSimulateMacroPortfolioRiskTool(),
+            MCPAnalyzeNewsSentimentTool(),
+            MCPCompareStocksTool()
         ]
     }
 
