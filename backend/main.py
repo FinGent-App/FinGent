@@ -712,6 +712,46 @@ async def api_agent_consult(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==============================================================================
+# Model Context Protocol (MCP) Server Integration
+# ==============================================================================
+
+try:
+    from mcp_server import get_sse_app, mcp_server
+    app.mount("/mcp", get_sse_app())
+    logger.info("✅ Mounted Model Context Protocol (MCP) Server at /mcp (SSE endpoint: /mcp/sse)")
+except Exception as e:
+    logger.warning("⚠️ Failed to mount MCP Server: %s", str(e))
+
+
+@app.get("/api/v1/mcp/tools")
+async def list_mcp_tools():
+    """
+    Returns the metadata and JSON input schema for all available MCP tools
+    registered on the FinGent MCP Server.
+    """
+    try:
+        from mcp_server import mcp_server
+        tools = await mcp_server.list_tools()
+        formatted = []
+        for t in tools:
+            formatted.append({
+                "name": t.name,
+                "description": t.description,
+                "input_schema": t.input_schema
+            })
+        return {
+            "server": "FinGent Financial Intelligence Server",
+            "protocol": "Model Context Protocol (MCP)",
+            "count": len(formatted),
+            "sse_endpoint": "/mcp/sse",
+            "tools": formatted
+        }
+    except Exception as e:
+        logger.error("Failed to list MCP tools: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
