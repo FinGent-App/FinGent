@@ -3,6 +3,7 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Environment(\.dismiss) private var dismiss
     @State private var viewModel = AppContainer.shared.makeProfileViewModel()
     @State private var isEditingName: Bool = false
     @State private var tempName: String = ""
@@ -29,6 +30,13 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Tutup") {
+                        dismiss()
+                    }
+                    .foregroundStyle(.white.opacity(0.8))
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         tempName = viewModel.userName

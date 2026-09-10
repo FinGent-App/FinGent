@@ -7,16 +7,18 @@ struct HomeView: View {
     @State private var viewModel: HomeViewModel
     @State private var favoritesRepo = FavoritesRepository.shared
     @State private var marketRepo = MarketDataRepository.shared
+    @State private var showSearch = false
+    @State private var showProfile = false
 
     var onSelectPortfolio: () -> Void = {}
     var onSelectChat: () -> Void = {}
-    var onSelectSearch: () -> Void = {}
+    var onSelectSearch: (() -> Void)? = nil
 
     init(
         viewModel: HomeViewModel,
         onSelectPortfolio: @escaping () -> Void = {},
         onSelectChat: @escaping () -> Void = {},
-        onSelectSearch: @escaping () -> Void = {}
+        onSelectSearch: (() -> Void)? = nil
     ) {
         self._viewModel = State(initialValue: viewModel)
         self.onSelectPortfolio = onSelectPortfolio
@@ -39,7 +41,42 @@ struct HomeView: View {
                     .padding(.vertical, 16)
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        Button {
+                            showSearch = true
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+
+                        Button {
+                            showProfile = true
+                        } label: {
+                            Image(systemName: "person.circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+                    }
+                }
+                .sharedBackgroundVisibility(.hidden)
+            }
+            .sheet(isPresented: $showSearch) {
+                SearchView(viewModel: AppContainer.shared.makeSearchViewModel())
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            }
+            .sheet(isPresented: $showProfile) {
+                ProfileView()
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+            }
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
                     .toolbar(.hidden, for: .tabBar)
@@ -222,7 +259,13 @@ struct HomeView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
 
-            Button(action: onSelectSearch) {
+            Button {
+                if let onSelectSearch {
+                    onSelectSearch()
+                } else {
+                    showSearch = true
+                }
+            } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                     Text("Cari Saham")

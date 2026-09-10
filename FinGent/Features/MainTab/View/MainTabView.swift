@@ -5,9 +5,7 @@ import SwiftUI
 enum TabItem: Int, CaseIterable, Identifiable {
     case home = 0
     case portfolio = 1
-    case search = 2
-    case chat = 3
-    case profile = 4
+    case chat = 2
 
     var id: Int { rawValue }
 
@@ -15,9 +13,7 @@ enum TabItem: Int, CaseIterable, Identifiable {
         switch self {
         case .home: return "Home"
         case .portfolio: return "Portfolio"
-        case .search: return "Search"
         case .chat: return "AI Chat"
-        case .profile: return "Profile"
         }
     }
 
@@ -25,9 +21,7 @@ enum TabItem: Int, CaseIterable, Identifiable {
         switch self {
         case .home: return "house.fill"
         case .portfolio: return "chart.pie.fill"
-        case .search: return "magnifyingglass"
         case .chat: return "sparkles"
-        case .profile: return "person.crop.circle.fill"
         }
     }
 }
@@ -41,8 +35,7 @@ struct MainTabView: View {
             HomeView(
                 viewModel: AppContainer.shared.makeHomeViewModel(),
                 onSelectPortfolio: { selectedTab = .portfolio },
-                onSelectChat: { selectedTab = .chat },
-                onSelectSearch: { selectedTab = .search }
+                onSelectChat: { selectedTab = .chat }
             )
             .tabItem {
                 Label(TabItem.home.title, systemImage: TabItem.home.icon)
@@ -55,23 +48,11 @@ struct MainTabView: View {
                 }
                 .tag(TabItem.portfolio)
 
-            SearchView(viewModel: AppContainer.shared.makeSearchViewModel())
-                .tabItem {
-                    Label(TabItem.search.title, systemImage: TabItem.search.icon)
-                }
-                .tag(TabItem.search)
-
             ChatView()
                 .tabItem {
                     Label(TabItem.chat.title, systemImage: TabItem.chat.icon)
                 }
                 .tag(TabItem.chat)
-
-            ProfileView()
-                .tabItem {
-                    Label(TabItem.profile.title, systemImage: TabItem.profile.icon)
-                }
-                .tag(TabItem.profile)
         }
         .tint(Color(red: 0.0, green: 0.82, blue: 0.61))
         .preferredColorScheme(.dark)

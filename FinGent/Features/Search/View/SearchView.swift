@@ -5,6 +5,8 @@ import SwiftUI
 struct SearchView: View {
 
     @State private var viewModel: SearchViewModel
+    @FocusState private var isFocused: Bool
+    @Environment(\.dismiss) private var dismiss
 
     init(viewModel: SearchViewModel) {
         self._viewModel = State(initialValue: viewModel)
@@ -14,21 +16,26 @@ struct SearchView: View {
         NavigationStack {
             ZStack {
                 backgroundGradient
-                VStack(spacing: 12) {
+                VStack(spacing: 0) {
                     searchBarHeader
+                    Divider()
                     stocksList
                 }
-                .padding(.top, 8)
             }
-            .navigationTitle("Cari Saham")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
                     .toolbar(.hidden, for: .tabBar)
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            // Keyboard langsung muncul saat sheet terbuka
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isFocused = true
+            }
+        }
     }
 
     // MARK: - Subviews
@@ -43,27 +50,43 @@ struct SearchView: View {
     }
 
     private var searchBarHeader: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Cari emiten atau ticker (misal: Micron, Apple, BBCA)...", text: $viewModel.query)
-                .foregroundStyle(.white)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-            if viewModel.isSearching {
-                ProgressView()
-                    .tint(.teal)
-                    .scaleEffect(0.8)
-            } else if !viewModel.query.isEmpty {
-                Button(action: { viewModel.query = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+
+                TextField("Cari sesuatu...", text: $viewModel.query)
+                    .focused($isFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .foregroundStyle(.white)
+
+                if viewModel.isSearching {
+                    ProgressView()
+                        .tint(.teal)
+                        .scaleEffect(0.8)
+                } else if !viewModel.query.isEmpty {
+                    Button {
+                        viewModel.query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+
+            Button("Batal") {
+                dismiss()
+            }
+            .foregroundStyle(.primary)
         }
-        .padding(12)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
     }
 
     private var stocksList: some View {
@@ -137,22 +160,15 @@ struct SearchView: View {
     }
 
     private var emptyPromptState: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary.opacity(0.6))
-                .padding(.top, 60)
-
-            Text("Cari Saham")
-                .font(.headline.bold())
-                .foregroundStyle(.white)
-
-            Text("Ketik nama perusahaan atau simbol ticker (misal: Micron, Apple, BBCA, MU) untuk melihat data harga real-time.")
-                .font(.subheadline)
+                .font(.system(size: 40))
+                .foregroundStyle(.tertiary)
+            Text("Ketik untuk mencari")
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 80)
     }
 
     private var searchingState: some View {
@@ -170,21 +186,14 @@ struct SearchView: View {
 
     private var emptyNotFoundState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "questionmark.folder")
+            Image(systemName: "magnifyingglass")
                 .font(.system(size: 40))
-                .foregroundStyle(.secondary.opacity(0.6))
-                .padding(.top, 50)
-
-            Text("Saham Tidak Ditemukan")
-                .font(.headline)
-                .foregroundStyle(.white)
-
-            Text("Tidak ditemukan hasil untuk '\(viewModel.query)'. Coba periksa kembali nama perusahaan atau simbol ticker.")
-                .font(.caption)
+                .foregroundStyle(.tertiary)
+            Text("Tidak ada hasil untuk \"\(viewModel.query)\"")
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 80)
     }
 }
 
