@@ -184,7 +184,7 @@ struct DetailPortfolioView: View {
     }
 
     private var themeColor: Color {
-        isGain ? Color(hex: "00D084") : Color(hex: "FF3B30")
+        isGain ? Color(hex: "00B89F") : Color(hex: "FF3B30")
     }
 
     private var stockHeader: some View {
@@ -683,7 +683,7 @@ struct DetailPortfolioView: View {
     private var stickyViewHoldingBar: some View {
         VStack(spacing: 0) {
             Divider()
-                .overlay(Color.white.opacity(0.12))
+                .overlay(Color.black.opacity(0.08))
 
             Button {
                 holdingSheetDetent = .large
@@ -718,7 +718,7 @@ struct DetailPortfolioView: View {
         .background(
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .overlay(Color(hex: "080B11").opacity(0.85))
+                .overlay(Color.white.opacity(0.35))
                 .ignoresSafeArea(edges: .bottom)
         )
     }
@@ -998,7 +998,12 @@ struct StockHoldingDetailSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: "080B11").ignoresSafeArea()
+                LinearGradient(
+                    colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -1017,6 +1022,7 @@ struct StockHoldingDetailSheet: View {
             }
             .navigationTitle("Holding Details")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Selesai") {
@@ -1098,7 +1104,7 @@ struct StockHoldingDetailSheet: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(Color(hex: "00D084"), in: Capsule())
+                        .background(Color(hex: "00B89F"), in: Capsule())
                         .shadow(color: Color.black.opacity(0.4), radius: 8, y: 4)
                         .padding(.bottom, 24)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -1121,15 +1127,15 @@ struct StockHoldingDetailSheet: View {
                     if holding != nil {
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(Color(hex: "00D084"))
+                                .fill(Color(hex: "00B89F"))
                                 .frame(width: 6, height: 6)
                             Text("Dimiliki")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color(hex: "00D084"))
+                                .foregroundStyle(Color(hex: "00B89F"))
                         }
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color(hex: "00D084").opacity(0.15), in: Capsule())
+                        .background(Color(hex: "00B89F").opacity(0.15), in: Capsule())
                     } else {
                         Text("Belum Dimiliki")
                             .font(.system(size: 10, weight: .bold))
@@ -1188,7 +1194,7 @@ struct StockHoldingDetailSheet: View {
                     value: String(format: "%@%@ (%@%.2f%%)", sign, formatCurrency(abs(pnl)), sign, abs(pnlPct)),
                     caption: isProfit ? "Keuntungan" : "Kerugian",
                     icon: "chart.line.uptrend.xyaxis",
-                    color: isProfit ? Color(hex: "00D084") : Color(hex: "FF3B30")
+                    color: isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30")
                 )
             }
 

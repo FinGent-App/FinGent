@@ -12,7 +12,12 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
+                LinearGradient(
+                    colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 24) {
@@ -29,12 +34,13 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Tutup") {
                         dismiss()
                     }
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(Color.black.opacity(0.8))
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -68,7 +74,7 @@ struct ProfileView: View {
                 viewModel.load()
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     // MARK: - Profile Header
@@ -96,7 +102,7 @@ struct ProfileView: View {
                 HStack(spacing: 6) {
                     Text(viewModel.userName)
                         .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
 
                     Button {
                         tempName = viewModel.userName
@@ -104,7 +110,7 @@ struct ProfileView: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 14))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(Color.black.opacity(0.5))
                     }
                 }
 
@@ -112,9 +118,10 @@ struct ProfileView: View {
                     Circle()
                         .fill(Color(red: 0.0, green: 0.82, blue: 0.61))
                         .frame(width: 6, height: 6)
+
                     Text("FinGent Verified Investor • Agent Active")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(Color.black.opacity(0.6))
                 }
             }
         }
@@ -165,22 +172,22 @@ struct ProfileView: View {
 
             Text(value)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
             Text(title)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(Color.black.opacity(0.55))
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white.opacity(0.35))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
                 )
         )
     }
@@ -194,7 +201,7 @@ struct ProfileView: View {
                     .foregroundStyle(.cyan)
                 Text("Siri Voice & AppIntents")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 Spacer()
 
@@ -208,7 +215,7 @@ struct ProfileView: View {
 
             Text("Ucapkan perintah ini ke Siri untuk mengontrol portofolio tanpa membuka aplikasi:")
                 .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color.black.opacity(0.65))
 
             VStack(spacing: 10) {
                 ForEach(viewModel.siriGuides) { item in
@@ -219,10 +226,10 @@ struct ProfileView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color.white.opacity(0.04))
+                .fill(Color.white.opacity(0.35))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.cyan.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.cyan.opacity(0.25), lineWidth: 1)
                 )
         )
     }
@@ -238,7 +245,7 @@ struct ProfileView: View {
 
                 Text(item.prompt)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 Spacer()
 
@@ -251,19 +258,19 @@ struct ProfileView: View {
                 } label: {
                     Image(systemName: copiedPrompt == item.prompt ? "checkmark.circle.fill" : "doc.on.doc")
                         .font(.system(size: 12))
-                        .foregroundStyle(copiedPrompt == item.prompt ? Color(red: 0.0, green: 0.82, blue: 0.61) : .white.opacity(0.4))
+                        .foregroundStyle(copiedPrompt == item.prompt ? Color(red: 0.0, green: 0.82, blue: 0.61) : Color.black.opacity(0.4))
                 }
             }
 
             Text(item.description)
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color.black.opacity(0.6))
                 .padding(.leading, 32)
         }
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.03))
+                .fill(Color.white.opacity(0.45))
         )
     }
 
@@ -273,7 +280,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("AI & Intelligence System")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
 
             VStack(spacing: 12) {
                 settingRow(
@@ -301,10 +308,10 @@ struct ProfileView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Simulasi Harga Realtime")
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.black)
                             Text("Update tick harga pasar secara otomatis")
                                 .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.5))
+                                .foregroundStyle(Color.black.opacity(0.55))
                         }
                     }
                 }
@@ -314,10 +321,10 @@ struct ProfileView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 18)
-                .fill(Color.white.opacity(0.04))
+                .fill(Color.white.opacity(0.35))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
                 )
         )
     }
@@ -333,10 +340,10 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
                 Text(subtitle)
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color.black.opacity(0.55))
             }
 
             Spacer()
@@ -345,8 +352,8 @@ struct ProfileView: View {
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Capsule().fill(Color.white.opacity(0.08)))
-                .foregroundStyle(Color(red: 0.0, green: 0.82, blue: 0.61))
+                .background(Capsule().fill(Color.black.opacity(0.06)))
+                .foregroundStyle(Color(red: 0.0, green: 0.65, blue: 0.5))
         }
     }
 
@@ -356,7 +363,7 @@ struct ProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Data Management")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.black.opacity(0.7))
 
             Button {
                 viewModel.isShowingResetAlert = true
@@ -388,11 +395,25 @@ struct ProfileView: View {
         VStack(spacing: 4) {
             Text("FinGent v2.0 • Intelligent Stock Agent")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(Color.black.opacity(0.55))
             Text("Clean MVVM • AppIntents • Siri Agentic AI")
                 .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color.black.opacity(0.35))
         }
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Color Extension Helper
+
+private extension Color {
+    init(hex: String) {
+        let scanner = Scanner(string: hex)
+        var rgbValue: UInt64 = 0
+        scanner.scanHexInt64(&rgbValue)
+        let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+        let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+        let b = Double(rgbValue & 0x0000FF) / 255.0
+        self.init(red: r, green: g, blue: b)
     }
 }

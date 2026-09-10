@@ -20,14 +20,9 @@ struct HoldingsListView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "list.bullet.rectangle.fill")
-                .font(.subheadline)
-                .foregroundStyle(.cyan)
-            Text("Holdings")
-                .font(.subheadline.bold())
-                .foregroundStyle(Color.black)
-        }
+        Text("Holdings")
+            .font(.subheadline.bold())
+            .foregroundStyle(Color.black)
     }
 }
 
@@ -116,9 +111,17 @@ struct HoldingRowView: View {
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.25), value: row.currentValue)
 
-            Text(row.formattedPnlPercent)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(row.isProfit ? Color(red: 0.0, green: 0.55, blue: 0.25) : Color(red: 0.85, green: 0.15, blue: 0.15))
+            let isPositive = row.isProfit
+            let sign = isPositive ? "+" : "-"
+            Text(String(format: "%@%.2f%%", sign, abs(row.pnlPercent)))
+                .font(.caption2.bold())
+                .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 4)
+                )
         }
     }
 }
@@ -168,5 +171,19 @@ struct EmptyHoldingsView: View {
                 .fill(.ultraThinMaterial)
                 .overlay { RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.08), lineWidth: 1) }
         }
+    }
+}
+
+// MARK: - Color Extension Helper
+
+private extension Color {
+    init(hex: String) {
+        let scanner = Scanner(string: hex)
+        var rgbValue: UInt64 = 0
+        scanner.scanHexInt64(&rgbValue)
+        let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+        let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+        let b = Double(rgbValue & 0x0000FF) / 255.0
+        self.init(red: r, green: g, blue: b)
     }
 }

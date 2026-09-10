@@ -29,7 +29,7 @@ struct SearchView: View {
                     .toolbar(.hidden, for: .tabBar)
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .onAppear {
             // Keyboard langsung muncul saat sheet terbuka
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -42,7 +42,7 @@ struct SearchView: View {
 
     private var backgroundGradient: some View {
         LinearGradient(
-            colors: [Color(hex: "0B0E14"), Color(hex: "101522"), Color(hex: "0B0E14")],
+            colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -53,14 +53,14 @@ struct SearchView: View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black.opacity(0.5))
 
                 TextField("Cari sesuatu...", text: $viewModel.query)
                     .focused($isFocused)
                     .submitLabel(.search)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 if viewModel.isSearching {
                     ProgressView()
@@ -71,18 +71,22 @@ struct SearchView: View {
                         viewModel.query = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.black.opacity(0.5))
                     }
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+            .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
 
             Button("Batal") {
                 dismiss()
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.black.opacity(0.8))
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
@@ -117,19 +121,19 @@ struct SearchView: View {
                     HStack(spacing: 6) {
                         Text(quote.ticker)
                             .font(.headline.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.black)
                         if let sector = viewModel.sector(for: quote.ticker) {
                             Text(sector)
                                 .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.teal)
-                                .padding(.horizontal, 5)
+                                .foregroundStyle(Color(red: 0.0, green: 0.55, blue: 0.5))
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.teal.opacity(0.15), in: Capsule())
+                                .background(Color.teal.opacity(0.12), in: Capsule())
                         }
                     }
                     Text(quote.name)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.black.opacity(0.6))
                         .lineLimit(1)
                 }
 
@@ -138,22 +142,22 @@ struct SearchView: View {
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(quote.formattedPrice)
                         .font(.subheadline.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
                     let isPositive = quote.changePercent >= 0
                     Text(String(format: "%+.2f%%", quote.changePercent))
                         .font(.caption2.bold())
-                        .foregroundStyle(isPositive ? .green : .red)
+                        .foregroundStyle(isPositive ? Color(red: 0.0, green: 0.65, blue: 0.35) : .red)
                 }
 
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color.black.opacity(0.3))
             }
             .padding(14)
-            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
+            .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -163,9 +167,9 @@ struct SearchView: View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.black.opacity(0.3))
             Text("Ketik untuk mencari")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.black.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 80)
@@ -180,7 +184,7 @@ struct SearchView: View {
 
             Text("Mengambil data harga real-time...")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.black.opacity(0.6))
         }
     }
 
@@ -188,9 +192,9 @@ struct SearchView: View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 40))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.black.opacity(0.3))
             Text("Tidak ada hasil untuk \"\(viewModel.query)\"")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.black.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 80)

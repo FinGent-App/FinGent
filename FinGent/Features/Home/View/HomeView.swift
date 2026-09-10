@@ -220,10 +220,10 @@ struct HomeView: View {
                 let sign = isProfit ? "+" : "-"
                 Text("\(sign)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", sign, abs(viewModel.portfolioPnLPct))))")
                     .font(.caption.bold())
-                    .foregroundStyle(isProfit ? .green : .red)
+                    .foregroundStyle(isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background((isProfit ? Color.green : Color.red).opacity(0.15), in: Capsule())
+                    .background((isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.15), in: Capsule())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -269,14 +269,9 @@ struct HomeView: View {
 
     private var favoriteStocksSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "star.fill")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(hex: "FFB800"))
-                Text("Favorites")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Color.black)
-            }
+            Text("Favorites")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.black)
 
             if viewModel.favoriteStocks.isEmpty {
                 emptyFavoritesCard
@@ -378,12 +373,12 @@ struct HomeView: View {
                 let sign = isPositive ? "+" : "-"
                 Text(String(format: "%@%.2f%%", sign, abs(stock.changePercent)))
                     .font(.caption2.bold())
-                    .foregroundStyle(isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30"))
+                    .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
-                        (isPositive ? Color(hex: "00D084") : Color(hex: "FF3B30")).opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 6)
+                        (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 4)
                     )
             }
 
