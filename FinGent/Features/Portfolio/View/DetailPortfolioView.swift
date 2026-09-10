@@ -899,6 +899,12 @@ struct StockHoldingDetailSheet: View {
         }
     }
 
+    private func formatEntryDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMM yyyy"
+        return formatter.string(from: date)
+    }
+
     private func formatNumberInput(_ val: Double) -> String {
         guard val > 0 else { return "" }
         if val.truncatingRemainder(dividingBy: 1) == 0 {
@@ -1029,7 +1035,7 @@ struct StockHoldingDetailSheet: View {
                         dismiss()
                     }
                     .font(.subheadline.bold())
-                    .foregroundStyle(Color(hex: "4FA3FF"))
+                    .foregroundStyle(Color.black.opacity(0.8))
                 }
             }
             .onAppear {
@@ -1069,7 +1075,7 @@ struct StockHoldingDetailSheet: View {
                 syncHoldingEdits()
             }
             .confirmationDialog("Hapus dari Portofolio?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Hapus Saham", role: .destructive) {
+                Button("Delete", role: .destructive) {
                     repo.removeHolding(ticker: quote.ticker)
                     let generator = UINotificationFeedbackGenerator()
                     generator.notificationOccurred(.warning)
@@ -1085,7 +1091,7 @@ struct StockHoldingDetailSheet: View {
                         pendingDeleteEntryId = nil
                     }
                 }
-                Button("Hapus Seluruh \(quote.ticker) dari Portofolio", role: .destructive) {
+                Button("Delete Seluruh Posisi \(quote.ticker)", role: .destructive) {
                     repo.removeHolding(ticker: quote.ticker)
                     pendingDeleteEntryId = nil
                     let generator = UINotificationFeedbackGenerator()
@@ -1186,7 +1192,7 @@ struct StockHoldingDetailSheet: View {
                     value: formatCurrency(currentVal),
                     caption: "Nilai saat ini (\(formattedTotalShares) Shares)",
                     icon: "chart.pie.fill",
-                    color: Color(hex: "00D2FF")
+                    color: Color(hex: "007AFF")
                 )
 
                 metricTile(
@@ -1210,9 +1216,9 @@ struct StockHoldingDetailSheet: View {
             VStack(spacing: 12) {
                 Image(systemName: "briefcase")
                     .font(.system(size: 38))
-                    .foregroundStyle(Color(hex: "4FA3FF"))
+                    .foregroundStyle(Color(hex: "007AFF"))
                     .frame(width: 76, height: 76)
-                    .background(Color(hex: "4FA3FF").opacity(0.12), in: Circle())
+                    .background(Color(hex: "007AFF").opacity(0.12), in: Circle())
 
                 Text("Belum Memiliki Saham \(quote.ticker)")
                     .font(.headline.bold())
@@ -1283,23 +1289,28 @@ struct StockHoldingDetailSheet: View {
             ForEach($purchaseEntries) { $entry in
                 VStack(spacing: 10) {
                     // Header: Tanggal Beli + Tombol Hapus (jika > 1)
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color(hex: "00D2FF"))
-
-                        Text("Tanggal Beli")
-                            .font(.system(size: 11.5, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
-
-                        DatePicker(
-                            "",
-                            selection: $entry.date,
-                            displayedComponents: .date
-                        )
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
-                        .tint(Color(hex: "00D2FF"))
+                    HStack {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 10, weight: .bold))
+                            Text(formatEntryDate(entry.date))
+                                .font(.system(size: 10, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(Color(hex: "007AFF"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4.5)
+                        .background(Color(hex: "007AFF").opacity(0.12), in: Capsule())
+                        .overlay {
+                            DatePicker(
+                                "",
+                                selection: $entry.date,
+                                displayedComponents: .date
+                            )
+                            .labelsHidden()
+                            .blendMode(.destinationOver)
+                            .opacity(0.015)
+                        }
 
                         Spacer()
 
@@ -1315,10 +1326,9 @@ struct StockHoldingDetailSheet: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "trash")
                                         .font(.system(size: 10, weight: .bold))
-                                    Text("Hapus dari Portofolio")
+                                    Text("Delete")
                                         .font(.system(size: 10, weight: .semibold))
                                         .lineLimit(1)
-                                        .minimumScaleFactor(0.8)
                                 }
                                 .foregroundStyle(Color(hex: "FF3B30"))
                                 .padding(.horizontal, 8)
@@ -1332,10 +1342,10 @@ struct StockHoldingDetailSheet: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "trash")
                                         .font(.system(size: 10, weight: .bold))
-                                    Text("Hapus")
+                                    Text("Delete")
                                         .font(.system(size: 10, weight: .semibold))
                                 }
-                                .foregroundStyle(Color(hex: "FF3B30").opacity(0.85))
+                                .foregroundStyle(Color(hex: "FF3B30"))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
                                 .background(Color(hex: "FF3B30").opacity(0.12), in: Capsule())
@@ -1350,14 +1360,14 @@ struct StockHoldingDetailSheet: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Per Share Price")
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
 
                             HStack(spacing: 3) {
                                 Text(isUSD ? "$" : "Rp")
                                     .font(.system(size: 12.5, weight: .bold))
-                                    .foregroundStyle(Color(hex: "00D2FF"))
+                                    .foregroundStyle(Color.black.opacity(0.6))
 
                                 TextField("0", text: $entry.priceInput)
                                     .keyboardType(.decimalPad)
@@ -1367,7 +1377,7 @@ struct StockHoldingDetailSheet: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color.black.opacity(0.08), lineWidth: 1)
@@ -1383,7 +1393,7 @@ struct StockHoldingDetailSheet: View {
 
                         // 2. Total Beli (Form)
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Total Beli")
+                            Text("Total Buy")
                                 .font(.system(size: 10.5, weight: .bold))
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
@@ -1392,7 +1402,7 @@ struct StockHoldingDetailSheet: View {
                             HStack(spacing: 3) {
                                 Text(isUSD ? "$" : "Rp")
                                     .font(.system(size: 12.5, weight: .bold))
-                                    .foregroundStyle(Color(hex: "00F5D4"))
+                                    .foregroundStyle(Color.black.opacity(0.6))
 
                                 TextField("0", text: $entry.totalInput)
                                     .keyboardType(.decimalPad)
@@ -1402,7 +1412,7 @@ struct StockHoldingDetailSheet: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(Color.black.opacity(0.08), lineWidth: 1)
@@ -1418,7 +1428,7 @@ struct StockHoldingDetailSheet: View {
 
                         // 3. Total Dapat Berapa Share (Calculated)
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Dapat Share")
+                            Text("Total")
                                 .font(.system(size: 10.5, weight: .bold))
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
@@ -1427,37 +1437,37 @@ struct StockHoldingDetailSheet: View {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(entry.formattedShares)
                                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color(hex: "00D2FF"))
+                                    .foregroundStyle(Color.black)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
 
                                 Text("Shares")
                                     .font(.system(size: 9.5, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.45))
+                                    .foregroundStyle(Color.black.opacity(0.5))
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 6)
-                            .background(Color(hex: "00D2FF").opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(hex: "00D2FF").opacity(0.25), lineWidth: 1)
+                                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
                         }
                     }
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
+                .background(Color.white.opacity(0.25), in: RoundedRectangle(cornerRadius: 16))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
                 }
             }
 
@@ -1475,13 +1485,13 @@ struct StockHoldingDetailSheet: View {
                         Text("Add Share")
                             .font(.system(size: 12, weight: .semibold))
                     }
-                    .foregroundStyle(Color(hex: "00D2FF"))
+                    .foregroundStyle(Color.black.opacity(0.8))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 7)
-                    .background(Color(hex: "00D2FF").opacity(0.12), in: Capsule())
+                    .background(Color.white.opacity(0.5), in: Capsule())
                     .overlay {
                         Capsule()
-                            .stroke(Color(hex: "00D2FF").opacity(0.3), lineWidth: 1)
+                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
                     }
                 }
                 Spacer()
