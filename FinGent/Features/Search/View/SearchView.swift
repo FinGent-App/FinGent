@@ -118,19 +118,9 @@ struct SearchView: View {
         NavigationLink(value: quote) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(quote.ticker)
-                            .font(.headline.bold())
-                            .foregroundStyle(Color.black)
-                        if let sector = viewModel.sector(for: quote.ticker) {
-                            Text(sector)
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Color(red: 0.0, green: 0.55, blue: 0.5))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.teal.opacity(0.12), in: Capsule())
-                        }
-                    }
+                    Text(quote.ticker)
+                        .font(.headline.bold())
+                        .foregroundStyle(Color.black)
                     Text(quote.name)
                         .font(.caption)
                         .foregroundStyle(Color.black.opacity(0.6))

@@ -39,8 +39,6 @@ struct DetailPortfolioView: View {
     @State private var selectedScrubPoint: StockHistoryPoint? = nil
 
     @State private var fundamentals: StockFundamentals? = nil
-    @State private var secFilings: [StockApiClient.SecFilingDTO] = []
-    @State private var isLoadingFilings: Bool = false
     @State private var activeSafariURL: IdentifiableURL? = nil
     @State private var showHoldingSheet: Bool = false
     @State private var holdingSheetDetent: PresentationDetent = .large
@@ -70,8 +68,6 @@ struct DetailPortfolioView: View {
                     stockHeader
                     chartCard
                     timeframeSegmentedControl
-                    statsGrid
-                    secFilingsSection
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
@@ -94,7 +90,6 @@ struct DetailPortfolioView: View {
         .task {
             loadFundamentals()
             await loadHistory(for: selectedTimeframe)
-            await loadSecFilings()
         }
         .sheet(item: $activeSafariURL) { item in
             SafariView(url: item.url)
@@ -189,27 +184,14 @@ struct DetailPortfolioView: View {
 
     private var stockHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(quote.ticker)
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.black)
-                    Text(quote.name)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.black.opacity(0.6))
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 12)
-
-                if let sector = fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector {
-                    Text(sector)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.teal)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.teal.opacity(0.15), in: Capsule())
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quote.ticker)
+                    .font(.title2.bold())
+                    .foregroundStyle(Color.black)
+                Text(quote.name)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.black.opacity(0.6))
+                    .lineLimit(1)
             }
 
             HStack(alignment: .center, spacing: 10) {
@@ -295,17 +277,7 @@ struct DetailPortfolioView: View {
             headerMetricRow(label: "PBV", value: pbvText)
             headerMetricRow(label: "FCF", value: fcfText)
         }
-        .frame(width: 145)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.35))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                )
-        )
+        .frame(width: 140)
     }
 
     private func headerMetricRow(label: String, value: String) -> some View {
@@ -323,6 +295,24 @@ struct DetailPortfolioView: View {
     }
 
     // MARK: - Interactive Swift Charts
+
+    private var highestPeriodPrice: Double {
+        historyPoints.map(\.high).max() ?? historyPoints.map(\.price).max() ?? quote.high
+    }
+
+    private var lowestPeriodPrice: Double {
+        historyPoints.map(\.low).min() ?? historyPoints.map(\.price).min() ?? quote.low
+    }
+
+    private var formattedHighestPrice: String {
+        let val = highestPeriodPrice
+        return isUSD ? String(format: "$%.2f", val) : "Rp \(NumberFormatters.stockPrice(val))"
+    }
+
+    private var formattedLowestPrice: String {
+        let val = lowestPeriodPrice
+        return isUSD ? String(format: "$%.2f", val) : "Rp \(NumberFormatters.stockPrice(val))"
+    }
 
     private var chartMinPrice: Double {
         (historyPoints.map(\.price).min() ?? quote.price) * 0.998
@@ -420,6 +410,22 @@ struct DetailPortfolioView: View {
                             )
                     }
                 }
+                .overlay(alignment: .topTrailing) {
+                    Text(formattedHighestPrice)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.black.opacity(0.55))
+                        .padding(.top, 4)
+                        .padding(.trailing, 4)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Text(formattedLowestPrice)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.black.opacity(0.55))
+                        .padding(.bottom, 4)
+                        .padding(.trailing, 4)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .padding(14)
@@ -492,191 +498,7 @@ struct DetailPortfolioView: View {
 
     @Namespace private var tfNamespace
 
-    // MARK: - Stats Grid (OHLC & Volume)
 
-    private var statsGrid: some View {
-        let prefix = isUSD ? "$" : "Rp "
-        let low = historyPoints.map(\.low).min() ?? quote.low
-        let high = historyPoints.map(\.high).max() ?? quote.high
-        let open = historyPoints.first?.open ?? quote.open
-        let vol = historyPoints.reduce(0) { $0 + $1.volume }
-        let formatVal: (Double) -> String = { val in
-            isUSD ? String(format: "%.2f", val) : NumberFormatters.stockPrice(val)
-        }
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Ringkasan Perdagangan")
-                .font(.subheadline.bold())
-                .foregroundStyle(Color.black)
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                statTile(title: "Tertinggi (\(selectedTimeframe.rawValue))", value: "\(prefix)\(formatVal(high))")
-                statTile(title: "Terendah (\(selectedTimeframe.rawValue))", value: "\(prefix)\(formatVal(low))")
-                statTile(title: "Harga Pembukaan", value: "\(prefix)\(formatVal(open))")
-                statTile(title: "Volume Total", value: NumberFormatters.compact(Double(vol > 0 ? vol : quote.volume)))
-            }
-        }
-    }
-
-    // MARK: - Fundamentals Section
-
-
-
-    private func statTile(title: String, value: String, subtitle: String? = nil, highlight: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.black.opacity(0.6))
-            Text(value)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(highlight ? Color.teal : Color.black)
-            if let sub = subtitle, !sub.isEmpty {
-                Text(sub)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(Color.black.opacity(0.45))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(highlight ? Color.teal.opacity(0.08) : Color.white.opacity(0.35))
-                .overlay {
-                    if highlight {
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.teal.opacity(0.25), lineWidth: 1)
-                    }
-                }
-        )
-    }
-
-    // MARK: - SEC Filings Section (US Stocks)
-
-    @ViewBuilder
-    private var secFilingsSection: some View {
-        if !quote.ticker.uppercased().hasSuffix(".JK") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(hex: "00D2C4"))
-
-                    Text("Laporan Resmi SEC (EDGAR)")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.black)
-
-                    Spacer()
-
-                    Text("10-K • 10-Q • 8-K")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.black.opacity(0.5))
-                }
-
-                if isLoadingFilings {
-                    HStack {
-                        Spacer()
-                        ProgressView().tint(Color(hex: "00D2C4")).scaleEffect(0.8)
-                        Text("Memuat dokumen SEC...")
-                            .font(.caption)
-                            .foregroundStyle(Color.black.opacity(0.6))
-                        Spacer()
-                    }
-                    .padding(.vertical, 12)
-                } else if secFilings.isEmpty {
-                    Text("Belum ada dokumen SEC yang tercatat untuk emiten ini.")
-                        .font(.caption)
-                        .foregroundStyle(Color.black.opacity(0.5))
-                        .padding(.vertical, 6)
-                } else {
-                    VStack(spacing: 8) {
-                        ForEach(secFilings) { filing in
-                            secFilingRow(filing)
-                        }
-                    }
-                }
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.35))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                    )
-            )
-        }
-    }
-
-    private func secFilingRow(_ filing: StockApiClient.SecFilingDTO) -> some View {
-        Button {
-            if let url = URL(string: filing.url), !filing.url.isEmpty {
-                activeSafariURL = IdentifiableURL(url: url)
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Text(filing.type)
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(badgeColor(for: filing.type))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(badgeColor(for: filing.type).opacity(0.15))
-                    )
-                    .frame(minWidth: 48)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(filing.title)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.black)
-                        .lineLimit(1)
-
-                    Text(filing.date)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.black.opacity(0.5))
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right.square")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.black.opacity(0.35))
-            }
-            .padding(9)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.25))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func badgeColor(for type: String) -> Color {
-        let upper = type.uppercased()
-        if upper.contains("10-K") {
-            return Color(hex: "FFB800")
-        } else if upper.contains("10-Q") {
-            return Color(hex: "00D2C4")
-        } else if upper.contains("8-K") {
-            return Color(hex: "9D65FF")
-        } else {
-            return Color(hex: "4FA3FF")
-        }
-    }
-
-    private func loadSecFilings() async {
-        guard !quote.ticker.uppercased().hasSuffix(".JK") else { return }
-        isLoadingFilings = true
-        defer { isLoadingFilings = false }
-        do {
-            let filings = try await StockApiClient.shared.fetchSecFilings(ticker: quote.ticker, limit: 6)
-            await MainActor.run {
-                self.secFilings = filings
-            }
-        } catch {
-            print("ℹ️ [DetailPortfolioView] Failed to load SEC filings: \(error.localizedDescription)")
-        }
-    }
 
     // MARK: - Sticky View Holding Bar
 
@@ -1159,13 +981,6 @@ struct StockHoldingDetailSheet: View {
             }
 
             Spacer()
-
-            Text(sector)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.teal)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.teal.opacity(0.12), in: Capsule())
         }
         .padding(16)
         .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
