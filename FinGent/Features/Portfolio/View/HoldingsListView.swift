@@ -46,6 +46,20 @@ struct HoldingRowView: View {
         )
     }
 
+    private var isDailyPositive: Bool {
+        if let quote = MarketDataRepository.shared.getQuote(for: row.ticker) {
+            return quote.change >= 0
+        }
+        return row.isDailyPositive
+    }
+
+    private var dailyChangePercent: Double {
+        if let quote = MarketDataRepository.shared.getQuote(for: row.ticker) {
+            return quote.changePercent
+        }
+        return row.dailyChangePercent
+    }
+
     var body: some View {
         NavigationLink(value: holdingQuote) {
             HStack(spacing: 12) {
@@ -63,7 +77,7 @@ struct HoldingRowView: View {
 
                 Spacer()
 
-                // Price & PnL
+                // Price & Change (1D like Watchlist)
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(row.formattedPrice)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -71,9 +85,9 @@ struct HoldingRowView: View {
                         .contentTransition(.numericText())
                         .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
 
-                    let isPositive = row.isProfit
+                    let isPositive = isDailyPositive
                     let sign = isPositive ? "+" : "-"
-                    Text(String(format: "%@%.2f%%", sign, abs(row.pnlPercent)))
+                    Text(String(format: "%@%.2f%%", sign, abs(dailyChangePercent)))
                         .font(.caption2.bold())
                         .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
                         .padding(.horizontal, 6)

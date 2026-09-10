@@ -93,6 +93,9 @@ final class PortfolioViewModel {
                 }
             }()
 
+            let dailyChange = quote?.change ?? 0.0
+            let dailyChangePct = quote?.changePercent ?? 0.0
+
             return HoldingRowState(
                 ticker: holding.ticker,
                 name: holding.name,
@@ -106,7 +109,9 @@ final class PortfolioViewModel {
                 formattedPrice: formattedPrice,
                 formattedValue: formattedValue,
                 formattedPnlPercent: String(format: "%+.1f%%", pnlPct),
-                currency: curr
+                currency: curr,
+                dailyChangePercent: dailyChangePct,
+                isDailyPositive: dailyChange >= 0
             )
         }
     }
@@ -166,6 +171,8 @@ struct HoldingRowState: Identifiable {
     let formattedValue: String
     let formattedPnlPercent: String
     let currency: String
+    var dailyChangePercent: Double = 0.0
+    var isDailyPositive: Bool = true
 }
 
 struct PortfolioSummaryState {

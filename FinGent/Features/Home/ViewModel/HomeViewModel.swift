@@ -155,6 +155,9 @@ final class HomeViewModel {
                 }
             }()
 
+            let dailyChange = quote?.change ?? 0.0
+            let dailyChangePct = quote?.changePercent ?? 0.0
+
             return HoldingRowState(
                 ticker: holding.ticker,
                 name: holding.name,
@@ -168,7 +171,9 @@ final class HomeViewModel {
                 formattedPrice: formattedPrice,
                 formattedValue: formattedValue,
                 formattedPnlPercent: String(format: "%+.1f%%", pnlPct),
-                currency: curr
+                currency: curr,
+                dailyChangePercent: dailyChangePct,
+                isDailyPositive: dailyChange >= 0
             )
         }
     }
