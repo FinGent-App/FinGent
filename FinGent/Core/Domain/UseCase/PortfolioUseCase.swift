@@ -94,13 +94,27 @@ final class PortfolioUseCase {
         let totalShares = existing.fractionalShares + additionalShares
         let totalInvested = existing.investedAmount + addAmount
         let weightedPrice = totalShares > 0 ? totalInvested / totalShares : addPrice
+        var lots = existing.purchaseLots ?? [
+            PurchaseLot(
+                date: Date(),
+                pricePerShare: existing.pricePerShare,
+                totalInvested: existing.investedAmount
+            )
+        ]
+        lots.append(PurchaseLot(
+            date: Date(),
+            pricePerShare: addPrice,
+            totalInvested: addAmount
+        ))
         return UserHolding(
             ticker: existing.ticker,
             name: existing.name,
             investedAmount: totalInvested,
             pricePerShare: weightedPrice,
             sector: existing.sector,
-            currency: existing.currency
+            currency: existing.currency,
+            marketPrice: existing.marketPrice,
+            purchaseLots: lots
         )
     }
 }

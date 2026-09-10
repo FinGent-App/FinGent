@@ -75,13 +75,27 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
             let totalShares = existing.fractionalShares + additionalShares
             let totalInvested = existing.investedAmount + amount
             let weightedPrice = totalShares > 0 ? totalInvested / totalShares : pricePerShare
+            var lots = existing.purchaseLots ?? [
+                PurchaseLot(
+                    date: Date(),
+                    pricePerShare: existing.pricePerShare,
+                    totalInvested: existing.investedAmount
+                )
+            ]
+            lots.append(PurchaseLot(
+                date: Date(),
+                pricePerShare: pricePerShare,
+                totalInvested: amount
+            ))
             let updated = UserHolding(
                 ticker: existing.ticker,
                 name: name.isEmpty ? existing.name : name,
                 investedAmount: totalInvested,
                 pricePerShare: weightedPrice,
                 sector: sector.isEmpty ? existing.sector : sector,
-                currency: existing.currency ?? (isUSD ? "USD" : "IDR")
+                currency: existing.currency ?? (isUSD ? "USD" : "IDR"),
+                marketPrice: existing.marketPrice,
+                purchaseLots: lots
             )
             userHoldings[index] = updated
             savedHolding = updated
@@ -92,7 +106,14 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
                 investedAmount: amount,
                 pricePerShare: pricePerShare,
                 sector: sector,
-                currency: isUSD ? "USD" : "IDR"
+                currency: isUSD ? "USD" : "IDR",
+                purchaseLots: [
+                    PurchaseLot(
+                        date: Date(),
+                        pricePerShare: pricePerShare,
+                        totalInvested: amount
+                    )
+                ]
             )
             userHoldings.append(created)
             savedHolding = created
@@ -131,7 +152,8 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
             pricePerShare: existing.pricePerShare,
             sector: existing.sector,
             currency: existing.currency,
-            marketPrice: existing.marketPrice
+            marketPrice: existing.marketPrice,
+            purchaseLots: existing.purchaseLots
         )
         userHoldings[index] = updated
 
@@ -165,7 +187,8 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
             pricePerShare: pricePerShare,
             sector: existing.sector,
             currency: existing.currency,
-            marketPrice: existing.marketPrice
+            marketPrice: existing.marketPrice,
+            purchaseLots: existing.purchaseLots
         )
         userHoldings[index] = updated
 
@@ -255,19 +278,30 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
                 print("✅ [PortfolioRepository] Pushed \(userHoldings.count) local holdings to PostgreSQL.")
             } else if !remoteHoldings.isEmpty {
                 // 2. Pull remote holdings from PostgreSQL and merge with local state
+                let currentLocal = await MainActor.run { self.userHoldings }
                 let mapped = remoteHoldings.map { dto in
-                    UserHolding(
+                    let localHolding = currentLocal.first(where: { $0.ticker.uppercased() == dto.ticker.uppercased() })
+                    return UserHolding(
                         ticker: dto.ticker,
                         name: dto.name,
-                        investedAmount: dto.invested_amount,
-                        pricePerShare: dto.price_per_share,
-                        sector: dto.sector ?? "Technology",
-                        currency: dto.currency,
-                        marketPrice: dto.current_price
+                        investedAmount: localHolding?.investedAmount ?? dto.invested_amount,
+                        pricePerShare: localHolding?.pricePerShare ?? dto.price_per_share,
+                        sector: dto.sector ?? localHolding?.sector ?? "Technology",
+                        currency: dto.currency ?? localHolding?.currency,
+                        marketPrice: dto.current_price ?? localHolding?.marketPrice,
+                        purchaseLots: localHolding?.purchaseLots
                     )
                 }
+
+                var merged = mapped
+                for local in currentLocal {
+                    if !merged.contains(where: { $0.ticker.uppercased() == local.ticker.uppercased() }) {
+                        merged.append(local)
+                    }
+                }
+
                 await MainActor.run {
-                    self.userHoldings = mapped
+                    self.userHoldings = merged
 
                     // 3. Prime MarketDataRepository with enriched performance and fundamentals from PostgreSQL snapshot
                     for dto in remoteHoldings {

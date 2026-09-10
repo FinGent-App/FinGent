@@ -40,8 +40,6 @@ struct DetailPortfolioView: View {
 
     @State private var fundamentals: StockFundamentals? = nil
     @State private var activeSafariURL: IdentifiableURL? = nil
-    @State private var showHoldingSheet: Bool = false
-    @State private var holdingSheetDetent: PresentationDetent = .large
     @State private var portfolioRepo = PortfolioRepository.shared
     @State private var favoritesRepo = FavoritesRepository.shared
 
@@ -68,13 +66,24 @@ struct DetailPortfolioView: View {
                     stockHeader
                     chartCard
                     timeframeSegmentedControl
+
+                    StockHoldingDetailSection(
+                        quote: quote,
+                        sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General",
+                        onBuy: { amount, pricePerShare in
+                            portfolioUseCase.addHolding(
+                                ticker: quote.ticker,
+                                name: quote.name,
+                                amount: amount,
+                                pricePerShare: pricePerShare,
+                                sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General"
+                            )
+                        }
+                    )
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 20)
-            }
-            .safeAreaInset(edge: .bottom) {
-                stickyViewHoldingBar
+                .padding(.bottom, 32)
             }
         }
         .navigationTitle(quote.ticker)
@@ -93,23 +102,6 @@ struct DetailPortfolioView: View {
         }
         .sheet(item: $activeSafariURL) { item in
             SafariView(url: item.url)
-        }
-        .sheet(isPresented: $showHoldingSheet) {
-            StockHoldingDetailSheet(
-                quote: quote,
-                sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General",
-                onBuy: { amount, pricePerShare in
-                    portfolioUseCase.addHolding(
-                        ticker: quote.ticker,
-                        name: quote.name,
-                        amount: amount,
-                        pricePerShare: pricePerShare,
-                        sector: fundamentals?.sector ?? marketRepo.getFundamentals(for: quote.ticker)?.sector ?? "General"
-                    )
-                }
-            )
-            .presentationDetents([.large, .fraction(0.65)], selection: $holdingSheetDetent)
-            .presentationDragIndicator(.visible)
         }
     }
 
@@ -500,50 +492,6 @@ struct DetailPortfolioView: View {
 
 
 
-    // MARK: - Sticky View Holding Bar
-
-    private var stickyViewHoldingBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-                .overlay(Color.black.opacity(0.08))
-
-            Button {
-                holdingSheetDetent = .large
-                showHoldingSheet = true
-                let generator = UIImpactFeedbackGenerator(style: .medium)
-                generator.prepare()
-                generator.impactOccurred()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "briefcase.fill")
-                        .font(.system(size: 16, weight: .bold))
-                    Text("View Holding")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                }
-                .foregroundStyle(.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(
-                    LinearGradient(
-                        colors: [Color(hex: "00D2FF"), Color(hex: "00F5D4")],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-                .shadow(color: Color(hex: "00D2FF").opacity(0.35), radius: 10, y: 4)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-        }
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Color.white.opacity(0.35))
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
 
     // MARK: - Data Loading
 
@@ -685,14 +633,13 @@ struct PurchaseFormEntry: Identifiable, Equatable {
     }
 }
 
-// MARK: - Stock Holding Detail Sheet
+// MARK: - Stock Holding Detail Section
 
-struct StockHoldingDetailSheet: View {
+struct StockHoldingDetailSection: View {
     let quote: StockQuote
     let sector: String
     let onBuy: (_ amount: Double, _ pricePerShare: Double) -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var repo = PortfolioRepository.shared
     @State private var purchaseEntries: [PurchaseFormEntry] = []
     @State private var isInitialized: Bool = false
@@ -824,170 +771,116 @@ struct StockHoldingDetailSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                LinearGradient(
-                    colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+        VStack(spacing: 16) {
+            headerSection
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        headerSummaryCard
-
-                        if let holding = holding {
-                            ownedPositionSection(holding: holding)
-                        } else {
-                            unownedPositionSection
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 32)
-                }
-            }
-            .navigationTitle("Holding Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.light, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Selesai") {
-                        dismiss()
-                    }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Color.black.opacity(0.8))
-                }
-            }
-            .onAppear {
-                if let holding = holding {
-                    if let lots = holding.purchaseLots, !lots.isEmpty {
-                        purchaseEntries = lots.map { lot in
-                            PurchaseFormEntry(
-                                id: lot.id,
-                                date: lot.date,
-                                priceInput: formatNumberInput(lot.pricePerShare),
-                                totalInput: formatNumberInput(lot.totalInvested)
-                            )
-                        }
-                    } else {
-                        purchaseEntries = [
-                            PurchaseFormEntry(
-                                date: Date(),
-                                priceInput: formatNumberInput(holding.pricePerShare),
-                                totalInput: formatNumberInput(holding.investedAmount)
-                            )
-                        ]
-                    }
-                } else {
-                    purchaseEntries = [
-                        PurchaseFormEntry(
-                            date: Date(),
-                            priceInput: formatNumberInput(quote.price),
-                            totalInput: ""
-                        )
-                    ]
-                }
-                DispatchQueue.main.async {
-                    isInitialized = true
-                }
-            }
-            .onChange(of: purchaseEntries) { _, _ in
-                syncHoldingEdits()
-            }
-            .confirmationDialog("Hapus dari Portofolio?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Delete", role: .destructive) {
-                    repo.removeHolding(ticker: quote.ticker)
-                    let generator = UINotificationFeedbackGenerator()
-                    generator.notificationOccurred(.warning)
-                }
-                Button("Batal", role: .cancel) {}
-            } message: {
-                Text("Apakah Anda yakin ingin menghapus \(quote.ticker) dari portofolio Anda?")
-            }
-            .confirmationDialog("Pilihan Hapus", isPresented: $showLotDeleteOptions, titleVisibility: .visible) {
-                if let id = pendingDeleteEntryId {
-                    Button("Hapus Lot Ini Saja", role: .destructive) {
-                        removeEntry(id: id)
-                        pendingDeleteEntryId = nil
-                    }
-                }
-                Button("Delete Seluruh Posisi \(quote.ticker)", role: .destructive) {
-                    repo.removeHolding(ticker: quote.ticker)
-                    pendingDeleteEntryId = nil
-                    let generator = UINotificationFeedbackGenerator()
-                    generator.notificationOccurred(.warning)
-                }
-                Button("Batal", role: .cancel) {
-                    pendingDeleteEntryId = nil
-                }
-            } message: {
-                Text("Pilih apakah Anda ingin menghapus lot transaksi ini saja atau menghapus seluruh posisi \(quote.ticker) dari portofolio.")
-            }
-            .overlay(alignment: .bottom) {
-                if showSuccessToast {
-                    Text(toastMessage)
-                        .font(.footnote.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color(hex: "00B89F"), in: Capsule())
-                        .shadow(color: Color.black.opacity(0.4), radius: 8, y: 4)
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            if let holding = holding {
+                ownedPositionSection(holding: holding)
+            } else {
+                unownedPositionSection
             }
         }
-        .preferredColorScheme(.light)
+        .onAppear {
+            initializeEntries()
+        }
+        .onDisappear {
+            syncHoldingEdits()
+        }
+        .onChange(of: holding == nil) { _, _ in
+            initializeEntries()
+        }
+        .onChange(of: purchaseEntries) { _, _ in
+            syncHoldingEdits()
+        }
+        .confirmationDialog("Hapus dari Portofolio?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                repo.removeHolding(ticker: quote.ticker)
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.warning)
+            }
+            Button("Batal", role: .cancel) {}
+        } message: {
+            Text("Apakah Anda yakin ingin menghapus \(quote.ticker) dari portofolio Anda?")
+        }
+        .confirmationDialog("Pilihan Hapus", isPresented: $showLotDeleteOptions, titleVisibility: .visible) {
+            if let id = pendingDeleteEntryId {
+                Button("Hapus Lot Ini Saja", role: .destructive) {
+                    removeEntry(id: id)
+                    pendingDeleteEntryId = nil
+                }
+            }
+            Button("Delete Seluruh Posisi \(quote.ticker)", role: .destructive) {
+                repo.removeHolding(ticker: quote.ticker)
+                pendingDeleteEntryId = nil
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.warning)
+            }
+            Button("Batal", role: .cancel) {
+                pendingDeleteEntryId = nil
+            }
+        } message: {
+            Text("Pilih apakah Anda ingin menghapus lot transaksi ini saja atau menghapus seluruh posisi \(quote.ticker) dari portofolio.")
+        }
+        .overlay(alignment: .bottom) {
+            if showSuccessToast {
+                Text(toastMessage)
+                    .font(.footnote.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "00B89F"), in: Capsule())
+                    .shadow(color: Color.black.opacity(0.4), radius: 8, y: 4)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
     }
 
-    // MARK: - Header Summary Card
-
-    private var headerSummaryCard: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(quote.ticker)
-                        .font(.title3.bold())
-                        .foregroundStyle(Color.black)
-
-                    if holding != nil {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color(hex: "00B89F"))
-                                .frame(width: 6, height: 6)
-                            Text("Dimiliki")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color(hex: "00B89F"))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color(hex: "00B89F").opacity(0.15), in: Capsule())
-                    } else {
-                        Text("Belum Dimiliki")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color.black.opacity(0.6))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.black.opacity(0.06), in: Capsule())
-                    }
+    private func initializeEntries() {
+        if let holding = holding {
+            if let lots = holding.purchaseLots, !lots.isEmpty {
+                purchaseEntries = lots.map { lot in
+                    PurchaseFormEntry(
+                        id: lot.id,
+                        date: lot.date,
+                        priceInput: formatNumberInput(lot.pricePerShare),
+                        totalInput: formatNumberInput(lot.totalInvested)
+                    )
                 }
-
-                Text(quote.name)
-                    .font(.footnote)
-                    .foregroundStyle(Color.black.opacity(0.6))
-                    .lineLimit(1)
+            } else {
+                purchaseEntries = [
+                    PurchaseFormEntry(
+                        date: Date(),
+                        priceInput: formatNumberInput(holding.pricePerShare),
+                        totalInput: formatNumberInput(holding.investedAmount)
+                    )
+                ]
             }
+        } else {
+            purchaseEntries = [
+                PurchaseFormEntry(
+                    date: Date(),
+                    priceInput: formatNumberInput(quote.price),
+                    totalInput: ""
+                )
+            ]
+        }
+        DispatchQueue.main.async {
+            isInitialized = true
+        }
+    }
+
+    // MARK: - Header Section
+
+    private var headerSection: some View {
+        HStack(alignment: .center) {
+            Text("Holding Details")
+                .font(.headline.bold())
+                .foregroundStyle(Color.black)
 
             Spacer()
         }
-        .padding(16)
-        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.5), lineWidth: 1)
-        }
+        .padding(.top, 4)
     }
 
     // MARK: - Owned Position Section
@@ -998,6 +891,7 @@ struct StockHoldingDetailSheet: View {
         let pnlPct = currentPnLPercent
         let isProfit = pnl >= 0
         let sign = isProfit ? "+" : "-"
+        let pnlColor = isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30")
 
         return VStack(spacing: 16) {
             // 1. Valuasi Posisi & Total G&L (Side by Side)
@@ -1005,17 +899,19 @@ struct StockHoldingDetailSheet: View {
                 metricTile(
                     title: "Valuasi Posisi",
                     value: formatCurrency(currentVal),
-                    caption: "Nilai saat ini (\(formattedTotalShares) Shares)",
+                    caption: "\(formattedTotalShares) Shares",
                     icon: "chart.pie.fill",
                     color: Color(hex: "007AFF")
                 )
 
                 metricTile(
                     title: "Total G&L",
-                    value: String(format: "%@%@ (%@%.2f%%)", sign, formatCurrency(abs(pnl)), sign, abs(pnlPct)),
-                    caption: isProfit ? "Keuntungan" : "Kerugian",
-                    icon: "chart.line.uptrend.xyaxis",
-                    color: isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30")
+                    value: String(format: "%@%@", sign, formatCurrency(abs(pnl))),
+                    caption: String(format: "%@%.2f%%", sign, abs(pnlPct)),
+                    icon: isProfit ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis",
+                    color: pnlColor,
+                    valueColor: pnlColor,
+                    captionColor: pnlColor
                 )
             }
 
@@ -1173,8 +1069,8 @@ struct StockHoldingDetailSheet: View {
                     HStack(spacing: 8) {
                         // 1. Per Share Price (Form)
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Per Share Price")
-                                .font(.system(size: 10.5, weight: .bold))
+                            Text("Cost per Share")
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
@@ -1199,17 +1095,11 @@ struct StockHoldingDetailSheet: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                        }
 
                         // 2. Total Beli (Form)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Total Buy")
-                                .font(.system(size: 10.5, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
@@ -1234,48 +1124,30 @@ struct StockHoldingDetailSheet: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                        }
 
                         // 3. Total Dapat Berapa Share (Calculated)
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Total")
-                                .font(.system(size: 10.5, weight: .bold))
+                            Text("Share")
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
 
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(entry.formattedShares)
-                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color.black)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-
-                                Text("Shares")
-                                    .font(.system(size: 9.5, weight: .semibold))
-                                    .foregroundStyle(Color.black.opacity(0.5))
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                            }
+                            Text(entry.formattedShares)
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.black)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                                }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                        }
                     }
                 }
                 .padding(12)
@@ -1322,7 +1194,9 @@ struct StockHoldingDetailSheet: View {
         value: String,
         caption: String,
         icon: String,
-        color: Color
+        color: Color,
+        valueColor: Color = Color.black,
+        captionColor: Color = Color.black.opacity(0.45)
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -1336,13 +1210,13 @@ struct StockHoldingDetailSheet: View {
 
             Text(value)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(valueColor)
                 .minimumScaleFactor(0.8)
                 .lineLimit(1)
 
             Text(caption)
-                .font(.system(size: 11))
-                .foregroundStyle(Color.black.opacity(0.45))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(captionColor)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
