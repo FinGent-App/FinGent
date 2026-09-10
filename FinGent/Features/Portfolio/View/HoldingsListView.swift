@@ -49,19 +49,50 @@ struct HoldingRowView: View {
     var body: some View {
         NavigationLink(value: holdingQuote) {
             HStack(spacing: 12) {
-                tickerBadge
-                stockDetails
+                // Ticker & Company Name
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(row.ticker)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.black)
+
+                    Text(row.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 Spacer()
-                valueAndPnL
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(Color.black.opacity(0.3))
+
+                // Price & PnL
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(row.formattedPrice)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.black)
+                        .contentTransition(.numericText())
+                        .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
+
+                    let isPositive = row.isProfit
+                    let sign = isPositive ? "+" : "-"
+                    Text(String(format: "%@%.2f%%", sign, abs(row.pnlPercent)))
+                        .font(.caption2.bold())
+                        .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 4)
+                        )
+                }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 14)
-            .background {
-                RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.35))
-            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(0.35))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                    )
+            )
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing) {
@@ -69,59 +100,10 @@ struct HoldingRowView: View {
                 Label("Hapus", systemImage: "trash")
             }
         }
-    }
-
-    private var tickerBadge: some View {
-        Text(row.ticker)
-            .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(row.isProfit ? Color(red: 0.05, green: 0.45, blue: 0.2) : Color(red: 0.65, green: 0.12, blue: 0.15))
-            .frame(width: 52, height: 36)
-            .background {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(LinearGradient(
-                        colors: row.isProfit
-                            ? [.green.opacity(0.3), .green.opacity(0.15)]
-                            : [.red.opacity(0.3), .red.opacity(0.15)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
+        .contextMenu {
+            Button(role: .destructive, action: onRemove) {
+                Label("Hapus dari Portofolio", systemImage: "trash")
             }
-    }
-
-    private var stockDetails: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(row.name)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.black)
-                .lineLimit(1)
-
-            Text("\(row.lotText) · \(row.formattedPrice)")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(Color.black.opacity(0.55))
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
-        }
-    }
-
-    private var valueAndPnL: some View {
-        VStack(alignment: .trailing, spacing: 3) {
-            Text(row.formattedValue)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.black)
-                .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.25), value: row.currentValue)
-
-            let isPositive = row.isProfit
-            let sign = isPositive ? "+" : "-"
-            Text(String(format: "%@%.2f%%", sign, abs(row.pnlPercent)))
-                .font(.caption2.bold())
-                .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(
-                    (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 4)
-                )
         }
     }
 }

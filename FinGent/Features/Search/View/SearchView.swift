@@ -148,10 +148,6 @@ struct SearchView: View {
                         .font(.caption2.bold())
                         .foregroundStyle(isPositive ? Color(red: 0.0, green: 0.65, blue: 0.35) : .red)
                 }
-
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(Color.black.opacity(0.3))
             }
             .padding(14)
             .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))

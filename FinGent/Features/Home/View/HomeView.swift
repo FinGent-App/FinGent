@@ -340,20 +340,9 @@ struct HomeView: View {
         HStack(spacing: 12) {
             // Ticker & Company Name
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(stock.ticker)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.black)
-
-                    if stock.currency.uppercased() != "IDR" {
-                        Text(stock.currency.uppercased())
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.cyan)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.cyan.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                    }
-                }
+                Text(stock.ticker)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.black)
 
                 Text(stock.name)
                     .font(.caption)
@@ -381,10 +370,6 @@ struct HomeView: View {
                         in: RoundedRectangle(cornerRadius: 4)
                     )
             }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.black.opacity(0.3))
         }
         .padding(14)
         .background(
