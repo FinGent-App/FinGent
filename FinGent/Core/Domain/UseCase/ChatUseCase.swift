@@ -48,6 +48,14 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let (cleanedAnswer, bias) = extractBias(from: rawReply)
 
             var citations = SharedCitationStore.shared.drainLastCitations()
+            if let targetTicker = context.tickers.first {
+                citations = citations.filter { c in
+                    if c.source == .portfolio {
+                        return c.title.uppercased().contains(targetTicker.uppercased())
+                    }
+                    return true
+                }
+            }
             if citations.isEmpty && !articles.isEmpty && context.requiresNews {
                 citations = articles.prefix(3).map { NewsCitation(from: $0) }
             }
@@ -62,7 +70,14 @@ final class ChatUseCase: ChatUseCaseProtocol {
             // Fallback path: When executed on environments without Apple Intelligence neural engine
             // assets (e.g. standard simulator), consult Cloud Analyst or perform synthesis.
             if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: context.tickers.first) {
-                let citations = (cloudResponse.citations ?? []).map { dto in
+                let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
+                    // If target ticker is specified, filter out portfolio citations of other stocks
+                    if let targetTicker = context.tickers.first, dto.doc_type.lowercased() == "portfolio" {
+                        if !dto.title.uppercased().contains(targetTicker.uppercased()) {
+                            return nil
+                        }
+                    }
+
                     let source: NewsSourceType
                     if dto.doc_type.lowercased() == "sec" {
                         source = .sec
@@ -227,10 +242,21 @@ final class ChatUseCase: ChatUseCaseProtocol {
             text += "⚡ **Temuan Analisis Cloud Agent:**\n\(cg)\n\n"
         }
 
-        // Display Portfolio Citations if available
-        let portfolioCitations = ragCitations.filter { $0.source == .portfolio }
+        // Display user holding position for the target stock only
+        if let targetTicker = context.tickers.first,
+           let userHolding = PortfolioRepository.shared.userHoldings.first(where: { $0.ticker.uppercased() == targetTicker.uppercased() }) {
+            let avgPriceStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.pricePerShare))" : "Rp \(Int(userHolding.pricePerShare))"
+            let investedStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.investedAmount))" : "Rp \(Int(userHolding.investedAmount))"
+            text += "💼 **Posisi Portofolio Anda (\(userHolding.ticker)):**\n"
+            text += "• Anda memiliki **\(userHolding.shares) lembar** dengan harga beli rata-rata **\(avgPriceStr)** (Total Investasi: **\(investedStr)**).\n\n"
+        }
+
+        // Display Portfolio Citations if available (strictly matching target ticker)
+        let portfolioCitations = ragCitations.filter { p in
+            p.source == .portfolio && (ticker == "Pasar" || p.title.uppercased().contains(ticker.uppercased()))
+        }
         if !portfolioCitations.isEmpty {
-            text += "💼 **Posisi Portofolio Anda:**\n"
+            text += "💼 **Catatan Portofolio:**\n"
             for p in portfolioCitations {
                 text += "• \(p.title)\n"
             }

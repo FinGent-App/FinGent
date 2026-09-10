@@ -53,15 +53,22 @@ struct ConsultCloudAnalystTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        let resolvedTicker = arguments.ticker ?? StockTickerExtractor().extractTickers(from: arguments.query).first
         do {
             let response = try await StockApiClient.shared.consultCloudAnalyst(
                 query: arguments.query,
-                ticker: arguments.ticker
+                ticker: resolvedTicker
             )
 
             if let citations = response.citations, !citations.isEmpty {
+                let relevant = citations.filter { c in
+                    if let t = resolvedTicker, c.doc_type.lowercased() == "portfolio" {
+                        return c.title.uppercased().contains(t.uppercased())
+                    }
+                    return true
+                }
                 await MainActor.run {
-                    SharedCitationStore.shared.setLastCitations(citations)
+                    SharedCitationStore.shared.setLastCitations(relevant)
                 }
             }
 
@@ -69,10 +76,18 @@ struct ConsultCloudAnalystTool: Tool {
             formatted += response.analyst_report
 
             if let citations = response.citations, !citations.isEmpty {
-                formatted += "\n\nREGULATORY EVIDENCE & CITATIONS:\n"
-                for (idx, item) in citations.prefix(4).enumerated() {
-                    let urlStr = item.source_url ?? "SEC Database"
-                    formatted += "\(idx + 1). [\(item.doc_type.uppercased())] \(item.title) (\(urlStr))\n"
+                let relevant = citations.filter { c in
+                    if let t = resolvedTicker, c.doc_type.lowercased() == "portfolio" {
+                        return c.title.uppercased().contains(t.uppercased())
+                    }
+                    return true
+                }
+                if !relevant.isEmpty {
+                    formatted += "\n\nREGULATORY EVIDENCE & CITATIONS:\n"
+                    for (idx, item) in relevant.prefix(4).enumerated() {
+                        let urlStr = item.source_url ?? "SEC Database"
+                        formatted += "\(idx + 1). [\(item.doc_type.uppercased())] \(item.title) (\(urlStr))\n"
+                    }
                 }
             }
             return formatted

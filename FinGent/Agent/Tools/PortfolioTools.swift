@@ -7,7 +7,7 @@ import FoundationModels
 
 struct GetPortfolioSummaryTool: Tool {
     let name = "getPortfolioSummary"
-    let description = "Gets the overall portfolio summary including total market value, total cost, profit/loss, and number of holdings."
+    let description = "Gets the overall portfolio summary. Use ONLY when user explicitly asks about overall portfolio summary or total net worth, NOT for specific stock questions."
 
     @Generable struct Arguments {}
 
@@ -37,10 +37,10 @@ struct GetPortfolioSummaryTool: Tool {
 
 struct GetHoldingTool: Tool {
     let name = "getHolding"
-    let description = "Gets details of a specific stock holding by ticker, or lists all holdings if no ticker is specified."
+    let description = "Gets details of a specific stock holding by ticker symbol (e.g. 'MU', 'BBCA'). Only use 'ALL' when the user explicitly asks to view all portfolio holdings."
 
     @Generable struct Arguments {
-        @Guide(description: "The stock ticker symbol to look up, e.g. 'BBCA'. Leave empty or use 'ALL' to get all holdings.")
+        @Guide(description: "The stock ticker symbol to look up, e.g. 'MU' or 'BBCA'. Use 'ALL' ONLY if user asks to see all holdings.")
         var ticker: String
     }
 
@@ -50,8 +50,9 @@ struct GetHoldingTool: Tool {
             return "Portofolio kamu saat ini belum memiliki saham."
         }
         let resolved = resolveHoldings(holdings)
+        let rawTicker = arguments.ticker.trimmingCharacters(in: .whitespaces)
 
-        if arguments.ticker.uppercased() == "ALL" || arguments.ticker.isEmpty {
+        if rawTicker.uppercased() == "ALL" {
             var result = "All Portfolio Holdings:\n"
             for h in resolved {
                 result += """
@@ -63,8 +64,11 @@ struct GetHoldingTool: Tool {
             return result
         }
 
-        guard let holding = resolved.first(where: { $0.ticker.uppercased() == arguments.ticker.uppercased() }) else {
-            return "No holding found for ticker '\(arguments.ticker)'. Available: \(resolved.map(\.ticker).joined(separator: ", "))"
+        // Resolve ticker symbol / company alias (e.g. 'micron' -> 'MU')
+        let targetTicker = StockTickerExtractor().extractTickers(from: rawTicker).first ?? rawTicker.uppercased()
+
+        guard let holding = resolved.first(where: { $0.ticker.uppercased() == targetTicker }) else {
+            return "Kamu saat ini tidak memiliki posisi saham '\(targetTicker)' di portofolio."
         }
 
         return """
@@ -133,7 +137,7 @@ struct GetPortfolioPerformanceTool: Tool {
 
 struct GetPortfolioAllocationTool: Tool {
     let name = "getPortfolioAllocation"
-    let description = "Gets the portfolio allocation breakdown by sector and by individual stock."
+    let description = "Gets the portfolio allocation breakdown by sector and stock. Use ONLY when user explicitly asks about overall portfolio allocation."
 
     @Generable struct Arguments {}
 
@@ -163,7 +167,7 @@ struct GetPortfolioAllocationTool: Tool {
 
 struct GetPortfolioMoversTool: Tool {
     let name = "getPortfolioMovers"
-    let description = "Gets the top movers (gainers and losers) in the portfolio. Direction: 'gainers', 'losers', or 'all'."
+    let description = "Gets the top movers (gainers and losers) in the portfolio. Use ONLY when user explicitly asks about portfolio movers."
 
     @Generable struct Arguments {
         @Guide(description: "Filter direction: 'gainers', 'losers', or 'all'.")
@@ -203,10 +207,10 @@ struct GetPortfolioMoversTool: Tool {
 
 struct GetUnrealizedGainTool: Tool {
     let name = "getUnrealizedGain"
-    let description = "Gets the unrealized gain or loss for a specific stock ticker or the entire portfolio."
+    let description = "Gets the unrealized gain or loss for a specific stock ticker symbol (e.g. 'MU') or the entire portfolio ('ALL')."
 
     @Generable struct Arguments {
-        @Guide(description: "Stock ticker to check, e.g. 'BBCA'. Use 'ALL' for entire portfolio.")
+        @Guide(description: "Stock ticker to check, e.g. 'MU'. Use 'ALL' ONLY if user asks for full portfolio P&L.")
         var ticker: String
     }
 
@@ -214,8 +218,9 @@ struct GetUnrealizedGainTool: Tool {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Portofolio kamu saat ini belum memiliki saham." }
         let resolved = resolveHoldings(holdings)
+        let rawTicker = arguments.ticker.trimmingCharacters(in: .whitespaces)
 
-        if arguments.ticker.uppercased() == "ALL" || arguments.ticker.isEmpty {
+        if rawTicker.uppercased() == "ALL" {
             var result = "Unrealized P&L — Full Portfolio:\n"
             var totalGain = 0.0
             for h in resolved.sorted(by: { $0.unrealizedGain > $1.unrealizedGain }) {
@@ -228,8 +233,11 @@ struct GetUnrealizedGainTool: Tool {
             return result
         }
 
-        guard let h = resolved.first(where: { $0.ticker.uppercased() == arguments.ticker.uppercased() }) else {
-            return "No holding found for ticker '\(arguments.ticker)'."
+        // Resolve ticker symbol / company alias (e.g. 'micron' -> 'MU')
+        let targetTicker = StockTickerExtractor().extractTickers(from: rawTicker).first ?? rawTicker.uppercased()
+
+        guard let h = resolved.first(where: { $0.ticker.uppercased() == targetTicker }) else {
+            return "Kamu saat ini tidak memiliki posisi saham '\(targetTicker)' di portofolio."
         }
 
         return """

@@ -47,6 +47,7 @@ from services.agent_tools_service import (
     analyze_news_impact,
     analyze_portfolio_impact
 )
+
 from services.cloud_agent_service import consult_cloud_analyst
 
 logging.basicConfig(

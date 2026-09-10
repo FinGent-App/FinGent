@@ -5,6 +5,8 @@ import google.generativeai as genai
 from services.milvus_service import search_knowledge_hybrid
 from services.yahoo_service import get_stock_fundamentals, get_single_quote
 from services.portfolio_db_service import get_user_holdings
+from services.news_db_service import get_news_by_ticker
+from services.rss_ingestion_service import extract_tickers, sync_ticker_news
 from services.agent_tools_service import analyze_portfolio_impact, analyze_news_impact
 
 logger = logging.getLogger("FinGent.CloudAgent")
@@ -34,13 +36,22 @@ async def consult_cloud_analyst(
     Returns an executive research briefing for the iOS master agent.
     """
     clean_ticker = ticker.strip().upper() if ticker else None
+    if not clean_ticker:
+        extracted = extract_tickers(query, "")
+        if extracted:
+            clean_ticker = extracted[0]
 
-    # Step 1: Query Zilliz Milvus Vector RAG (SEC filings, News, Portfolio)
-    rag_hits = search_knowledge_hybrid(query_text=query, user_id=user_id, limit=5)
-    
     citations = []
     rag_context_lines = []
+
+    # Step 1: Query Zilliz Milvus Vector RAG (SEC filings, News, Portfolio)
+    rag_hits = search_knowledge_hybrid(query_text=query, ticker=clean_ticker, user_id=user_id, limit=5)
+    
+    # Filter out portfolio documents of unrelated tickers when focusing on a specific stock
     for h in rag_hits:
+        if clean_ticker and h.get("doc_type") == "portfolio" and h.get("ticker") != clean_ticker:
+            continue
+
         citations.append({
             "id": h.get("id"),
             "title": h.get("title"),
@@ -77,17 +88,58 @@ async def consult_cloud_analyst(
         except Exception as e:
             logger.warning("Failed to fetch live market context for %s: %s", target_ticker, str(e))
 
-    # Step 3: Fetch User Portfolio Context
+    # Step 2.5: Ingest & Retrieve Verified News for Target Ticker
+    news_context = ""
+    if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
+        try:
+            await sync_ticker_news(target_ticker)
+        except Exception as e:
+            logger.warning("Failed to sync ticker news for %s: %s", target_ticker, str(e))
+
+        ticker_news = await get_news_by_ticker(target_ticker, limit=5)
+        if ticker_news:
+            news_lines = []
+            for n in ticker_news:
+                news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}\n  Ringkasan: {n.get('summary', '')}\n  Link: {n.get('url', '')}")
+                # Add to citations for the iOS UI cards
+                citations.append({
+                    "id": n.get("id"),
+                    "title": n.get("title"),
+                    "doc_type": "news",
+                    "badge_label": f"{n.get('source', 'News')} (RSS)",
+                    "source_url": n.get("url"),
+                    "score": 1.0,
+                    "ticker": target_ticker
+                })
+            news_context = f"VERIFIED NEWS HEADLINES & CATALYSTS FOR {target_ticker}:\n" + "\n".join(news_lines)
+
+    # Step 3: Fetch User Portfolio Context (Strictly Scoped)
     portfolio_context = ""
     try:
         holdings = await get_user_holdings(user_id)
         if holdings:
-            holding_summaries = []
-            for h in holdings:
-                holding_summaries.append(
-                    f"• {h.get('ticker')}: {h.get('shares')} shares @ avg purchase ${h.get('price_per_share', 0.0):.2f} (Total Invested: ${h.get('invested_amount', 0.0):.2f})"
-                )
-            portfolio_context = "USER PORTFOLIO HOLDINGS (Supabase PostgreSQL):\n" + "\n".join(holding_summaries)
+            if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
+                # ONLY inspect holding for this specific stock if the user owns it
+                target_holding = next((h for h in holdings if h.get("ticker", "").upper() == target_ticker), None)
+                if target_holding:
+                    portfolio_context = (
+                        f"USER RELEVANT POSITION IN {target_ticker}:\n"
+                        f"• {target_ticker}: {target_holding.get('shares')} shares @ avg purchase ${target_holding.get('price_per_share', 0.0):.2f} "
+                        f"(Total Invested: ${target_holding.get('invested_amount', 0.0):.2f})\n"
+                        f"(STRICT INSTRUCTION: The user is only asking about {target_ticker}. Only mention this holding if relevant. DO NOT mention or reference other holdings.)"
+                    )
+                else:
+                    portfolio_context = f"USER POSITION IN {target_ticker}: User does not currently hold {target_ticker} in their portfolio."
+            else:
+                # Only include all holdings if the query explicitly asks about the overall portfolio
+                lower_q = query.lower()
+                portfolio_keywords = ["portofolio", "portfolio", "holding", "semua saham", "aset", "total kekayaan", "alokasi"]
+                if any(kw in lower_q for kw in portfolio_keywords):
+                    holding_summaries = [
+                        f"• {h.get('ticker')}: {h.get('shares')} shares @ avg purchase ${h.get('price_per_share', 0.0):.2f} (Total Invested: ${h.get('invested_amount', 0.0):.2f})"
+                        for h in holdings
+                    ]
+                    portfolio_context = "USER PORTFOLIO HOLDINGS (Supabase PostgreSQL):\n" + "\n".join(holding_summaries)
     except Exception as e:
         logger.warning("Failed to fetch user holdings: %s", str(e))
 
@@ -109,14 +161,21 @@ async def consult_cloud_analyst(
     # Step 5: Synthesize Research with Gemini Cloud Agent
     system_prompt = (
         "You are the FinGent Senior Wall Street Research Analyst (Cloud Research Agent). "
-        "You serve as the specialized cloud research co-pilot for the user's on-device personal investment assistant. "
-        "Provide an authoritative, rigorous, objective, and concise financial research briefing. "
-        "Ground your analysis strictly on the provided factual evidence (SEC Filings, Live Market Valuation, Portfolio Records). "
-        "Do not hallucinate or invent numbers. Clearly cite SEC filings or sources when making statements. "
-        "Keep the output structured with sections: Key Takeaway, Financial Analysis & SEC Insights, and Strategic Implications for the Investor."
+        "You serve as the specialized cloud research co-pilot for the user's personal investment assistant. "
+        "Provide an authoritative, rigorous, objective, and concise financial research briefing in natural, professional Indonesian. "
+        "Ground your analysis strictly on the provided factual evidence (Latest News Headlines, Market Valuation, SEC Filings). "
+        "CRITICAL RULES FOR STOCK QUERIES:\n"
+        "1. When the user asks why a specific stock is rising/falling or its outlook (e.g. Micron / MU):\n"
+        "   - Focus PRIMARILY on the latest news headlines, company catalysts, industry developments (e.g. AI HBM memory demand, earnings, guidance), and market momentum for THAT specific stock.\n"
+        "   - If the user holds that specific stock, you may briefly relate the catalyst to their position in that stock.\n"
+        "   - STRICTLY FORBIDDEN: Do NOT mention, assume, or read other unrelated portfolio holdings (such as AAPL, BBCA, etc.). They have no relevance to this inquiry.\n"
+        "2. Do not hallucinate or invent numbers. Clearly cite news headlines or SEC filings when making statements.\n"
+        "Keep the output structured with sections: Ringkasan Utama, Katalis Berita & Analisis Finansial, dan Implikasi Strategis bagi Investor."
     )
 
     combined_evidence = []
+    if news_context:
+        combined_evidence.append(news_context)
     if market_context:
         combined_evidence.append(market_context)
     if portfolio_context:
@@ -124,7 +183,7 @@ async def consult_cloud_analyst(
     if macro_context:
         combined_evidence.append(macro_context)
     if rag_context_lines:
-        combined_evidence.append("REGULATORY SEC FILINGS & FACTUAL NEWS EVIDENCE (Zilliz Milvus RAG):\n" + "\n---\n".join(rag_context_lines))
+        combined_evidence.append("REGULATORY SEC FILINGS & FACTUAL EVIDENCE (Zilliz Milvus RAG):\n" + "\n---\n".join(rag_context_lines))
 
     evidence_text = "\n\n".join(combined_evidence) if combined_evidence else "No external documents found in database."
 
