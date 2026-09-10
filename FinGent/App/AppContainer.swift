@@ -60,7 +60,8 @@ final class AppContainer {
             portfolioRepository: portfolioRepository,
             marketDataRepository: marketDataRepository,
             newsRepository: newsRepository,
-            favoritesRepository: favoritesRepository
+            favoritesRepository: favoritesRepository,
+            portfolioUseCase: portfolioUseCase
         )
     }
 

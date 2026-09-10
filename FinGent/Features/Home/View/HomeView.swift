@@ -7,21 +7,20 @@ struct HomeView: View {
     @State private var viewModel: HomeViewModel
     @State private var favoritesRepo = FavoritesRepository.shared
     @State private var marketRepo = MarketDataRepository.shared
+    @State private var portfolioRepo = PortfolioRepository.shared
     @State private var showSearch = false
     @State private var showProfile = false
+    @State private var showAddStock = false
 
-    var onSelectPortfolio: () -> Void = {}
     var onSelectChat: () -> Void = {}
     var onSelectSearch: (() -> Void)? = nil
 
     init(
         viewModel: HomeViewModel,
-        onSelectPortfolio: @escaping () -> Void = {},
         onSelectChat: @escaping () -> Void = {},
         onSelectSearch: (() -> Void)? = nil
     ) {
         self._viewModel = State(initialValue: viewModel)
-        self.onSelectPortfolio = onSelectPortfolio
         self.onSelectChat = onSelectChat
         self.onSelectSearch = onSelectSearch
     }
@@ -34,11 +33,16 @@ struct HomeView: View {
                     VStack(spacing: 20) {
                         welcomeHeader
                         portfolioSnapshotCard
+                        holdingsSection
                         aiAssistantBanner
                         favoriteStocksSection
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 16)
+                }
+                .refreshable {
+                    await portfolioRepo.syncWithBackend()
+                    viewModel.refresh()
                 }
             }
             .toolbar {
@@ -77,11 +81,22 @@ struct HomeView: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
             }
+            .sheet(isPresented: $showAddStock) {
+                AddStockSheetView {
+                    viewModel.refresh()
+                }
+            }
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
                     .toolbar(.hidden, for: .tabBar)
             }
             .onAppear {
+                viewModel.refresh()
+                Task {
+                    await portfolioRepo.syncWithBackend()
+                }
+            }
+            .onChange(of: portfolioRepo.userHoldings) { _, _ in
                 viewModel.refresh()
             }
             .onChange(of: favoritesRepo.favorites) { _, _ in
@@ -129,10 +144,12 @@ struct HomeView: View {
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
                 Spacer()
-                Button(action: onSelectPortfolio) {
+                Button {
+                    showAddStock = true
+                } label: {
                     HStack(spacing: 4) {
-                        Text("Lihat Detail")
-                        Image(systemName: "chevron.right")
+                        Image(systemName: "plus")
+                        Text("Tambah")
                     }
                     .font(.caption.bold())
                     .foregroundStyle(.teal)
@@ -160,6 +177,23 @@ struct HomeView: View {
                 .fill(Color.white.opacity(0.06))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.teal.opacity(0.2), lineWidth: 1))
         )
+    }
+
+    private var holdingsSection: some View {
+        Group {
+            if !viewModel.holdingRows.isEmpty {
+                HoldingsListView(
+                    rows: viewModel.holdingRows,
+                    onRemove: { ticker in
+                        withAnimation(.spring(response: 0.3)) {
+                            viewModel.removeHolding(ticker: ticker)
+                        }
+                    }
+                )
+            } else {
+                EmptyHoldingsView(onAddStock: { showAddStock = true })
+            }
+        }
     }
 
     private var aiAssistantBanner: some View {

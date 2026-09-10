@@ -13,6 +13,7 @@ final class HomeViewModel {
     private let marketDataRepository: MarketDataRepositoryProtocol
     private let newsRepository: NewsRepositoryProtocol
     private let favoritesRepository: FavoritesRepositoryProtocol
+    private let portfolioUseCase: PortfolioUseCase?
 
     // MARK: - Output State
 
@@ -23,6 +24,8 @@ final class HomeViewModel {
     private(set) var portfolioPnLPct: Double = 0
     private(set) var userHoldingsCount: Int = 0
     private(set) var isAllUSD: Bool = false
+    private(set) var userHoldings: [UserHolding] = []
+    private(set) var holdingRows: [HoldingRowState] = []
 
     var formattedPortfolioValue: String {
         if isAllUSD {
@@ -56,12 +59,14 @@ final class HomeViewModel {
         portfolioRepository: PortfolioRepositoryProtocol,
         marketDataRepository: MarketDataRepositoryProtocol,
         newsRepository: NewsRepositoryProtocol,
-        favoritesRepository: FavoritesRepositoryProtocol = FavoritesRepository.shared
+        favoritesRepository: FavoritesRepositoryProtocol,
+        portfolioUseCase: PortfolioUseCase? = nil
     ) {
         self.portfolioRepository = portfolioRepository
         self.marketDataRepository = marketDataRepository
         self.newsRepository = newsRepository
         self.favoritesRepository = favoritesRepository
+        self.portfolioUseCase = portfolioUseCase
         refresh()
     }
 
@@ -85,6 +90,9 @@ final class HomeViewModel {
         portfolioPnL = totalVal - totalInv
         portfolioPnLPct = totalInv > 0 ? (portfolioPnL / totalInv) * 100 : 0
 
+        userHoldings = holdings
+        holdingRows = buildHoldingRows(from: holdings)
+
         topGainers = market.topGainers
         topLosers = market.topLosers
         latestNews = Array(newsRepository.allArticles.prefix(4))
@@ -96,8 +104,72 @@ final class HomeViewModel {
         }
     }
 
+    func removeHolding(ticker: String) {
+        if let portfolioUseCase {
+            portfolioUseCase.removeHolding(ticker: ticker)
+        } else {
+            (portfolioRepository as? PortfolioRepository)?.removeHolding(ticker: ticker)
+        }
+        refresh()
+    }
+
     func removeFavorite(ticker: String) {
         favoritesRepository.removeFavorite(ticker: ticker)
         refresh()
+    }
+
+    // MARK: - Private Build Helpers
+
+    private func buildHoldingRows(from holdings: [UserHolding]) -> [HoldingRowState] {
+        holdings.map { holding in
+            let quote = marketDataRepository.getQuote(for: holding.ticker)
+            let currentPrice = holding.marketPrice ?? quote?.price ?? holding.pricePerShare
+            let pnl = holding.pnl(at: currentPrice)
+            let pnlPct = holding.pnlPercent(at: currentPrice)
+            let currentVal = holding.currentValue(at: currentPrice)
+            let direction: PriceDirection = pnl > 0 ? .up : (pnl < 0 ? .down : .unchanged)
+
+            let isUSD = holding.isUSD || quote?.isUSD == true
+            let curr = isUSD ? "USD" : "IDR"
+
+            let lotText: String = {
+                if !isUSD && holding.lots > 0 {
+                    return "\(holding.lots) lot (\(NumberFormatters.compact(Double(holding.shares))) lbr)"
+                }
+                return "\(holding.shares) lbr"
+            }()
+
+            let formattedPrice: String = {
+                if isUSD {
+                    return String(format: "$%.2f", currentPrice)
+                } else {
+                    return "Rp \(NumberFormatters.stockPrice(currentPrice))"
+                }
+            }()
+
+            let formattedValue: String = {
+                if isUSD {
+                    return String(format: "$%.2f", currentVal)
+                } else {
+                    return "Rp \(NumberFormatters.compact(currentVal))"
+                }
+            }()
+
+            return HoldingRowState(
+                ticker: holding.ticker,
+                name: holding.name,
+                currentPrice: currentPrice,
+                currentValue: currentVal,
+                pnl: pnl,
+                pnlPercent: pnlPct,
+                isProfit: pnl >= 0,
+                direction: direction,
+                lotText: lotText,
+                formattedPrice: formattedPrice,
+                formattedValue: formattedValue,
+                formattedPnlPercent: String(format: "%+.1f%%", pnlPct),
+                currency: curr
+            )
+        }
     }
 }
