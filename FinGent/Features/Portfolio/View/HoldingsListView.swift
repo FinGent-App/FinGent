@@ -9,38 +9,25 @@ struct HoldingsListView: View {
     let onRemove: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             header
-            ForEach(rows) { row in
-                HoldingRowView(row: row, onRemove: { onRemove(row.ticker) })
+            VStack(spacing: 10) {
+                ForEach(rows) { row in
+                    HoldingRowView(row: row, onRemove: { onRemove(row.ticker) })
+                }
             }
         }
-        .padding(24)
-        .background { cardBackground }
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 6) {
             Image(systemName: "list.bullet.rectangle.fill")
-                .font(.title3)
+                .font(.subheadline)
                 .foregroundStyle(.cyan)
-            Text("Saham Kamu")
-                .font(.headline)
+            Text("Holdings")
+                .font(.subheadline.bold())
                 .foregroundStyle(.white)
-            Spacer()
-            Text("\(rows.count) saham")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.5))
         }
-    }
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 20)
-            .fill(.ultraThinMaterial)
-            .overlay {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
-            }
     }
 }
 

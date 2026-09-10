@@ -146,22 +146,9 @@ struct HomeView: View {
 
     private var portfolioSnapshotCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Portofolio Saya")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                Spacer()
-                Button {
-                    showAddStock = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                        Text("Tambah")
-                    }
-                    .font(.caption.bold())
-                    .foregroundStyle(.teal)
-                }
-            }
+            Text("Portofolio Saya")
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(viewModel.formattedPortfolioValue)
@@ -178,6 +165,7 @@ struct HomeView: View {
                     .background((isProfit ? Color.green : Color.red).opacity(0.15), in: Capsule())
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
@@ -220,26 +208,13 @@ struct HomeView: View {
 
     private var favoriteStocksSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "star.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(hex: "FFB800"))
-                    Text("Saham Favorit")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.white)
-                }
-
-                Spacer()
-
-                if !viewModel.favoriteStocks.isEmpty {
-                    Text("\(viewModel.favoriteStocks.count) Saham")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.08), in: Capsule())
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "star.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(hex: "FFB800"))
+                Text("Favorites")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
             }
 
             if viewModel.favoriteStocks.isEmpty {
