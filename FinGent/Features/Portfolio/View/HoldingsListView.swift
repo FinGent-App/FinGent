@@ -26,7 +26,7 @@ struct HoldingsListView: View {
                 .foregroundStyle(.cyan)
             Text("Holdings")
                 .font(.subheadline.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
         }
     }
 }
@@ -60,12 +60,12 @@ struct HoldingRowView: View {
                 valueAndPnL
                 Image(systemName: "chevron.right")
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color.black.opacity(0.3))
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 14)
             .background {
-                RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.04))
+                RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.35))
             }
         }
         .buttonStyle(.plain)
@@ -79,7 +79,7 @@ struct HoldingRowView: View {
     private var tickerBadge: some View {
         Text(row.ticker)
             .font(.system(size: 13, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
+            .foregroundStyle(row.isProfit ? Color(red: 0.05, green: 0.45, blue: 0.2) : Color(red: 0.65, green: 0.12, blue: 0.15))
             .frame(width: 52, height: 36)
             .background {
                 RoundedRectangle(cornerRadius: 8)
@@ -97,12 +97,12 @@ struct HoldingRowView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(row.name)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
                 .lineLimit(1)
 
             Text("\(row.lotText) · \(row.formattedPrice)")
                 .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(Color.black.opacity(0.55))
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
         }
@@ -112,13 +112,13 @@ struct HoldingRowView: View {
         VStack(alignment: .trailing, spacing: 3) {
             Text(row.formattedValue)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
                 .contentTransition(.numericText())
                 .animation(.easeInOut(duration: 0.25), value: row.currentValue)
 
             Text(row.formattedPnlPercent)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(row.isProfit ? .green : .red)
+                .foregroundStyle(row.isProfit ? Color(red: 0.0, green: 0.55, blue: 0.25) : Color(red: 0.85, green: 0.15, blue: 0.15))
         }
     }
 }
@@ -137,10 +137,10 @@ struct EmptyHoldingsView: View {
             VStack(spacing: 6) {
                 Text("Mulai Tambahkan Saham")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
                 Text("Tambahkan saham yang kamu miliki (misal: GOTO Rp 1.000.000, BBRI Rp 500.000) untuk memantau performa & portofolio secara otomatis.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.black.opacity(0.6))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
             }

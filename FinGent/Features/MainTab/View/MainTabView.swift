@@ -28,7 +28,7 @@ struct MainTabView: View {
         HomeView(
             viewModel: AppContainer.shared.makeHomeViewModel()
         )
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 }
 

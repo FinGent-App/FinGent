@@ -84,7 +84,7 @@ struct DetailPortfolioView: View {
         .navigationTitle(quote.ticker)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -129,7 +129,7 @@ struct DetailPortfolioView: View {
         } label: {
             Image(systemName: isFavorited ? "star.fill" : "star")
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(isFavorited ? Color(hex: "FFB800") : .white.opacity(0.8))
+                .foregroundStyle(isFavorited ? Color(hex: "FFB800") : Color.black.opacity(0.8))
                 .contentTransition(.symbolEffect(.replace))
         }
         .accessibilityLabel(isFavorited ? "Hapus dari Favorit" : "Tambahkan ke Favorit")
@@ -139,7 +139,7 @@ struct DetailPortfolioView: View {
 
     private var backgroundGradient: some View {
         LinearGradient(
-            colors: [Color(hex: "080B11"), Color(hex: "0E131F"), Color(hex: "080B11")],
+            colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -193,10 +193,10 @@ struct DetailPortfolioView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(quote.ticker)
                         .font(.title2.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
                     Text(quote.name)
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(Color.black.opacity(0.6))
                         .lineLimit(1)
                 }
 
@@ -216,7 +216,7 @@ struct DetailPortfolioView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(displayFormattedPrice)
                         .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
                         .contentTransition(.numericText())
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
@@ -240,12 +240,12 @@ struct DetailPortfolioView: View {
                         if let scrub = selectedScrubPoint {
                             Text(formatScrubDate(scrub.date))
                                 .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Color.black.opacity(0.6))
                                 .transition(.opacity)
                         } else {
                             Text(selectedTimeframe.rawValue)
                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Color.black.opacity(0.6))
                         }
                     }
                 }
@@ -300,10 +300,10 @@ struct DetailPortfolioView: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
+                .fill(Color.white.opacity(0.35))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
                 )
         )
     }
@@ -312,11 +312,11 @@ struct DetailPortfolioView: View {
         HStack(spacing: 6) {
             Text(label)
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(Color.black.opacity(0.55))
             Spacer(minLength: 4)
             Text(value)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -472,7 +472,7 @@ struct DetailPortfolioView: View {
                 } label: {
                     Text(tf.rawValue)
                         .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? .black : .white.opacity(0.6))
+                        .foregroundStyle(isSelected ? .white : Color.black.opacity(0.6))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background {
@@ -487,7 +487,7 @@ struct DetailPortfolioView: View {
             }
         }
         .padding(4)
-        .background(Color.white.opacity(0.05), in: Capsule())
+        .background(Color.white.opacity(0.35), in: Capsule())
     }
 
     @Namespace private var tfNamespace
@@ -507,7 +507,7 @@ struct DetailPortfolioView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text("Ringkasan Perdagangan")
                 .font(.subheadline.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 statTile(title: "Tertinggi (\(selectedTimeframe.rawValue))", value: "\(prefix)\(formatVal(high))")
@@ -526,21 +526,21 @@ struct DetailPortfolioView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color.black.opacity(0.6))
             Text(value)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(highlight ? Color.teal : .white)
+                .foregroundStyle(highlight ? Color.teal : Color.black)
             if let sub = subtitle, !sub.isEmpty {
                 Text(sub)
                     .font(.system(size: 9.5))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Color.black.opacity(0.45))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(highlight ? Color.teal.opacity(0.08) : Color.white.opacity(0.04))
+                .fill(highlight ? Color.teal.opacity(0.08) : Color.white.opacity(0.35))
                 .overlay {
                     if highlight {
                         RoundedRectangle(cornerRadius: 10)
@@ -563,13 +563,13 @@ struct DetailPortfolioView: View {
 
                     Text("Laporan Resmi SEC (EDGAR)")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
 
                     Spacer()
 
                     Text("10-K • 10-Q • 8-K")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Color.black.opacity(0.5))
                 }
 
                 if isLoadingFilings {
@@ -578,14 +578,14 @@ struct DetailPortfolioView: View {
                         ProgressView().tint(Color(hex: "00D2C4")).scaleEffect(0.8)
                         Text("Memuat dokumen SEC...")
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Color.black.opacity(0.6))
                         Spacer()
                     }
                     .padding(.vertical, 12)
                 } else if secFilings.isEmpty {
                     Text("Belum ada dokumen SEC yang tercatat untuk emiten ini.")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Color.black.opacity(0.5))
                         .padding(.vertical, 6)
                 } else {
                     VStack(spacing: 8) {
@@ -598,10 +598,10 @@ struct DetailPortfolioView: View {
             .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.04))
+                    .fill(Color.white.opacity(0.35))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
                     )
             )
         }
@@ -628,24 +628,24 @@ struct DetailPortfolioView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(filing.title)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
                         .lineLimit(1)
 
                     Text(filing.date)
                         .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(Color.black.opacity(0.5))
                 }
 
                 Spacer()
 
                 Image(systemName: "arrow.up.right.square")
                     .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(Color.black.opacity(0.35))
             }
             .padding(9)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.025))
+                    .fill(Color.white.opacity(0.25))
             )
         }
         .buttonStyle(.plain)
@@ -1105,7 +1105,7 @@ struct StockHoldingDetailSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     // MARK: - Header Summary Card
@@ -1116,7 +1116,7 @@ struct StockHoldingDetailSheet: View {
                 HStack(spacing: 8) {
                     Text(quote.ticker)
                         .font(.title3.bold())
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
 
                     if holding != nil {
                         HStack(spacing: 4) {
@@ -1133,16 +1133,16 @@ struct StockHoldingDetailSheet: View {
                     } else {
                         Text("Belum Dimiliki")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(Color.black.opacity(0.6))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Color.white.opacity(0.08), in: Capsule())
+                            .background(Color.black.opacity(0.06), in: Capsule())
                     }
                 }
 
                 Text(quote.name)
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.black.opacity(0.6))
                     .lineLimit(1)
             }
 
@@ -1156,10 +1156,10 @@ struct StockHoldingDetailSheet: View {
                 .background(Color.teal.opacity(0.12), in: Capsule())
         }
         .padding(16)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16))
+        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(0.5), lineWidth: 1)
         }
     }
 
@@ -1210,11 +1210,11 @@ struct StockHoldingDetailSheet: View {
 
                 Text("Belum Memiliki Saham \(quote.ticker)")
                     .font(.headline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 Text("Masukkan tanggal beli, harga per share, dan total nominal yang dibeli untuk menambahkan ke portofolio Anda.")
                     .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.black.opacity(0.6))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
             }
@@ -1356,30 +1356,30 @@ struct StockHoldingDetailSheet: View {
                                 TextField("0", text: $entry.priceInput)
                                     .keyboardType(.decimalPad)
                                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.black)
                                     .lineLimit(1)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
                         }
 
                         // 2. Total Beli (Form)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Total Beli")
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
 
@@ -1391,30 +1391,30 @@ struct StockHoldingDetailSheet: View {
                                 TextField("0", text: $entry.totalInput)
                                     .keyboardType(.decimalPad)
                                     .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.black)
                                     .lineLimit(1)
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
                         }
 
                         // 3. Total Dapat Berapa Share (Calculated)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Dapat Share")
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(Color.black.opacity(0.6))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
 
@@ -1500,26 +1500,26 @@ struct StockHoldingDetailSheet: View {
                     .foregroundStyle(color)
                 Text(title)
                     .font(.caption.bold())
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.black.opacity(0.6))
             }
 
             Text(value)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
                 .minimumScaleFactor(0.8)
                 .lineLimit(1)
 
             Text(caption)
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Color.black.opacity(0.45))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.white.opacity(0.35), in: RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(0.5), lineWidth: 1)
         }
     }
 }

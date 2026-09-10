@@ -29,7 +29,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                backgroundGradient
+                backgroundView
                 ScrollView {
                     VStack(spacing: 20) {
                         welcomeHeader
@@ -113,17 +113,78 @@ struct HomeView: View {
                 viewModel.refresh()
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     // MARK: - Subviews
 
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color(hex: "0B0E14"), Color(hex: "101522"), Color(hex: "0B0E14")],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var backgroundView: some View {
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            // Circle 1 — biru
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: "C9E7FB").opacity(1.0),
+                            Color(hex: "C9E7FB").opacity(0.8),
+                            Color(hex: "C9E7FB").opacity(0.0),
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 360, height: 360)
+                .blur(radius: 40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                .offset(x: 100, y: -200)
+
+            // Circle 2 — ungu
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: "CDCAFC").opacity(1.0),
+                            Color(hex: "CDCAFC").opacity(0.8),
+                            Color(hex: "CDCAFC").opacity(0.0),
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 360, height: 360)
+                .blur(radius: 40)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .offset(x: 80, y: -180)
+
+            // Circle 3 — bawah tengah (C8A8FF)
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: "B285FF").opacity(1.0),
+                            Color(hex: "B285FF").opacity(1.0),
+                            Color(hex: "B285FF").opacity(0.0),
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 150
+                    )
+                )
+                .frame(width: 300, height: 300)
+                .blur(radius: 80)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .offset(y: 250)
+        }
         .ignoresSafeArea()
     }
 
@@ -148,12 +209,12 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Portofolio Saya")
                 .font(.subheadline.bold())
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black.opacity(0.8))
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(viewModel.formattedPortfolioValue)
                     .font(.title2.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 let isProfit = viewModel.portfolioPnL >= 0
                 let sign = isProfit ? "+" : "-"
@@ -169,7 +230,7 @@ struct HomeView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.white.opacity(0.35))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.teal.opacity(0.2), lineWidth: 1))
         )
     }
@@ -198,7 +259,7 @@ struct HomeView: View {
             Circle()
                 .fill(Color.white)
                 .frame(width: 44, height: 44)
-                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }
@@ -214,7 +275,7 @@ struct HomeView: View {
                     .foregroundStyle(Color(hex: "FFB800"))
                 Text("Favorites")
                     .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
             }
 
             if viewModel.favoriteStocks.isEmpty {
@@ -236,12 +297,12 @@ struct HomeView: View {
         VStack(spacing: 12) {
             Image(systemName: "star.slash")
                 .font(.system(size: 30))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color.black.opacity(0.3))
                 .padding(.top, 6)
 
             Text("Belum Ada Saham Favorit")
                 .font(.subheadline.bold())
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(Color.black)
 
             Text("Buka detail saham dari pencarian atau portofolio, lalu ketuk ikon bintang di kanan atas untuk memantau di sini.")
                 .font(.caption)
@@ -272,10 +333,10 @@ struct HomeView: View {
         .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.03))
+                .fill(Color.white.opacity(0.3))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .stroke(Color.black.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                 )
         )
     }
@@ -287,7 +348,7 @@ struct HomeView: View {
                 HStack(spacing: 6) {
                     Text(stock.ticker)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.black)
 
                     if stock.currency.uppercased() != "IDR" {
                         Text(stock.currency.uppercased())
@@ -311,7 +372,7 @@ struct HomeView: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text(stock.formattedPrice)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.black)
 
                 let isPositive = stock.change >= 0
                 let sign = isPositive ? "+" : "-"
@@ -328,15 +389,15 @@ struct HomeView: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.25))
+                .foregroundStyle(Color.black.opacity(0.3))
         }
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color.white.opacity(0.05))
+                .fill(Color.white.opacity(0.35))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
                 )
         )
         .contextMenu {
@@ -351,16 +412,29 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Color Extension Helper
-
+// Helper extension untuk hex color
 private extension Color {
     init(hex: String) {
-        let scanner = Scanner(string: hex)
-        var rgbValue: UInt64 = 0
-        scanner.scanHexInt64(&rgbValue)
-        let r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
-        let g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
-        let b = Double(rgbValue & 0x0000FF) / 255.0
-        self.init(red: r, green: g, blue: b)
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }

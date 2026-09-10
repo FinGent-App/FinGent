@@ -9,7 +9,7 @@ struct ChatView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.05, green: 0.05, blue: 0.09).ignoresSafeArea()
+            backgroundGradient
 
             VStack(spacing: 0) {
                 agentHeaderBadge
@@ -20,6 +20,7 @@ struct ChatView: View {
         }
         .navigationTitle("FinGent AI")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.light, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -30,14 +31,23 @@ struct ChatView: View {
                         Text("Reset")
                     }
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(Color.black.opacity(0.7))
                 }
             }
         }
         .sheet(item: $selectedSafariURL) { item in
             SafariView(url: item.url)
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
+    }
+
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
     }
 
     // MARK: - Agent Status Header
@@ -54,7 +64,7 @@ struct ChatView: View {
 
             Text("RSS Grounded AI • Yahoo Finance & CNBC Live")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.black.opacity(0.7))
 
             Spacer()
 
@@ -68,7 +78,7 @@ struct ChatView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.black.opacity(0.3))
+        .background(Color.white.opacity(0.35))
     }
 
     // MARK: - Message List
@@ -114,15 +124,15 @@ struct ChatView: View {
                     } label: {
                         Text(prompt)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(Color.black.opacity(0.85))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
                             .background(
                                 Capsule()
-                                    .fill(Color.white.opacity(0.08))
+                                    .fill(Color.white.opacity(0.45))
                                     .overlay(
                                         Capsule()
-                                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                            .stroke(Color.white.opacity(0.7), lineWidth: 1)
                                     )
                             )
                     }
@@ -140,16 +150,16 @@ struct ChatView: View {
         HStack(spacing: 10) {
             TextField("Tanya saham, misal: Apakah MU akan naik?", text: $viewModel.inputText)
                 .font(.system(size: 14))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.black)
                 .focused($isInputFocused)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(Color.white.opacity(0.55))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14)
-                                .stroke(isInputFocused ? Color.cyan.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                                .stroke(isInputFocused ? Color.cyan.opacity(0.5) : Color.black.opacity(0.08), lineWidth: 1)
                         )
                 )
                 .onSubmit {
@@ -161,18 +171,18 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(isSendDisabled ? Color.white.opacity(0.2) : Color.cyan)
+                    .foregroundStyle(isSendDisabled ? Color.black.opacity(0.2) : Color.cyan)
             }
             .disabled(isSendDisabled)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(
-            Color(red: 0.08, green: 0.08, blue: 0.12)
+            Color.white.opacity(0.35)
                 .overlay(
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundStyle(Color.white.opacity(0.08)),
+                        .foregroundStyle(Color.black.opacity(0.06)),
                     alignment: .top
                 )
         )
@@ -338,5 +348,32 @@ private struct ChatBubbleRow: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         }
+    }
+}
+
+// Helper extension untuk hex color
+private extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
