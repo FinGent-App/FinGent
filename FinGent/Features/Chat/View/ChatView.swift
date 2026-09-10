@@ -85,11 +85,6 @@ struct ChatView: View {
                         }
                         .id(msg.id)
                     }
-
-                    if viewModel.isProcessing {
-                        processingRow
-                            .id("processing_indicator")
-                    }
                 }
                 .padding(16)
             }
@@ -100,43 +95,13 @@ struct ChatView: View {
                     }
                 }
             }
-            .onChange(of: viewModel.isProcessing) { _, isProc in
-                if isProc {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        proxy.scrollTo("processing_indicator", anchor: .bottom)
+            .onChange(of: viewModel.messages.last?.researchSteps.count) { _, _ in
+                if let last = viewModel.messages.last {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
                     }
                 }
             }
-        }
-    }
-
-    // MARK: - Processing Indicator
-
-    private var processingRow: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.cyan)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(.cyan.opacity(0.2)))
-
-            HStack(spacing: 8) {
-                ProgressView()
-                    .tint(.cyan)
-                    .scaleEffect(0.8)
-
-                Text("Mencari berita terbaru & menganalisis...")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.12, green: 0.12, blue: 0.18))
-            )
-
-            Spacer()
         }
     }
 
@@ -239,6 +204,52 @@ private struct ChatBubbleRow: View {
             }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 10) {
+                // Asynchronous Research Steps Badges
+                if !message.researchSteps.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(message.researchSteps) { step in
+                            HStack(spacing: 7) {
+                                if step.status == .inProgress {
+                                    ProgressView()
+                                        .tint(.cyan)
+                                        .scaleEffect(0.65)
+                                        .frame(width: 14, height: 14)
+                                } else {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(Color(red: 0.0, green: 0.85, blue: 0.6))
+                                        .frame(width: 14, height: 14)
+                                }
+
+                                Text(step.title)
+                                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.white.opacity(0.85))
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.14) : Color.white.opacity(0.06))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            )
+                        }
+                    }
+                    .padding(.bottom, message.content.isEmpty ? 0 : 4)
+                } else if message.isGenerating && message.content.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.cyan)
+                            .scaleEffect(0.7)
+                        Text("FinGent AI is initializing...")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 // Optional Market Bias Badge
                 if let bias = message.bias {
                     HStack(spacing: 5) {
@@ -253,11 +264,13 @@ private struct ChatBubbleRow: View {
                     .background(biasColor(bias).opacity(0.15), in: Capsule())
                 }
 
-                // Message text
-                Text(message.content)
-                    .font(.system(size: 14))
-                    .lineSpacing(4)
-                    .foregroundStyle(.white)
+                // Message text (shown once generated)
+                if !message.content.isEmpty {
+                    Text(message.content)
+                        .font(.system(size: 14))
+                        .lineSpacing(4)
+                        .foregroundStyle(.white)
+                }
 
                 // Sources Section (Only shown if sources exist)
                 if !message.sources.isEmpty {

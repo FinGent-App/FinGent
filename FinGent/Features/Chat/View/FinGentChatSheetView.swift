@@ -41,9 +41,6 @@ struct FinGentChatSheetView: View {
                             selectedSafariURL = IdentifiableURL(url: url)
                         }
                     }
-                    if viewModel.isProcessing {
-                        processingIndicator
-                    }
                 }
                 .padding(16)
             }
@@ -52,25 +49,12 @@ struct FinGentChatSheetView: View {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
-            .onChange(of: viewModel.isProcessing) { _, isProc in
-                if isProc {
-                    withAnimation { proxy.scrollTo("loading_indicator", anchor: .bottom) }
+            .onChange(of: viewModel.messages.last?.researchSteps.count) { _, _ in
+                if let last = viewModel.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
-    }
-
-    private var processingIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView().tint(.cyan)
-            Text("FinGent sedang menganalisis berita & pasar...")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.6))
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .id("loading_indicator")
     }
 
     // MARK: - Quick Prompts
@@ -160,6 +144,52 @@ private struct ChatBubbleView: View {
             }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
+                // Asynchronous Research Steps Badges
+                if !message.researchSteps.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(message.researchSteps) { step in
+                            HStack(spacing: 7) {
+                                if step.status == .inProgress {
+                                    ProgressView()
+                                        .tint(.cyan)
+                                        .scaleEffect(0.65)
+                                        .frame(width: 14, height: 14)
+                                } else {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(Color(red: 0.0, green: 0.85, blue: 0.6))
+                                        .frame(width: 14, height: 14)
+                                }
+
+                                Text(step.title)
+                                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.white.opacity(0.85))
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.14) : Color.white.opacity(0.06))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            )
+                        }
+                    }
+                    .padding(.bottom, message.content.isEmpty ? 0 : 4)
+                } else if message.isGenerating && message.content.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.cyan)
+                            .scaleEffect(0.7)
+                        Text("FinGent AI is initializing...")
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 if let bias = message.bias {
                     HStack(spacing: 4) {
                         Text(bias.emoji)
@@ -173,9 +203,11 @@ private struct ChatBubbleView: View {
                     .background(biasColor(bias).opacity(0.15), in: Capsule())
                 }
 
-                Text(message.content)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
+                if !message.content.isEmpty {
+                    Text(message.content)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white)
+                }
 
                 if !message.sources.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {

@@ -9,27 +9,47 @@ final class ChatViewModel {
 
     // MARK: - Types
 
+    struct ResearchStepItem: Identifiable, Sendable, Equatable {
+        let id: String
+        let title: String
+        let iconName: String
+        var status: Status
+
+        enum Status: Sendable, Equatable {
+            case inProgress
+            case completed
+        }
+    }
+
     struct ChatMessage: Identifiable, Sendable {
-        let id = UUID()
+        let id: UUID
         enum Role { case user, assistant }
         let role: Role
-        let content: String
-        let bias: MarketBias?
-        let confidence: Double?
-        let sources: [NewsCitation]
+        var content: String
+        var bias: MarketBias?
+        var confidence: Double?
+        var sources: [NewsCitation]
+        var researchSteps: [ResearchStepItem]
+        var isGenerating: Bool
 
         init(
+            id: UUID = UUID(),
             role: Role,
             content: String,
             bias: MarketBias? = nil,
             confidence: Double? = nil,
-            sources: [NewsCitation] = []
+            sources: [NewsCitation] = [],
+            researchSteps: [ResearchStepItem] = [],
+            isGenerating: Bool = false
         ) {
+            self.id = id
             self.role = role
             self.content = content
             self.bias = bias
             self.confidence = confidence
             self.sources = sources
+            self.researchSteps = researchSteps
+            self.isGenerating = isGenerating
         }
     }
 
@@ -77,20 +97,27 @@ final class ChatViewModel {
         append(.init(role: .user, content: prompt))
         inputText = ""
 
+        let assistantMessageId = UUID()
+        append(.init(
+            id: assistantMessageId,
+            role: .assistant,
+            content: "",
+            researchSteps: [],
+            isGenerating: true
+        ))
+
         Task {
             isProcessing = true
             defer { isProcessing = false }
             do {
-                let response = try await chatUseCase.ask(prompt)
-                append(.init(
-                    role: .assistant,
-                    content: response.answer,
-                    bias: response.bias,
-                    confidence: response.confidence,
-                    sources: response.sources
-                ))
+                let response = try await chatUseCase.ask(prompt) { [weak self] phase in
+                    guard let self else { return }
+                    self.updateResearchStep(for: assistantMessageId, phase: phase)
+                }
+
+                self.finalizeMessage(for: assistantMessageId, response: response)
             } catch {
-                append(.init(role: .assistant, content: "Maaf, terjadi kendala: \(error.localizedDescription)"))
+                self.failMessage(for: assistantMessageId, error: error.localizedDescription)
             }
         }
     }
@@ -104,5 +131,49 @@ final class ChatViewModel {
 
     private func append(_ message: ChatMessage) {
         messages.append(message)
+    }
+
+    private func updateResearchStep(for id: UUID, phase: ChatResearchPhase) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        var steps = messages[index].researchSteps
+
+        // Mark all previous steps as completed
+        for i in 0..<steps.count {
+            steps[i].status = .completed
+        }
+
+        // Add new step as inProgress if not present
+        if let existingIdx = steps.firstIndex(where: { $0.id == phase.id }) {
+            steps[existingIdx].status = .inProgress
+        } else {
+            steps.append(ResearchStepItem(
+                id: phase.id,
+                title: phase.title,
+                iconName: phase.iconName,
+                status: .inProgress
+            ))
+        }
+
+        messages[index].researchSteps = steps
+    }
+
+    private func finalizeMessage(for id: UUID, response: AIResponse) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        var steps = messages[index].researchSteps
+        for i in 0..<steps.count {
+            steps[i].status = .completed
+        }
+        messages[index].researchSteps = steps
+        messages[index].content = response.answer
+        messages[index].bias = response.bias
+        messages[index].confidence = response.confidence
+        messages[index].sources = response.sources
+        messages[index].isGenerating = false
+    }
+
+    private func failMessage(for id: UUID, error: String) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        messages[index].content = "Maaf, terjadi kendala: \(error)"
+        messages[index].isGenerating = false
     }
 }

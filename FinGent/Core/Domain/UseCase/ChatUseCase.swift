@@ -2,11 +2,56 @@
 
 import Foundation
 
+// MARK: - Chat Research Phase
+
+enum ChatResearchPhase: Sendable, Equatable {
+    case readingNews(sources: String)
+    case analyzingStockHistory
+    case analyzingSEC
+    case generatingResults
+
+    var id: String {
+        switch self {
+        case .readingNews: return "readingNews"
+        case .analyzingStockHistory: return "analyzingStockHistory"
+        case .analyzingSEC: return "analyzingSEC"
+        case .generatingResults: return "generatingResults"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .readingNews(let sources):
+            return "Reading (\(sources))"
+        case .analyzingStockHistory:
+            return "Analyzing stock history"
+        case .analyzingSEC:
+            return "Analyzing SEC"
+        case .generatingResults:
+            return "Generating Results for you"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .readingNews:
+            return "newspaper.fill"
+        case .analyzingStockHistory:
+            return "chart.xyaxis.line"
+        case .analyzingSEC:
+            return "doc.text.magnifyingglass"
+        case .generatingResults:
+            return "sparkles"
+        }
+    }
+}
+
 // MARK: - ChatUseCaseProtocol
 
 @MainActor
 protocol ChatUseCaseProtocol: Sendable {
     func ask(_ prompt: String) async throws -> AIResponse
+    func ask(_ prompt: String, onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)?) async throws -> AIResponse
     func resetSession()
 }
 
@@ -38,7 +83,36 @@ final class ChatUseCase: ChatUseCaseProtocol {
     }
 
     func ask(_ prompt: String) async throws -> AIResponse {
+        try await ask(prompt, onProgress: nil)
+    }
+
+    func ask(
+        _ prompt: String,
+        onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)? = nil
+    ) async throws -> AIResponse {
+        // Step 1: News Retrieval & Sources
         let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
+        let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
+        let sourcesStr = sourcesList.isEmpty ? "Yahoo Finance, CNBC" : sourcesList.joined(separator: ", ")
+        onProgress?(.readingNews(sources: sourcesStr))
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // Step 2: Analyzing Stock History
+        onProgress?(.analyzingStockHistory)
+        if let ticker = context.tickers.first {
+            _ = try? await StockApiClient.shared.fetchHistory(ticker: ticker, period: "1mo")
+        }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // Step 3: Analyzing SEC
+        onProgress?(.analyzingSEC)
+        if let ticker = context.tickers.first, !ticker.hasSuffix(".JK") {
+            _ = try? await StockApiClient.shared.fetchSecFilings(ticker: ticker, limit: 3)
+        }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // Step 4: Generating Results for you
+        onProgress?(.generatingResults)
 
         do {
             // Master Orchestrator: Apple FoundationModels on iOS evaluates the user prompt.
