@@ -24,27 +24,10 @@ enum TabItem: Int, CaseIterable, Identifiable {
 }
 
 struct MainTabView: View {
-
-    @State private var selectedTab: TabItem = .home
-
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(
-                viewModel: AppContainer.shared.makeHomeViewModel(),
-                onSelectChat: { selectedTab = .chat }
-            )
-            .tabItem {
-                Label(TabItem.home.title, systemImage: TabItem.home.icon)
-            }
-            .tag(TabItem.home)
-
-            ChatView()
-                .tabItem {
-                    Label(TabItem.chat.title, systemImage: TabItem.chat.icon)
-                }
-                .tag(TabItem.chat)
-        }
-        .tint(Color(red: 0.0, green: 0.82, blue: 0.61))
+        HomeView(
+            viewModel: AppContainer.shared.makeHomeViewModel()
+        )
         .preferredColorScheme(.dark)
     }
 }

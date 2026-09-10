@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var showSearch = false
     @State private var showProfile = false
     @State private var showAddStock = false
+    @State private var navigateToChat = false
 
     var onSelectChat: () -> Void = {}
     var onSelectSearch: (() -> Void)? = nil
@@ -27,23 +28,26 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .bottom) {
                 backgroundGradient
                 ScrollView {
                     VStack(spacing: 20) {
                         welcomeHeader
                         portfolioSnapshotCard
                         holdingsSection
-                        aiAssistantBanner
                         favoriteStocksSection
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 80)
                 }
                 .refreshable {
                     await portfolioRepo.syncWithBackend()
                     viewModel.refresh()
                 }
+
+                bottomChatButton
+                    .padding(.bottom, 12)
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -85,6 +89,9 @@ struct HomeView: View {
                 AddStockSheetView {
                     viewModel.refresh()
                 }
+            }
+            .navigationDestination(isPresented: $navigateToChat) {
+                ChatView()
             }
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
@@ -196,44 +203,18 @@ struct HomeView: View {
         }
     }
 
-    private var aiAssistantBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.title2)
-                .foregroundStyle(.white)
-                .padding(10)
-                .background(
-                    LinearGradient(colors: [.teal, .blue], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: Circle()
-                )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("FinGent AI Assistant")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                Text("Tanya analisis saham, risiko pasar, atau berita terkini.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button(action: onSelectChat) {
-                Text("Tanya AI")
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.teal, in: Capsule())
-            }
+    private var bottomChatButton: some View {
+        Button {
+            navigateToChat = true
+        } label: {
+            Circle()
+                .fill(Color.white)
+                .frame(width: 44, height: 44)
+                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.teal.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.teal.opacity(0.3), lineWidth: 1))
-        )
+        .buttonStyle(.plain)
     }
+
 
     // MARK: - Favorite Stocks Section
 

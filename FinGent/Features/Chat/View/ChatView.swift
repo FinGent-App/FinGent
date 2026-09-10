@@ -8,36 +8,34 @@ struct ChatView: View {
     @State private var selectedSafariURL: IdentifiableURL? = nil
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(red: 0.05, green: 0.05, blue: 0.09).ignoresSafeArea()
+        ZStack {
+            Color(red: 0.05, green: 0.05, blue: 0.09).ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    agentHeaderBadge
-                    messageList
-                    quickPromptsBar
-                    inputBar
-                }
+            VStack(spacing: 0) {
+                agentHeaderBadge
+                messageList
+                quickPromptsBar
+                inputBar
             }
-            .navigationTitle("FinGent AI")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.resetSession()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.counterclockwise")
-                            Text("Reset")
-                        }
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
+        }
+        .navigationTitle("FinGent AI")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.resetSession()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset")
                     }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
                 }
             }
-            .sheet(item: $selectedSafariURL) { item in
-                SafariView(url: item.url)
-            }
+        }
+        .sheet(item: $selectedSafariURL) { item in
+            SafariView(url: item.url)
         }
         .preferredColorScheme(.dark)
     }
