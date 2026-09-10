@@ -70,18 +70,15 @@ struct HomeView: View {
 
     private var welcomeHeader: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Halo, \(viewModel.userName) 👋")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 8, height: 8)
-                    Text("Pasar IDX Live")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your AI-Powered\nInvestment Assistant!")
+                    .font(.custom("Inter", size: 24).weight(.bold))
+                    .lineSpacing(8)
+                    .foregroundStyle(Color.black)
+
+                Text("Invest Smarter. Stay Informed.")
+                    .font(.custom("Inter", size: 16).weight(.semibold))
+                    .foregroundStyle(Color(hex: "8E8E8E"))
             }
             Spacer()
         }
