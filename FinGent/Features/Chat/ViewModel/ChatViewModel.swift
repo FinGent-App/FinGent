@@ -63,14 +63,9 @@ final class ChatViewModel {
         "⚖️ Bandingkan GOTO vs BBRI"
     ]
 
-    private static let welcomeMessage = ChatMessage(
-        role: .assistant,
-        content: "Halo! Saya FinGent AI Assistant 🤖\n\nSaya terhubung dengan live feed Yahoo Finance, CNBC RSS, dan portofolio kamu. Tanyakan prospek saham (seperti MU, NVDA, BBCA), katalis terkini, atau pergerakan pasar!"
-    )
-
     // MARK: - Output State
 
-    private(set) var messages: [ChatMessage] = [welcomeMessage]
+    private(set) var messages: [ChatMessage] = []
     private(set) var isProcessing: Bool = false
     var inputText: String = ""
 
@@ -94,17 +89,17 @@ final class ChatViewModel {
         let prompt = text.trimmingCharacters(in: .whitespaces)
         guard !prompt.isEmpty, !isProcessing else { return }
 
-        append(.init(role: .user, content: prompt))
-        inputText = ""
-
         let assistantMessageId = UUID()
-        append(.init(
+        let userMsg = ChatMessage(role: .user, content: prompt)
+        let assistantMsg = ChatMessage(
             id: assistantMessageId,
             role: .assistant,
             content: "",
             researchSteps: [],
             isGenerating: true
-        ))
+        )
+        inputText = ""
+        messages.append(contentsOf: [userMsg, assistantMsg])
 
         Task {
             isProcessing = true
@@ -124,7 +119,7 @@ final class ChatViewModel {
 
     func resetSession() {
         chatUseCase.resetSession()
-        messages = [Self.welcomeMessage]
+        messages = []
     }
 
     // MARK: - Private

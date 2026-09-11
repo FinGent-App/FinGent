@@ -13,12 +13,34 @@ struct FinGentChatSheetView: View {
             ZStack {
                 Color(red: 0.07, green: 0.07, blue: 0.14).ignoresSafeArea()
                 VStack(spacing: 0) {
-                    messageList
+                    if !isChatting {
+                        Spacer(minLength: 0)
+                    }
+
+                    HStack(spacing: 0) {
+                        if !isChatting {
+                            Spacer(minLength: 0)
+                        }
+
+                        headerText(isChatting: isChatting)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, isChatting ? 20 : 0)
+                    .padding(.top, isChatting ? 12 : 0)
+                    .padding(.bottom, isChatting ? 8 : 24)
+
+                    if isChatting {
+                        messageList
+                            .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
+                    }
+
                     quickPromptsBar
                     inputBar
                 }
+                .animation(.spring(response: 0.85, dampingFraction: 0.88), value: viewModel.messages.isEmpty)
             }
-            .navigationTitle("FinGent AI")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
             .sheet(item: $selectedSafariURL) { item in
@@ -28,6 +50,21 @@ struct FinGentChatSheetView: View {
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    private var isChatting: Bool {
+        !viewModel.messages.isEmpty
+    }
+
+    // MARK: - Header Text
+
+    private func headerText(isChatting: Bool) -> some View {
+        Text("What financial insights\ncan i give you today?")
+            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .multilineTextAlignment(isChatting ? .leading : .center)
+            .foregroundStyle(Color.white.opacity(isChatting ? 0.6 : 0.85))
+            .lineSpacing(isChatting ? 1 : 4)
+            .scaleEffect(isChatting ? 0.68 : 1.0, anchor: isChatting ? .leading : .center)
     }
 
     // MARK: - Message List
@@ -63,7 +100,11 @@ struct FinGentChatSheetView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(ChatViewModel.quickPrompts, id: \.self) { prompt in
-                    Button { viewModel.send(prompt) } label: {
+                    Button {
+                        withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                            viewModel.send(prompt)
+                        }
+                    } label: {
                         Text(prompt)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(.cyan)
@@ -94,9 +135,17 @@ struct FinGentChatSheetView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background { RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.08)) }
-                .onSubmit { viewModel.send(viewModel.inputText) }
+                .onSubmit {
+                    withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                        viewModel.send(viewModel.inputText)
+                    }
+                }
 
-            Button { viewModel.send(viewModel.inputText) } label: {
+            Button {
+                withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                    viewModel.send(viewModel.inputText)
+                }
+            } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(isSendDisabled ? .white.opacity(0.2) : .cyan)
@@ -120,7 +169,11 @@ struct FinGentChatSheetView: View {
             Button("Tutup") { dismiss() }.foregroundStyle(.white.opacity(0.7))
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { viewModel.resetSession() } label: {
+            Button {
+                withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                    viewModel.resetSession()
+                }
+            } label: {
                 Image(systemName: "arrow.counterclockwise")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.7))
@@ -183,7 +236,7 @@ private struct ChatBubbleView: View {
                         ProgressView()
                             .tint(.cyan)
                             .scaleEffect(0.7)
-                        Text("FinGent AI is initializing...")
+                        Text("Initializing...")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(.white.opacity(0.6))
                     }

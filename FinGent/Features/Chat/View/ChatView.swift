@@ -12,19 +12,42 @@ struct ChatView: View {
             backgroundGradient
 
             VStack(spacing: 0) {
-                agentHeaderBadge
-                messageList
+                if !isChatting {
+                    Spacer(minLength: 0)
+                }
+
+                HStack(spacing: 0) {
+                    if !isChatting {
+                        Spacer(minLength: 0)
+                    }
+
+                    headerText(isChatting: isChatting)
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, isChatting ? 20 : 0)
+                .padding(.top, isChatting ? 12 : 0)
+                .padding(.bottom, isChatting ? 8 : 24)
+
+                if isChatting {
+                    messageList
+                        .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
+                }
+
                 quickPromptsBar
                 inputBar
             }
+            .animation(.spring(response: 0.85, dampingFraction: 0.88), value: viewModel.messages.isEmpty)
         }
-        .navigationTitle("FinGent AI")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.light, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    viewModel.resetSession()
+                    withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                        viewModel.resetSession()
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.counterclockwise")
@@ -41,6 +64,10 @@ struct ChatView: View {
         .preferredColorScheme(.light)
     }
 
+    private var isChatting: Bool {
+        !viewModel.messages.isEmpty
+    }
+
     private var backgroundGradient: some View {
         LinearGradient(
             colors: [Color(hex: "DFE4EE"), Color(hex: "D7DDE7")],
@@ -50,36 +77,17 @@ struct ChatView: View {
         .ignoresSafeArea()
     }
 
-    // MARK: - Agent Status Header
+    // MARK: - Header Text
 
-    private var agentHeaderBadge: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color(red: 0.0, green: 0.82, blue: 0.61))
-                .frame(width: 8, height: 8)
-                .overlay {
-                    Circle()
-                        .stroke(Color(red: 0.0, green: 0.82, blue: 0.61).opacity(0.4), lineWidth: 4)
-                }
-
-            Text("RSS Grounded AI • Yahoo Finance & CNBC Live")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.black.opacity(0.7))
-
-            Spacer()
-
-            Text("News Evidence Active")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.cyan.opacity(0.15))
-                .clipShape(Capsule())
-                .foregroundStyle(.cyan)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.35))
+    private func headerText(isChatting: Bool) -> some View {
+        Text("What financial insights\ncan i give you today?")
+            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .multilineTextAlignment(isChatting ? .leading : .center)
+            .foregroundStyle(Color.black.opacity(isChatting ? 0.6 : 0.85))
+            .lineSpacing(isChatting ? 1 : 4)
+            .scaleEffect(isChatting ? 0.68 : 1.0, anchor: isChatting ? .leading : .center)
     }
+
 
     // MARK: - Message List
 
@@ -120,7 +128,9 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 ForEach(ChatViewModel.quickPrompts, id: \.self) { prompt in
                     Button {
-                        viewModel.send(prompt)
+                        withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                            viewModel.send(prompt)
+                        }
                     } label: {
                         Text(prompt)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -163,11 +173,15 @@ struct ChatView: View {
                         )
                 )
                 .onSubmit {
-                    viewModel.send(viewModel.inputText)
+                    withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                        viewModel.send(viewModel.inputText)
+                    }
                 }
 
             Button {
-                viewModel.send(viewModel.inputText)
+                withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                    viewModel.send(viewModel.inputText)
+                }
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
@@ -251,7 +265,7 @@ private struct ChatBubbleRow: View {
                         ProgressView()
                             .tint(.cyan)
                             .scaleEffect(0.7)
-                        Text("FinGent AI is initializing...")
+                        Text("Initializing...")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundStyle(.white.opacity(0.6))
                     }
