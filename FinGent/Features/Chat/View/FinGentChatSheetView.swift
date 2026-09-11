@@ -32,7 +32,14 @@ struct FinGentChatSheetView: View {
 
                     if isChatting {
                         messageList
-                            .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
+                            .transition(
+                                .asymmetric(
+                                    insertion: .move(edge: .bottom)
+                                        .combined(with: .scale(scale: 0.92, anchor: .bottomTrailing))
+                                        .combined(with: .opacity),
+                                    removal: .opacity
+                                )
+                            )
                     }
 
                     inputBar
@@ -59,11 +66,11 @@ struct FinGentChatSheetView: View {
 
     private func headerText(isChatting: Bool) -> some View {
         Text("What financial insights\ncan i give you today?")
-            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
             .multilineTextAlignment(isChatting ? .leading : .center)
             .foregroundStyle(Color.white.opacity(isChatting ? 0.6 : 0.85))
             .lineSpacing(isChatting ? 1 : 4)
-            .scaleEffect(isChatting ? 0.68 : 1.0, anchor: isChatting ? .leading : .center)
+            .scaleEffect(isChatting ? 0.8 : 1.0, anchor: isChatting ? .leading : .center)
     }
 
     // MARK: - Message List
@@ -71,14 +78,16 @@ struct FinGentChatSheetView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
                     ForEach(viewModel.messages) { msg in
                         ChatBubbleView(message: msg) { url in
                             selectedSafariURL = IdentifiableURL(url: url)
                         }
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 16)
             }
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let last = viewModel.messages.last {
@@ -125,7 +134,12 @@ struct FinGentChatSheetView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+        .background {
+            Color(red: 0.08, green: 0.08, blue: 0.12)
+                .overlay(alignment: .top) {
+                    Rectangle().frame(height: 1).foregroundStyle(.white.opacity(0.08))
+                }
+        }
     }
 
     private var isSendDisabled: Bool {
@@ -136,7 +150,7 @@ struct FinGentChatSheetView: View {
 
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
+        ToolbarItem(placement: .topBarLeading) {
             Button("Tutup") { dismiss() }.foregroundStyle(.white.opacity(0.7))
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -160,121 +174,86 @@ private struct ChatBubbleView: View {
     var onSelectSource: (URL) -> Void = { _ in }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if message.role == .user {
+        if message.role == .user {
+            HStack(spacing: 0) {
                 Spacer(minLength: 40)
+
+                Text(message.content)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .lineSpacing(4)
+                    .foregroundStyle(Color.cyan)
+                    .multilineTextAlignment(.trailing)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
             }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if message.content.isEmpty {
+                        // Asynchronous Research Steps Badges
+                        if !message.researchSteps.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(message.researchSteps) { step in
+                                    HStack(spacing: 7) {
+                                        if step.status == .inProgress {
+                                            ThreeDotsAnimation(color: Color.white.opacity(0.6))
+                                        } else {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(Color.white.opacity(0.85))
+                                                .frame(width: 14, height: 14)
+                                        }
 
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 8) {
-                // Asynchronous Research Steps Badges
-                if !message.researchSteps.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(message.researchSteps) { step in
-                            HStack(spacing: 7) {
-                                if step.status == .inProgress {
-                                    ThreeDotsAnimation(color: .black)
-                                } else {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(Color(red: 0.0, green: 0.85, blue: 0.6))
-                                        .frame(width: 14, height: 14)
-                                }
-
-                                Text(step.title)
-                                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.white.opacity(0.85))
-                            }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.14) : Color.white.opacity(0.06))
-                                    .overlay(
+                                        Text(step.title)
+                                            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(Color.white.opacity(step.status == .inProgress ? 0.6 : 0.85))
+                                    }
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 5)
+                                    .background(
                                         Capsule()
-                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
+                                            .fill(Color.white.opacity(0.06))
                                     )
-                            )
-                        }
-                    }
-                    .padding(.bottom, message.content.isEmpty ? 0 : 4)
-                }
-
-                if let bias = message.bias {
-                    HStack(spacing: 4) {
-                        Text(bias.emoji)
-                            .font(.system(size: 10))
-                        Text("Bias: \(bias.label)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(biasColor(bias))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(biasColor(bias).opacity(0.15), in: Capsule())
-                }
-
-                if !message.content.isEmpty {
-                    Text(message.content)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white)
-                }
-
-                if !message.sources.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "newspaper.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.cyan)
-                            Text("Sources (\(message.sources.count))")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.6))
-                        }
-                        .padding(.top, 2)
-
-                        ForEach(message.sources) { citation in
-                            NewsCitationView(citation: citation) { url in
-                                onSelectSource(url)
+                                }
                             }
+                            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
+                        }
+                    } else {
+                        Text(message.content)
+                            .font(.system(size: 16))
+                            .lineSpacing(5)
+                            .foregroundStyle(.white)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                        if !message.sources.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "newspaper.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.cyan)
+                                    Text("Sources (\(message.sources.count))")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(.white.opacity(0.6))
+                                }
+                                .padding(.top, 2)
+
+                                ForEach(message.sources) { citation in
+                                    NewsCitationView(citation: citation) { url in
+                                        onSelectSource(url)
+                                    }
+                                }
+                            }
+                            .padding(.top, 2)
+                            .transition(.opacity)
                         }
                     }
-                    .padding(.top, 2)
                 }
-            }
-            .padding(.horizontal, message.role == .user ? 14 : 4)
-            .padding(.vertical, message.role == .user ? 10 : 4)
-            .background { bubble }
+                .animation(.easeInOut(duration: 0.35), value: message.content.isEmpty)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
 
-            if message.role == .user {
-                userAvatar
-            } else {
                 Spacer(minLength: 20)
             }
         }
-    }
-
-    private func biasColor(_ bias: MarketBias) -> Color {
-        switch bias {
-        case .bullish: return Color(red: 0.0, green: 0.82, blue: 0.52)
-        case .bearish: return Color(red: 1.0, green: 0.23, blue: 0.19)
-        case .neutral: return Color(red: 0.85, green: 0.85, blue: 0.85)
-        }
-    }
-
-    private var bubble: some View {
-        Group {
-            if message.role == .user {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(LinearGradient(colors: [.cyan.opacity(0.8), .blue.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            } else {
-                Color.clear
-            }
-        }
-    }
-
-    private var userAvatar: some View {
-        Image(systemName: "person.fill")
-            .font(.system(size: 12))
-            .foregroundStyle(.white.opacity(0.7))
-            .frame(width: 28, height: 28)
-            .background { Circle().fill(.white.opacity(0.15)) }
     }
 }

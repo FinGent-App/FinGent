@@ -2,6 +2,7 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
 @Observable
 @MainActor
@@ -167,17 +168,21 @@ final class ChatViewModel {
         for i in 0..<steps.count {
             steps[i].status = .completed
         }
-        messages[index].researchSteps = steps
-        messages[index].content = response.answer
-        messages[index].bias = response.bias
-        messages[index].confidence = response.confidence
-        messages[index].sources = response.sources
-        messages[index].isGenerating = false
+        withAnimation(.easeInOut(duration: 0.35)) {
+            messages[index].researchSteps = steps
+            messages[index].content = response.answer
+            messages[index].bias = response.bias
+            messages[index].confidence = response.confidence
+            messages[index].sources = response.sources
+            messages[index].isGenerating = false
+        }
     }
 
     private func failMessage(for id: UUID, error: String) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
-        messages[index].content = "Maaf, terjadi kendala: \(error)"
-        messages[index].isGenerating = false
+        withAnimation(.easeInOut(duration: 0.35)) {
+            messages[index].content = "Maaf, terjadi kendala: \(error)"
+            messages[index].isGenerating = false
+        }
     }
 }

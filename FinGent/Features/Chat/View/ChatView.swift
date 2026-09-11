@@ -31,7 +31,14 @@ struct ChatView: View {
 
                 if isChatting {
                     messageList
-                        .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
+                        .transition(
+                            .asymmetric(
+                                insertion: .move(edge: .bottom)
+                                    .combined(with: .scale(scale: 0.92, anchor: .bottomTrailing))
+                                    .combined(with: .opacity),
+                                removal: .opacity
+                            )
+                        )
                 }
 
                 inputBar
@@ -80,11 +87,11 @@ struct ChatView: View {
 
     private func headerText(isChatting: Bool) -> some View {
         Text("What financial insights\ncan i give you today?")
-            .font(.system(size: 22, weight: .semibold, design: .rounded))
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
             .multilineTextAlignment(isChatting ? .leading : .center)
             .foregroundStyle(Color.black.opacity(isChatting ? 0.6 : 0.85))
             .lineSpacing(isChatting ? 1 : 4)
-            .scaleEffect(isChatting ? 0.68 : 1.0, anchor: isChatting ? .leading : .center)
+            .scaleEffect(isChatting ? 0.8 : 1.0, anchor: isChatting ? .leading : .center)
     }
 
 
@@ -93,7 +100,7 @@ struct ChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
                     ForEach(viewModel.messages) { msg in
                         ChatBubbleRow(message: msg) { url in
                             selectedSafariURL = IdentifiableURL(url: url)
@@ -101,7 +108,9 @@ struct ChatView: View {
                         .id(msg.id)
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 16)
             }
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let last = viewModel.messages.last {
@@ -141,6 +150,7 @@ struct ChatView: View {
                         )
                 )
                 .onSubmit {
+                    guard !isSendDisabled else { return }
                     withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
                         viewModel.send(viewModel.inputText)
                     }
@@ -182,129 +192,91 @@ private struct ChatBubbleRow: View {
     var onSelectSource: (URL) -> Void = { _ in }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if message.role == .user {
+        if message.role == .user {
+            HStack(spacing: 0) {
                 Spacer(minLength: 40)
+
+                Text(message.content)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .lineSpacing(4)
+                    .foregroundStyle(Color(hex: "0066FF"))
+                    .multilineTextAlignment(.trailing)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
             }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if message.content.isEmpty {
+                        // Asynchronous Research Steps Badges (Only while generating)
+                        if !message.researchSteps.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(message.researchSteps) { step in
+                                    HStack(spacing: 7) {
+                                        if step.status == .inProgress {
+                                            ThreeDotsAnimation(color: Color.black.opacity(0.3))
+                                        } else {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundStyle(Color.black.opacity(0.85))
+                                                .frame(width: 14, height: 14)
+                                        }
 
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 10) {
-                // Asynchronous Research Steps Badges
-                if !message.researchSteps.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(message.researchSteps) { step in
-                            HStack(spacing: 7) {
-                                if step.status == .inProgress {
-                                    ThreeDotsAnimation(color: .black)
-                                } else {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(Color(red: 0.0, green: 0.85, blue: 0.6))
-                                        .frame(width: 14, height: 14)
-                                }
-
-                                Text(step.title)
-                                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.black.opacity(0.75))
-                            }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.12) : Color.black.opacity(0.06))
-                                    .overlay(
+                                        Text(step.title)
+                                            .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(Color.black.opacity(step.status == .inProgress ? 0.3 : 0.75))
+                                    }
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 5)
+                                    .background(
                                         Capsule()
-                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.35) : Color.black.opacity(0.12), lineWidth: 1)
+                                            .fill(Color.black.opacity(0.06))
                                     )
-                            )
-                        }
-                    }
-                    .padding(.bottom, message.content.isEmpty ? 0 : 4)
-                }
-
-                // Optional Market Bias Badge
-                if let bias = message.bias {
-                    HStack(spacing: 5) {
-                        Text(bias.emoji)
-                            .font(.system(size: 10))
-                        Text("Market Bias: \(bias.label)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(biasColor(bias))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(biasColor(bias).opacity(0.15), in: Capsule())
-                }
-
-                // Message text (shown once generated)
-                if !message.content.isEmpty {
-                    Text(message.content)
-                        .font(.system(size: 14.5))
-                        .lineSpacing(4)
-                        .foregroundStyle(message.role == .user ? Color.white : Color.black.opacity(0.85))
-                }
-
-                // Sources Section (Only shown if sources exist)
-                if !message.sources.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "newspaper.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.cyan)
-
-                            Text("Sources (\(message.sources.count))")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.black.opacity(0.65))
-                        }
-                        .padding(.top, 4)
-
-                        VStack(spacing: 6) {
-                            ForEach(message.sources) { citation in
-                                NewsCitationView(citation: citation) { url in
-                                    onSelectSource(url)
                                 }
                             }
+                            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
+                        }
+                    } else {
+                        // Message text (shown once generated)
+                        Text(message.content)
+                            .font(.system(size: 16.5))
+                            .lineSpacing(5)
+                            .foregroundStyle(Color.black.opacity(0.88))
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                        // Sources Section (Only shown if sources exist)
+                        if !message.sources.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "newspaper.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.cyan)
+
+                                    Text("Sources (\(message.sources.count))")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.black.opacity(0.65))
+                                }
+                                .padding(.top, 4)
+
+                                VStack(spacing: 6) {
+                                    ForEach(message.sources) { citation in
+                                        NewsCitationView(citation: citation) { url in
+                                            onSelectSource(url)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, 4)
+                            .transition(.opacity)
                         }
                     }
-                    .padding(.top, 4)
                 }
-            }
-            .padding(.horizontal, message.role == .user ? 14 : 4)
-            .padding(.vertical, message.role == .user ? 10 : 4)
-            .background(bubbleBackground)
+                .animation(.easeInOut(duration: 0.35), value: message.content.isEmpty)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 4)
 
-            if message.role == .user {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(.white.opacity(0.15)))
-            } else {
                 Spacer(minLength: 20)
             }
-        }
-    }
-
-    private func biasColor(_ bias: MarketBias) -> Color {
-        switch bias {
-        case .bullish: return Color(red: 0.0, green: 0.82, blue: 0.52)
-        case .bearish: return Color(red: 1.0, green: 0.23, blue: 0.19)
-        case .neutral: return Color(red: 0.85, green: 0.85, blue: 0.85)
-        }
-    }
-
-    @ViewBuilder
-    private var bubbleBackground: some View {
-        if message.role == .user {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.cyan.opacity(0.85), Color.blue.opacity(0.9)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        } else {
-            Color.clear
         }
     }
 }
