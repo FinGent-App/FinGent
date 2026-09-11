@@ -11,7 +11,7 @@ final class ChatViewModel {
 
     struct ResearchStepItem: Identifiable, Sendable, Equatable {
         let id: String
-        let title: String
+        var title: String
         let iconName: String
         var status: Status
 
@@ -91,11 +91,19 @@ final class ChatViewModel {
 
         let assistantMessageId = UUID()
         let userMsg = ChatMessage(role: .user, content: prompt)
+        let initialPhase = ChatResearchPhase.readingNews(sources: "Financial news")
         let assistantMsg = ChatMessage(
             id: assistantMessageId,
             role: .assistant,
             content: "",
-            researchSteps: [],
+            researchSteps: [
+                ResearchStepItem(
+                    id: initialPhase.id,
+                    title: initialPhase.title,
+                    iconName: initialPhase.iconName,
+                    status: .inProgress
+                )
+            ],
             isGenerating: true
         )
         inputText = ""
@@ -140,6 +148,7 @@ final class ChatViewModel {
         // Add new step as inProgress if not present
         if let existingIdx = steps.firstIndex(where: { $0.id == phase.id }) {
             steps[existingIdx].status = .inProgress
+            steps[existingIdx].title = phase.title
         } else {
             steps.append(ResearchStepItem(
                 id: phase.id,

@@ -34,7 +34,6 @@ struct ChatView: View {
                         .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
                 }
 
-                quickPromptsBar
                 inputBar
             }
             .animation(.spring(response: 0.85, dampingFraction: 0.88), value: viewModel.messages.isEmpty)
@@ -121,38 +120,7 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Quick Prompts Bar
 
-    private var quickPromptsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(ChatViewModel.quickPrompts, id: \.self) { prompt in
-                    Button {
-                        withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
-                            viewModel.send(prompt)
-                        }
-                    } label: {
-                        Text(prompt)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(Color.black.opacity(0.85))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white.opacity(0.45))
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(Color.white.opacity(0.7), lineWidth: 1)
-                                    )
-                            )
-                    }
-                    .disabled(viewModel.isProcessing)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-    }
 
     // MARK: - Input Bar
 
@@ -215,13 +183,7 @@ private struct ChatBubbleRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            if message.role == .assistant {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.cyan)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(.cyan.opacity(0.2)))
-            } else {
+            if message.role == .user {
                 Spacer(minLength: 40)
             }
 
@@ -232,10 +194,7 @@ private struct ChatBubbleRow: View {
                         ForEach(message.researchSteps) { step in
                             HStack(spacing: 7) {
                                 if step.status == .inProgress {
-                                    ProgressView()
-                                        .tint(.cyan)
-                                        .scaleEffect(0.65)
-                                        .frame(width: 14, height: 14)
+                                    ThreeDotsAnimation(color: .black)
                                 } else {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 13, weight: .bold))
@@ -245,31 +204,21 @@ private struct ChatBubbleRow: View {
 
                                 Text(step.title)
                                     .font(.system(size: 11.5, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.white.opacity(0.85))
+                                    .foregroundStyle(step.status == .inProgress ? Color.cyan : Color.black.opacity(0.75))
                             }
                             .padding(.horizontal, 9)
                             .padding(.vertical, 5)
                             .background(
                                 Capsule()
-                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.14) : Color.white.opacity(0.06))
+                                    .fill(step.status == .inProgress ? Color.cyan.opacity(0.12) : Color.black.opacity(0.06))
                                     .overlay(
                                         Capsule()
-                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
+                                            .stroke(step.status == .inProgress ? Color.cyan.opacity(0.35) : Color.black.opacity(0.12), lineWidth: 1)
                                     )
                             )
                         }
                     }
                     .padding(.bottom, message.content.isEmpty ? 0 : 4)
-                } else if message.isGenerating && message.content.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .tint(.cyan)
-                            .scaleEffect(0.7)
-                        Text("Initializing...")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    .padding(.vertical, 4)
                 }
 
                 // Optional Market Bias Badge
@@ -289,9 +238,9 @@ private struct ChatBubbleRow: View {
                 // Message text (shown once generated)
                 if !message.content.isEmpty {
                     Text(message.content)
-                        .font(.system(size: 14))
+                        .font(.system(size: 14.5))
                         .lineSpacing(4)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(message.role == .user ? Color.white : Color.black.opacity(0.85))
                 }
 
                 // Sources Section (Only shown if sources exist)
@@ -304,7 +253,7 @@ private struct ChatBubbleRow: View {
 
                             Text("Sources (\(message.sources.count))")
                                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.7))
+                                .foregroundStyle(Color.black.opacity(0.65))
                         }
                         .padding(.top, 4)
 
@@ -319,8 +268,8 @@ private struct ChatBubbleRow: View {
                     .padding(.top, 4)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, message.role == .user ? 14 : 4)
+            .padding(.vertical, message.role == .user ? 10 : 4)
             .background(bubbleBackground)
 
             if message.role == .user {
@@ -330,7 +279,7 @@ private struct ChatBubbleRow: View {
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(.white.opacity(0.15)))
             } else {
-                Spacer(minLength: 40)
+                Spacer(minLength: 20)
             }
         }
     }
@@ -355,12 +304,7 @@ private struct ChatBubbleRow: View {
                     )
                 )
         } else {
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(red: 0.12, green: 0.12, blue: 0.18))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
+            Color.clear
         }
     }
 }

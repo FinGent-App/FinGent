@@ -37,16 +37,16 @@ struct NewsCitationView: View {
 
                         Text("•")
                             .font(.system(size: 10))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .foregroundStyle(Color.black.opacity(0.3))
 
                         Text(citation.publishedAt.timeAgoDisplay())
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(Color.black.opacity(0.5))
                     }
 
                     Text(citation.title)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.95))
+                        .foregroundStyle(Color.black.opacity(0.85))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
@@ -57,17 +57,17 @@ struct NewsCitationView: View {
                 if hasValidWebURL {
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(Color.black.opacity(0.4))
                         .padding(.top, 2)
                 }
             }
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.05))
+                    .fill(Color.white.opacity(0.55))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(citation.source.accentColor.opacity(0.2), lineWidth: 1)
+                            .stroke(citation.source.accentColor.opacity(0.25), lineWidth: 1)
                     )
             )
         }

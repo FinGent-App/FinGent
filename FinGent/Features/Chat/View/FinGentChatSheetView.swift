@@ -35,7 +35,6 @@ struct FinGentChatSheetView: View {
                             .transition(.opacity.animation(.easeInOut(duration: 0.45).delay(0.2)))
                     }
 
-                    quickPromptsBar
                     inputBar
                 }
                 .animation(.spring(response: 0.85, dampingFraction: 0.88), value: viewModel.messages.isEmpty)
@@ -94,35 +93,7 @@ struct FinGentChatSheetView: View {
         }
     }
 
-    // MARK: - Quick Prompts
 
-    private var quickPromptsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(ChatViewModel.quickPrompts, id: \.self) { prompt in
-                    Button {
-                        withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
-                            viewModel.send(prompt)
-                        }
-                    } label: {
-                        Text(prompt)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.cyan)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background {
-                                Capsule()
-                                    .fill(.cyan.opacity(0.12))
-                                    .overlay { Capsule().stroke(.cyan.opacity(0.3), lineWidth: 1) }
-                            }
-                    }
-                    .disabled(viewModel.isProcessing)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-    }
 
     // MARK: - Input Bar
 
@@ -190,9 +161,7 @@ private struct ChatBubbleView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            if message.role == .assistant {
-                assistantAvatar
-            } else {
+            if message.role == .user {
                 Spacer(minLength: 40)
             }
 
@@ -203,10 +172,7 @@ private struct ChatBubbleView: View {
                         ForEach(message.researchSteps) { step in
                             HStack(spacing: 7) {
                                 if step.status == .inProgress {
-                                    ProgressView()
-                                        .tint(.cyan)
-                                        .scaleEffect(0.65)
-                                        .frame(width: 14, height: 14)
+                                    ThreeDotsAnimation(color: .black)
                                 } else {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 13, weight: .bold))
@@ -231,16 +197,6 @@ private struct ChatBubbleView: View {
                         }
                     }
                     .padding(.bottom, message.content.isEmpty ? 0 : 4)
-                } else if message.isGenerating && message.content.isEmpty {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .tint(.cyan)
-                            .scaleEffect(0.7)
-                        Text("Initializing...")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    .padding(.vertical, 4)
                 }
 
                 if let bias = message.bias {
@@ -283,14 +239,14 @@ private struct ChatBubbleView: View {
                     .padding(.top, 2)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, message.role == .user ? 14 : 4)
+            .padding(.vertical, message.role == .user ? 10 : 4)
             .background { bubble }
 
             if message.role == .user {
                 userAvatar
             } else {
-                Spacer(minLength: 40)
+                Spacer(minLength: 20)
             }
         }
     }
@@ -304,20 +260,14 @@ private struct ChatBubbleView: View {
     }
 
     private var bubble: some View {
-        RoundedRectangle(cornerRadius: 16)
-            .fill(
-                message.role == .user
-                    ? LinearGradient(colors: [.cyan.opacity(0.8), .blue.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    : LinearGradient(colors: [.white.opacity(0.08), .white.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            )
-    }
-
-    private var assistantAvatar: some View {
-        Image(systemName: "sparkles")
-            .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(.cyan)
-            .frame(width: 28, height: 28)
-            .background { Circle().fill(.cyan.opacity(0.2)) }
+        Group {
+            if message.role == .user {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(LinearGradient(colors: [.cyan.opacity(0.8), .blue.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            } else {
+                Color.clear
+            }
+        }
     }
 
     private var userAvatar: some View {
