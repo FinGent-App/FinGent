@@ -37,6 +37,30 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         }
     }
 
+    var assetImageName: String {
+        switch self {
+        case .yahooFinance: return "logo_yahoo"
+        case .cnbc: return "logo_cnbc"
+        case .sec: return "logo_sec"
+        case .portfolio: return "logo_portfolio"
+        case .bloomberg: return "logo_bloomberg"
+        case .reuters: return "logo_reuters"
+        case .other: return "logo_news"
+        }
+    }
+
+    var shortBadge: String {
+        switch self {
+        case .yahooFinance: return "Y!"
+        case .cnbc: return "CNBC"
+        case .sec: return "SEC"
+        case .portfolio: return "P"
+        case .bloomberg: return "BBG"
+        case .reuters: return "R"
+        case .other: return "N"
+        }
+    }
+
     var accentHex: String {
         switch self {
         case .yahooFinance: return "722EE5" // Purple

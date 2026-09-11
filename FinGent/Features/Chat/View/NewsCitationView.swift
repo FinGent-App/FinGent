@@ -18,12 +18,8 @@ struct NewsCitationView: View {
             }
         } label: {
             HStack(alignment: .top, spacing: 10) {
-                // Source Icon with tint
-                Image(systemName: citation.source.iconSystemName)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(citation.source.accentColor)
-                    .frame(width: 26, height: 26)
-                    .background(citation.source.accentColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
+                // Circular Source Logo (Asset or Branded Fallback)
+                SourceLogoView(source: citation.source, size: 26)
 
                 // Metadata: Publisher/Badge, Time, Title
                 VStack(alignment: .leading, spacing: 4) {

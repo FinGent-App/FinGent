@@ -226,24 +226,24 @@ private struct ChatBubbleView: View {
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
                         if !message.sources.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "newspaper.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.cyan)
-                                    Text("Sources (\(message.sources.count))")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(.white.opacity(0.6))
-                                }
-                                .padding(.top, 2)
+                            let distinctSources = Array(Set(message.sources.map { $0.source })).sorted { $0.displayName < $1.displayName }
+                            HStack(spacing: 7) {
+                                Text("source:")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(Color.white.opacity(0.5))
 
-                                ForEach(message.sources) { citation in
-                                    NewsCitationView(citation: citation) { url in
-                                        onSelectSource(url)
+                                ForEach(distinctSources, id: \.self) { src in
+                                    Button {
+                                        if let firstCitation = message.sources.first(where: { $0.source == src }) {
+                                            onSelectSource(firstCitation.url)
+                                        }
+                                    } label: {
+                                        SourceLogoView(source: src, size: 20)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.top, 2)
+                            .padding(.top, 4)
                             .transition(.opacity)
                         }
                     }

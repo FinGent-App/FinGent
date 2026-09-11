@@ -244,26 +244,23 @@ private struct ChatBubbleRow: View {
                             .foregroundStyle(Color.black.opacity(0.88))
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
 
-                        // Sources Section (Only shown if sources exist)
+                        // Sources Section (Prefix source: and circular icons)
                         if !message.sources.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 5) {
-                                    Image(systemName: "newspaper.fill")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.cyan)
+                            let distinctSources = Array(Set(message.sources.map { $0.source })).sorted { $0.displayName < $1.displayName }
+                            HStack(spacing: 7) {
+                                Text("source:")
+                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .foregroundStyle(Color.black.opacity(0.5))
 
-                                    Text("Sources (\(message.sources.count))")
-                                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                                        .foregroundStyle(Color.black.opacity(0.65))
-                                }
-                                .padding(.top, 4)
-
-                                VStack(spacing: 6) {
-                                    ForEach(message.sources) { citation in
-                                        NewsCitationView(citation: citation) { url in
-                                            onSelectSource(url)
+                                ForEach(distinctSources, id: \.self) { src in
+                                    Button {
+                                        if let firstCitation = message.sources.first(where: { $0.source == src }) {
+                                            onSelectSource(firstCitation.url)
                                         }
+                                    } label: {
+                                        SourceLogoView(source: src, size: 20)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.top, 4)
