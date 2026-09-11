@@ -39,15 +39,14 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
-                    .padding(.bottom, 80)
+                    .padding(.bottom, 100)
                 }
                 .refreshable {
                     await portfolioRepo.syncWithBackend()
                     viewModel.refresh()
                 }
 
-                bottomChatButton
-                    .padding(.bottom, 12)
+                customTabBar
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -165,25 +164,6 @@ struct HomeView: View {
                 .blur(radius: 40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .offset(x: 80, y: -180)
-
-            // Circle 3 — bawah tengah (C8A8FF)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            Color(hex: "B285FF").opacity(1.0),
-                            Color(hex: "B285FF").opacity(1.0),
-                            Color(hex: "B285FF").opacity(0.0),
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 150
-                    )
-                )
-                .frame(width: 300, height: 300)
-                .blur(radius: 80)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .offset(y: 250)
         }
         .ignoresSafeArea()
     }
@@ -252,13 +232,104 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Custom Tab Bar
+
+    private let circleDiameter: CGFloat = 44
+
+    private var customTabBar: some View {
+        ZStack(alignment: .bottom) {
+            // Layer 1: Tab bar custom background (z-index 0)
+            VStack(spacing: 0) {
+                Color.clear
+                    .frame(height: circleDiameter / 2)
+
+                customTabBarBackground
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+            }
+            .background(
+                customTabBarBackground
+                    .padding(.top, circleDiameter / 2)
+                    .ignoresSafeArea(edges: .bottom)
+            )
+            .zIndex(0)
+
+            // Layer 2: Lingkaran gradient ungu besar di bawah (z-index 1, di atas tab bar custom)
+            bottomPurpleGlowCircle
+                .zIndex(1)
+
+            // Layer 3: Circle bawah tengah (z-index 2, di atas lingkaran ungu)
+            VStack(spacing: 0) {
+                bottomChatButton
+                Spacer()
+            }
+            .frame(height: circleDiameter / 2 + 52)
+            .zIndex(2)
+        }
+        .frame(maxWidth: .infinity)
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var bottomPurpleGlowCircle: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(hex: "B285FF").opacity(1.0),
+                        Color(hex: "B285FF").opacity(1.0),
+                        Color(hex: "B285FF").opacity(0.0),
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 150
+                )
+            )
+            .frame(width: 300, height: 300)
+            .blur(radius: 80)
+            .offset(y: 250)
+            .allowsHitTesting(false)
+    }
+
+    private var customTabBarBackground: some View {
+        ZStack {
+            // Progressive Material Blur (tebal di bawah, pudar semakin ke atas)
+            Rectangle()
+                .fill(.regularMaterial)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black.opacity(0.85), location: 0.35),
+                            .init(color: .black.opacity(0.4), location: 0.7),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                )
+
+            // Progressive White Tint (putih pekat di bawah, semakin pudar ke atas)
+            LinearGradient(
+                stops: [
+                    .init(color: Color.white.opacity(0.96), location: 0.0),
+                    .init(color: Color.white.opacity(0.88), location: 0.35),
+                    .init(color: Color.white.opacity(0.50), location: 0.70),
+                    .init(color: Color.white.opacity(0.0), location: 1.0)
+                ],
+                startPoint: .bottom,
+                endPoint: .top
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
     private var bottomChatButton: some View {
         Button {
             navigateToChat = true
         } label: {
             Circle()
                 .fill(Color.white)
-                .frame(width: 44, height: 44)
+                .frame(width: circleDiameter, height: circleDiameter)
                 .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
         }
         .buttonStyle(.plain)
