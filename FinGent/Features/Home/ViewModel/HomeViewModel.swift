@@ -3,6 +3,44 @@
 import Foundation
 import Observation
 
+enum PortfolioTimeframe: String, CaseIterable, Identifiable {
+    case oneDay = "1D"
+    case oneWeek = "1W"
+    case oneMonth = "1M"
+    case threeMonth = "3M"
+    case ytd = "YTD"
+    case oneYear = "1Y"
+    case fiveYear = "5Y"
+
+    var id: String { rawValue }
+
+    func points(isProfit: Bool) -> [CGFloat] {
+        let basePoints: [CGFloat]
+        switch self {
+        case .oneDay:
+            basePoints = [0.38, 0.44, 0.36, 0.52, 0.48, 0.60, 0.55, 0.70, 0.74, 0.84]
+        case .oneWeek:
+            basePoints = [0.28, 0.38, 0.32, 0.48, 0.42, 0.58, 0.52, 0.68, 0.76, 0.86]
+        case .oneMonth:
+            basePoints = [0.22, 0.32, 0.28, 0.44, 0.40, 0.54, 0.62, 0.60, 0.74, 0.88]
+        case .threeMonth:
+            basePoints = [0.18, 0.26, 0.38, 0.34, 0.52, 0.50, 0.66, 0.72, 0.84, 0.90]
+        case .ytd:
+            basePoints = [0.20, 0.30, 0.42, 0.38, 0.56, 0.64, 0.60, 0.76, 0.86, 0.92]
+        case .oneYear:
+            basePoints = [0.14, 0.24, 0.32, 0.46, 0.42, 0.62, 0.70, 0.78, 0.88, 0.95]
+        case .fiveYear:
+            basePoints = [0.10, 0.20, 0.28, 0.40, 0.52, 0.64, 0.72, 0.82, 0.90, 0.98]
+        }
+
+        if isProfit {
+            return basePoints
+        } else {
+            return basePoints.reversed().map { 1.0 - $0 }
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class HomeViewModel {
@@ -50,6 +88,44 @@ final class HomeViewModel {
             return String(format: "$%.2f", abs(dailyPnL))
         } else {
             return NumberFormatters.compact(abs(dailyPnL))
+        }
+    }
+
+    func pnl(for timeframe: PortfolioTimeframe) -> (value: Double, percent: Double) {
+        switch timeframe {
+        case .oneDay:
+            return (dailyPnL, dailyPnLPct)
+        case .oneWeek:
+            let val = dailyPnL * 2.2 + portfolioPnL * 0.15
+            let pct = dailyPnLPct * 2.0 + portfolioPnLPct * 0.15
+            return (val, pct)
+        case .oneMonth:
+            let val = dailyPnL * 3.5 + portfolioPnL * 0.35
+            let pct = dailyPnLPct * 3.0 + portfolioPnLPct * 0.35
+            return (val, pct)
+        case .threeMonth:
+            let val = portfolioPnL * 0.60 + dailyPnL * 2.0
+            let pct = portfolioPnLPct * 0.60 + dailyPnLPct * 1.5
+            return (val, pct)
+        case .ytd:
+            let val = portfolioPnL * 0.75
+            let pct = portfolioPnLPct * 0.75
+            return (val, pct)
+        case .oneYear:
+            let val = portfolioPnL * 0.90
+            let pct = portfolioPnLPct * 0.90
+            return (val, pct)
+        case .fiveYear:
+            return (portfolioPnL, portfolioPnLPct)
+        }
+    }
+
+    func formattedPnL(for timeframe: PortfolioTimeframe) -> String {
+        let (val, _) = pnl(for: timeframe)
+        if isAllUSD {
+            return String(format: "$%.2f", abs(val))
+        } else {
+            return NumberFormatters.compact(abs(val))
         }
     }
 

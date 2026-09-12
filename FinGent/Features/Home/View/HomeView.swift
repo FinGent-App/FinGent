@@ -12,6 +12,7 @@ struct HomeView: View {
     @State private var showProfile = false
     @State private var showAddStock = false
     @State private var navigateToChat = false
+    @State private var selectedPortfolioTimeframe: PortfolioTimeframe = .oneDay
 
     var onSelectChat: () -> Void = {}
     var onSelectSearch: (() -> Void)? = nil
@@ -186,44 +187,66 @@ struct HomeView: View {
     }
 
     private var portfolioSnapshotCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Portofolio Saya")
-                .font(.subheadline.bold())
-                .foregroundStyle(Color.black.opacity(0.8))
+        VStack(alignment: .leading, spacing: 12) {
+            // Area Atas: Info Portofolio di kiri & Chart di kanan
+            HStack(alignment: .top, spacing: 10) {
+                // Kolom Kiri: Header Portfolio, Nominal, dan 2 Baris PnL
+                VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Portfolio")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color.black.opacity(0.8))
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(viewModel.formattedPortfolioValue)
-                    .font(.title2.bold())
-                    .foregroundStyle(Color.black)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    // Baris 1: 1D
-                    let is1DProfit = viewModel.dailyPnL >= 0
-                    let sign1D = is1DProfit ? "+" : "-"
-                    HStack(spacing: 6) {
-                        Text("\(sign1D)\(viewModel.formattedDailyPnL) (\(String(format: "%@%.1f%%", sign1D, abs(viewModel.dailyPnLPct))))")
-                            .font(.caption.bold())
-                            .foregroundStyle(is1DProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
-
-                        Text("1D")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Color.black.opacity(0.55))
+                        Text(viewModel.formattedPortfolioValue)
+                            .font(.title.bold())
+                            .foregroundStyle(Color.black)
                     }
 
-                    // Baris 2: All time
-                    let isAllTimeProfit = viewModel.portfolioPnL >= 0
-                    let signAllTime = isAllTimeProfit ? "+" : "-"
-                    HStack(spacing: 6) {
-                        Text("\(signAllTime)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", signAllTime, abs(viewModel.portfolioPnLPct))))")
-                            .font(.caption.bold())
-                            .foregroundStyle(isAllTimeProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+                    Spacer(minLength: 8)
 
-                        Text("All time")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Color.black.opacity(0.55))
+                    // 2 Baris PnL dinaikkan posisinya ke atas
+                    VStack(alignment: .leading, spacing: 4) {
+                        let (currentTimeframeVal, currentTimeframePct) = viewModel.pnl(for: selectedPortfolioTimeframe)
+                        let isTfProfit = currentTimeframeVal >= 0
+                        let signTf = isTfProfit ? "+" : "-"
+                        HStack(spacing: 6) {
+                            Text("\(signTf)\(viewModel.formattedPnL(for: selectedPortfolioTimeframe)) (\(String(format: "%@%.1f%%", signTf, abs(currentTimeframePct))))")
+                                .font(.caption.bold())
+                                .foregroundStyle(isTfProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+
+                            Text(selectedPortfolioTimeframe.rawValue)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.black.opacity(0.55))
+                        }
+
+                        let isAllTimeProfit = viewModel.portfolioPnL >= 0
+                        let signAllTime = isAllTimeProfit ? "+" : "-"
+                        HStack(spacing: 6) {
+                            Text("\(signAllTime)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", signAllTime, abs(viewModel.portfolioPnLPct))))")
+                                .font(.caption.bold())
+                                .foregroundStyle(isAllTimeProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+
+                            Text("All time")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.black.opacity(0.55))
+                        }
                     }
+                    .padding(.bottom, 12)
                 }
+                .fixedSize(horizontal: true, vertical: false)
+
+                // Chart mengambil ruang dari level Portfolio, makin naik ke atas
+                PortfolioMiniChart(
+                    points: selectedPortfolioTimeframe.points(isProfit: viewModel.portfolioPnL >= 0)
+                )
+                .frame(maxWidth: .infinity)
+                .offset(x: 6, y: -8)
+                .animation(.easeInOut(duration: 0.3), value: selectedPortfolioTimeframe)
             }
+            .frame(height: 126)
+
+            // Segmented 1D, 1W, 1M, 3M, YTD, 1Y, 5Y di bawah (teks saja tanpa capsule)
+            timeframeSegmentedRow
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -232,6 +255,29 @@ struct HomeView: View {
                 .fill(Color.white.opacity(0.35))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.teal.opacity(0.2), lineWidth: 1))
         )
+    }
+
+    private var timeframeSegmentedRow: some View {
+        HStack(spacing: 0) {
+            ForEach(PortfolioTimeframe.allCases) { tf in
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        selectedPortfolioTimeframe = tf
+                    }
+                } label: {
+                    Text(tf.rawValue)
+                        .font(.system(size: 12, weight: selectedPortfolioTimeframe == tf ? .bold : .medium, design: .rounded))
+                        .foregroundStyle(
+                            selectedPortfolioTimeframe == tf
+                                ? Color(hex: "0066FF")
+                                : Color(hex: "8E8E93")
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 1.5)
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var holdingsSection: some View {
@@ -496,6 +542,105 @@ struct HomeView: View {
             } label: {
                 Label("Hapus dari Favorit", systemImage: "star.slash")
             }
+        }
+    }
+}
+
+// MARK: - Portfolio Mini Line Chart
+
+private struct PortfolioMiniChart: View {
+    let points: [CGFloat]
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+
+            if points.count > 1 {
+                let coords: [CGPoint] = points.enumerated().map { index, val in
+                    let x = w * CGFloat(index) / CGFloat(points.count - 1)
+                    let clamped = max(0.04, min(0.98, val))
+                    let y = h - (clamped * (h - 6) + 3)
+                    return CGPoint(x: x, y: y)
+                }
+
+                ZStack {
+                    // Shadow Area di bawah garis (warna sama: kiri ungu, tengah biru, semakin kanan semakin biru, fade ke bawah)
+                    Path { path in
+                        path.move(to: CGPoint(x: coords[0].x, y: h))
+                        path.addLine(to: coords[0])
+                        addSmoothCurves(to: &path, with: coords)
+                        path.addLine(to: CGPoint(x: coords.last!.x, y: h))
+                        path.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color(hex: "9B51E0"), location: 0.0), // Di awali ungu
+                                .init(color: Color(hex: "6A5AE0"), location: 0.25),
+                                .init(color: Color(hex: "0066FF"), location: 0.55), // Di tengah biru
+                                .init(color: Color(hex: "0048EB"), location: 0.82), // Semakin ke kanan semakin biru
+                                .init(color: Color(hex: "0032C8"), location: 1.0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black.opacity(0.38), location: 0.0), // Tebal di atas dekat line
+                                .init(color: .black.opacity(0.18), location: 0.45),
+                                .init(color: .clear, location: 1.0)               // Semakin bawah semakin berkurang sampai 0
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    // Line Stroke (di awali ungu, di tengah biru, semakin ke kanan semakin biru, tipis 0.3)
+                    Path { path in
+                        path.move(to: coords[0])
+                        addSmoothCurves(to: &path, with: coords)
+                    }
+                    .stroke(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color(hex: "9B51E0"), location: 0.0), // Di awali ungu
+                                .init(color: Color(hex: "6A5AE0"), location: 0.25),
+                                .init(color: Color(hex: "0066FF"), location: 0.55), // Di tengah biru
+                                .init(color: Color(hex: "0048EB"), location: 0.82), // Semakin ke kanan semakin biru
+                                .init(color: Color(hex: "0032C8"), location: 1.0)  // Semakin biru pekat di kanan
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        style: StrokeStyle(lineWidth: 0.3, lineCap: .round, lineJoin: .round)
+                    )
+                    .shadow(color: Color(hex: "0066FF").opacity(0.18), radius: 1, x: 0, y: 0.5)
+                }
+            }
+        }
+    }
+
+    private func addSmoothCurves(to path: inout Path, with points: [CGPoint]) {
+        guard points.count > 1 else { return }
+        for i in 0..<(points.count - 1) {
+            let p0 = i > 0 ? points[i - 1] : points[i]
+            let p1 = points[i]
+            let p2 = points[i + 1]
+            let p3 = i < points.count - 2 ? points[i + 2] : p2
+
+            let cp1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6
+            )
+            let cp2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6
+            )
+
+            path.addCurve(to: p2, control1: cp1, control2: cp2)
         }
     }
 }
