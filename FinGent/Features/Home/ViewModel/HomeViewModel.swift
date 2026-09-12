@@ -22,6 +22,8 @@ final class HomeViewModel {
     private(set) var portfolioInvested: Double = 0
     private(set) var portfolioPnL: Double = 0
     private(set) var portfolioPnLPct: Double = 0
+    private(set) var dailyPnL: Double = 0
+    private(set) var dailyPnLPct: Double = 0
     private(set) var userHoldingsCount: Int = 0
     private(set) var isAllUSD: Bool = false
     private(set) var userHoldings: [UserHolding] = []
@@ -40,6 +42,14 @@ final class HomeViewModel {
             return String(format: "$%.2f", abs(portfolioPnL))
         } else {
             return NumberFormatters.compact(abs(portfolioPnL))
+        }
+    }
+
+    var formattedDailyPnL: String {
+        if isAllUSD {
+            return String(format: "$%.2f", abs(dailyPnL))
+        } else {
+            return NumberFormatters.compact(abs(dailyPnL))
         }
     }
 
@@ -89,6 +99,15 @@ final class HomeViewModel {
         portfolioInvested = totalInv
         portfolioPnL = totalVal - totalInv
         portfolioPnLPct = totalInv > 0 ? (portfolioPnL / totalInv) * 100 : 0
+
+        let totalDailyChange = holdings.reduce(0.0) { sum, h in
+            let quote = market.getQuote(for: h.ticker)
+            let change = quote?.change ?? 0.0
+            return sum + (Double(h.shares) * change)
+        }
+        dailyPnL = totalDailyChange
+        let prevVal = totalVal - totalDailyChange
+        dailyPnLPct = prevVal > 0 ? (totalDailyChange / prevVal) * 100 : (totalVal > 0 ? (totalDailyChange / totalVal) * 100 : 0.0)
 
         userHoldings = holdings
         holdingRows = buildHoldingRows(from: holdings)

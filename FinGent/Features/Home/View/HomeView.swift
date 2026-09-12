@@ -172,12 +172,12 @@ struct HomeView: View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Your AI-Powered\nInvestment Assistant!")
-                    .font(.custom("Inter", size: 24).weight(.bold))
+                    .font(.system(size: 24, weight: .bold))
                     .lineSpacing(8)
                     .foregroundStyle(Color.black)
 
                 Text("Invest Smarter. Stay Informed.")
-                    .font(.custom("Inter", size: 16).weight(.semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color(hex: "8E8E8E"))
             }
             Spacer()
@@ -191,19 +191,38 @@ struct HomeView: View {
                 .font(.subheadline.bold())
                 .foregroundStyle(Color.black.opacity(0.8))
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text(viewModel.formattedPortfolioValue)
                     .font(.title2.bold())
                     .foregroundStyle(Color.black)
 
-                let isProfit = viewModel.portfolioPnL >= 0
-                let sign = isProfit ? "+" : "-"
-                Text("\(sign)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", sign, abs(viewModel.portfolioPnLPct))))")
-                    .font(.caption.bold())
-                    .foregroundStyle(isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background((isProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.15), in: Capsule())
+                VStack(alignment: .leading, spacing: 4) {
+                    // Baris 1: 1D
+                    let is1DProfit = viewModel.dailyPnL >= 0
+                    let sign1D = is1DProfit ? "+" : "-"
+                    HStack(spacing: 6) {
+                        Text("\(sign1D)\(viewModel.formattedDailyPnL) (\(String(format: "%@%.1f%%", sign1D, abs(viewModel.dailyPnLPct))))")
+                            .font(.caption.bold())
+                            .foregroundStyle(is1DProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+
+                        Text("1D")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.black.opacity(0.55))
+                    }
+
+                    // Baris 2: All time
+                    let isAllTimeProfit = viewModel.portfolioPnL >= 0
+                    let signAllTime = isAllTimeProfit ? "+" : "-"
+                    HStack(spacing: 6) {
+                        Text("\(signAllTime)\(viewModel.formattedPnL) (\(String(format: "%@%.1f%%", signAllTime, abs(viewModel.portfolioPnLPct))))")
+                            .font(.caption.bold())
+                            .foregroundStyle(isAllTimeProfit ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
+
+                        Text("All time")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.black.opacity(0.55))
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -243,10 +262,10 @@ struct HomeView: View {
                 Color.clear
                     .frame(height: circleDiameter / 2)
 
-                customTabBarBackground
-                    .frame(maxWidth: .infinity)
+                Color.clear
                     .frame(height: 52)
             }
+            .frame(maxWidth: .infinity)
             .background(
                 customTabBarBackground
                     .padding(.top, circleDiameter / 2)
@@ -291,16 +310,17 @@ struct HomeView: View {
     }
 
     private var customTabBarBackground: some View {
-        ZStack {
-            // Progressive Material Blur (tebal di bawah, pudar semakin ke atas)
+        ZStack(alignment: .top) {
+            // Thick Frosted Glass Backdrop Blur
             Rectangle()
-                .fill(.regularMaterial)
+                .fill(.thickMaterial)
                 .mask(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0.0),
-                            .init(color: .black.opacity(0.85), location: 0.35),
-                            .init(color: .black.opacity(0.4), location: 0.7),
+                            .init(color: .black.opacity(0.98), location: 0.45),
+                            .init(color: .black.opacity(0.70), location: 0.75),
+                            .init(color: .black.opacity(0.25), location: 0.92),
                             .init(color: .clear, location: 1.0)
                         ],
                         startPoint: .bottom,
@@ -308,17 +328,34 @@ struct HomeView: View {
                     )
                 )
 
-            // Progressive White Tint (putih pekat di bawah, semakin pudar ke atas)
+            // Denser Glassmorphism White Sheen (Efek kaca tebal / heavy frosted acrylic)
             LinearGradient(
                 stops: [
-                    .init(color: Color.white.opacity(0.96), location: 0.0),
-                    .init(color: Color.white.opacity(0.88), location: 0.35),
-                    .init(color: Color.white.opacity(0.50), location: 0.70),
+                    .init(color: Color.white.opacity(0.78), location: 0.0),
+                    .init(color: Color.white.opacity(0.64), location: 0.40),
+                    .init(color: Color.white.opacity(0.35), location: 0.72),
+                    .init(color: Color.white.opacity(0.10), location: 0.90),
                     .init(color: Color.white.opacity(0.0), location: 1.0)
                 ],
                 startPoint: .bottom,
                 endPoint: .top
             )
+
+            // Specular Glass Bevel Highlight (Kilauan batas atas kaca lebih tegas)
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.15), location: 0.0),
+                            .init(color: Color.white.opacity(0.85), location: 0.5),
+                            .init(color: Color.white.opacity(0.15), location: 1.0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 1.0)
+                .opacity(0.95)
         }
         .allowsHitTesting(false)
     }
