@@ -10,6 +10,7 @@ struct StockHistoryPoint: Identifiable, Hashable, Sendable {
     let high: Double
     let low: Double
     let volume: Int
+    var close: Double { price }
 
     init(
         id: UUID = UUID(),

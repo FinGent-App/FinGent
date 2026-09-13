@@ -1,31 +1,6 @@
 // Features/Portfolio/View/DetailPortfolioView.swift
 
 import SwiftUI
-import Charts
-
-enum ChartTimeframe: String, CaseIterable, Identifiable {
-    case day = "24H"
-    case week = "1W"
-    case month = "1M"
-    case threeMonth = "3M"
-    case ytd = "YTD"
-    case year = "1Y"
-    case fiveYear = "5Y"
-
-    var id: String { rawValue }
-
-    var apiPeriod: String {
-        switch self {
-        case .day: return "24h"
-        case .week: return "1w"
-        case .month: return "1m"
-        case .threeMonth: return "3m"
-        case .ytd: return "ytd"
-        case .year: return "1y"
-        case .fiveYear: return "5y"
-        }
-    }
-}
 
 struct DetailPortfolioView: View {
 
@@ -33,10 +8,10 @@ struct DetailPortfolioView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var selectedTimeframe: ChartTimeframe = .month
-    @State private var historyPoints: [StockHistoryPoint] = []
-    @State private var isLoadingHistory: Bool = false
-    @State private var selectedScrubPoint: StockHistoryPoint? = nil
+    @StateObject private var chartVM: StockDetailChartViewModel
+    @State private var selectedPoint: StockHistoryPoint? = nil
+    @State private var isDragging: Bool = false
+    @State private var chartSize: CGSize = .zero
 
     @State private var fundamentals: StockFundamentals? = nil
     @State private var activeSafariURL: IdentifiableURL? = nil
@@ -45,6 +20,11 @@ struct DetailPortfolioView: View {
 
     private let portfolioUseCase: PortfolioUseCase = AppContainer.shared.portfolioUseCase
     private let marketRepo: MarketDataRepositoryProtocol = MarketDataRepository.shared
+
+    init(quote: StockQuote) {
+        self.quote = quote
+        _chartVM = StateObject(wrappedValue: StockDetailChartViewModel(quote: quote))
+    }
 
     private var currentHolding: UserHolding? {
         let clean = quote.ticker.trimmingCharacters(in: .whitespaces).uppercased()
@@ -62,10 +42,9 @@ struct DetailPortfolioView: View {
             backgroundGradient
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 18) {
                     stockHeader
-                    chartCard
-                    timeframeSegmentedControl
+                    chartSection
 
                     StockHoldingDetailSection(
                         quote: quote,
@@ -98,7 +77,7 @@ struct DetailPortfolioView: View {
         }
         .task {
             loadFundamentals()
-            await loadHistory(for: selectedTimeframe)
+            await chartVM.fetchChartData()
         }
         .sheet(item: $activeSafariURL) { item in
             SafariView(url: item.url)
@@ -140,7 +119,7 @@ struct DetailPortfolioView: View {
     }
 
     private var displayPrice: Double {
-        selectedScrubPoint?.price ?? quote.price
+        selectedPoint?.price ?? quote.price
     }
 
     private var displayFormattedPrice: String {
@@ -152,26 +131,34 @@ struct DetailPortfolioView: View {
         }
     }
 
-    private var periodChangeInfo: (change: Double, changePct: Double) {
-        if let scrub = selectedScrubPoint, let first = historyPoints.first {
-            let diff = scrub.price - first.price
-            let pct = first.price > 0 ? (diff / first.price) * 100 : 0
-            return (diff, pct)
+    private var currentChange: Double {
+        if isDragging, let pt = selectedPoint {
+            return pt.price - chartVM.startPrice
         }
-        if let first = historyPoints.first, let last = historyPoints.last {
-            let diff = last.price - first.price
-            let pct = first.price > 0 ? (diff / first.price) * 100 : 0
-            return (diff, pct)
+        if let first = chartVM.dataPoints.first, let last = chartVM.dataPoints.last {
+            return last.price - first.price
         }
-        return (quote.change, quote.changePercent)
+        return quote.change
+    }
+
+    private var currentChangePct: Double {
+        if isDragging, let pt = selectedPoint {
+            guard chartVM.startPrice != 0 else { return 0 }
+            return ((pt.price - chartVM.startPrice) / chartVM.startPrice) * 100
+        }
+        if let first = chartVM.dataPoints.first, let last = chartVM.dataPoints.last {
+            guard first.price != 0 else { return 0 }
+            return ((last.price - first.price) / first.price) * 100
+        }
+        return quote.changePercent
     }
 
     private var isGain: Bool {
-        periodChangeInfo.change >= 0
+        currentChange >= 0
     }
 
     private var themeColor: Color {
-        isGain ? Color(hex: "00B89F") : Color(hex: "FF3B30")
+        isGain ? Color(red: 0.0, green: 0.831, blue: 0.667) : Color(red: 0.937, green: 0.267, blue: 0.267)
     }
 
     private var stockHeader: some View {
@@ -195,14 +182,13 @@ struct DetailPortfolioView: View {
                         .minimumScaleFactor(0.75)
                         .lineLimit(1)
 
-                    let info = periodChangeInfo
                     HStack(spacing: 6) {
                         Group {
-                            let sign = info.change >= 0 ? "+" : "-"
+                            let sign = currentChange >= 0 ? "+" : "-"
                             if isUSD {
-                                Text(String(format: "%@$%.2f (%@%.2f%%)", sign, abs(info.change), sign, abs(info.changePct)))
+                                Text(String(format: "%@$%.2f (%@%.2f%%)", sign, abs(currentChange), sign, abs(currentChangePct)))
                             } else {
-                                Text(String(format: "%@Rp %@ (%@%.2f%%)", sign, NumberFormatters.stockPrice(abs(info.change)), sign, abs(info.changePct)))
+                                Text(String(format: "%@Rp %@ (%@%.2f%%)", sign, NumberFormatters.stockPrice(abs(currentChange)), sign, abs(currentChangePct)))
                             }
                         }
                         .font(.system(size: 11.5, weight: .bold, design: .rounded))
@@ -211,13 +197,17 @@ struct DetailPortfolioView: View {
                         .padding(.vertical, 3.5)
                         .background(themeColor.opacity(0.12), in: Capsule())
 
-                        if let scrub = selectedScrubPoint {
+                        if chartVM.selectedRange == .oneDay {
+                            Text("1D")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color.black.opacity(0.6))
+                        } else if let scrub = selectedPoint {
                             Text(formatScrubDate(scrub.date))
                                 .font(.caption2)
                                 .foregroundStyle(Color.black.opacity(0.6))
                                 .transition(.opacity)
                         } else {
-                            Text(selectedTimeframe.rawValue)
+                            Text(chartVM.selectedRange.rawValue)
                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                                 .foregroundStyle(Color.black.opacity(0.6))
                         }
@@ -286,212 +276,57 @@ struct DetailPortfolioView: View {
         }
     }
 
-    // MARK: - Interactive Swift Charts
+    // MARK: - Interactive Line Chart (SahamIndo Style)
 
-    private var highestPeriodPrice: Double {
-        historyPoints.map(\.high).max() ?? historyPoints.map(\.price).max() ?? quote.high
-    }
-
-    private var lowestPeriodPrice: Double {
-        historyPoints.map(\.low).min() ?? historyPoints.map(\.price).min() ?? quote.low
-    }
-
-    private var formattedHighestPrice: String {
-        let val = highestPeriodPrice
-        return isUSD ? String(format: "$%.2f", val) : "Rp \(NumberFormatters.stockPrice(val))"
-    }
-
-    private var formattedLowestPrice: String {
-        let val = lowestPeriodPrice
-        return isUSD ? String(format: "$%.2f", val) : "Rp \(NumberFormatters.stockPrice(val))"
-    }
-
-    private var chartMinPrice: Double {
-        (historyPoints.map(\.price).min() ?? quote.price) * 0.998
-    }
-
-    private var chartMaxPrice: Double {
-        (historyPoints.map(\.price).max() ?? quote.price) * 1.002
-    }
-
-    private var chartCard: some View {
+    private var chartSection: some View {
         VStack(spacing: 8) {
-            if isLoadingHistory && historyPoints.isEmpty {
-                VStack(spacing: 12) {
-                    ProgressView()
-                        .tint(.teal)
-                    Text("Memuat grafik riwayat...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            StockChartCanvasView(
+                chartVM:           chartVM,
+                selectedPoint:     $selectedPoint,
+                isDragging:        $isDragging,
+                chartSize:         $chartSize,
+                accentColor:       themeColor,
+                displayIsPositive: isGain,
+                isUSD:             isUSD,
+                lineWidth:         1.6
+            )
+            .frame(height: 230)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { chartSize = geo.size }
+                        .onChange(of: geo.size) { _, s in chartSize = s }
                 }
-                .frame(height: 220)
-                .frame(maxWidth: .infinity)
-            } else if historyPoints.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "chart.xyaxis.line")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary.opacity(0.5))
-                    Text("Data historis belum tersedia")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(height: 220)
-                .frame(maxWidth: .infinity)
-            } else {
-                Chart {
-                    ForEach(historyPoints) { point in
-                        AreaMark(
-                            x: .value("Waktu", point.date),
-                            yStart: .value("Baseline", chartMinPrice),
-                            yEnd: .value("Harga", point.price)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [
-                                    themeColor.opacity(0.35),
-                                    themeColor.opacity(0.08),
-                                    themeColor.opacity(0.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+            )
 
-                        LineMark(
-                            x: .value("Waktu", point.date),
-                            y: .value("Harga", point.price)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .lineStyle(StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
-                        .foregroundStyle(themeColor)
-                    }
-
-                    if let scrub = selectedScrubPoint {
-                        RuleMark(x: .value("SelectedDate", scrub.date))
-                            .lineStyle(StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
-                            .foregroundStyle(.white.opacity(0.4))
-
-                        PointMark(
-                            x: .value("SelectedDate", scrub.date),
-                            y: .value("SelectedPrice", scrub.price)
-                        )
-                        .symbolSize(80)
-                        .foregroundStyle(themeColor)
-                    }
-                }
-                .chartYScale(domain: chartMinPrice...chartMaxPrice)
-                .chartXAxis(.hidden)
-                .chartYAxis(.hidden)
-                .frame(height: 220)
-                .chartOverlay { proxy in
-                    GeometryReader { geo in
-                        Rectangle()
-                            .fill(Color.clear)
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        handleChartScrub(at: value.location, proxy: proxy, geo: geo)
-                                    }
-                                    .onEnded { _ in
-                                        withAnimation(.easeOut(duration: 0.2)) {
-                                            selectedScrubPoint = nil
-                                        }
-                                    }
-                            )
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
-                    Text(formattedHighestPrice)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.black.opacity(0.55))
-                        .padding(.top, 4)
-                        .padding(.trailing, 4)
-                        .allowsHitTesting(false)
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    Text(formattedLowestPrice)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.black.opacity(0.55))
-                        .padding(.bottom, 4)
-                        .padding(.trailing, 4)
-                        .allowsHitTesting(false)
-                }
+            if !chartVM.dataPoints.isEmpty {
+                XAxisAnimatedLabels(
+                    chartVM:   chartVM,
+                    chartSize: chartSize
+                )
+                .padding(.horizontal, 4)
+                .padding(.top, -8)
+                .padding(.bottom, 2)
             }
-        }
-        .padding(14)
-        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-    }
 
-    private func handleChartScrub(at location: CGPoint, proxy: ChartProxy, geo: GeometryProxy) {
-        guard let plotFrame = proxy.plotFrame else { return }
-        let xPos = location.x - geo[plotFrame].origin.x
-        guard let date: Date = proxy.value(atX: xPos) else { return }
-
-        // Find closest point by time
-        if let closest = historyPoints.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }) {
-            if selectedScrubPoint?.id != closest.id {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                withAnimation(.linear(duration: 0.05)) {
-                    selectedScrubPoint = closest
-                }
+            TimeRangeSelectorView(chartVM: chartVM) {
+                selectedPoint = nil
+                isDragging    = false
             }
         }
     }
 
     private func formatScrubDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        if selectedTimeframe == .day || selectedTimeframe == .week {
-            formatter.dateFormat = "EEE, d MMM yyyy HH:mm"
+        formatter.locale = Locale(identifier: "id_ID")
+        formatter.timeZone = TimeZone(identifier: "Asia/Jakarta")!
+        if chartVM.selectedRange.isIntraday {
+            formatter.dateFormat = "d MMM 'pukul' HH:mm"
         } else {
             formatter.dateFormat = "d MMMM yyyy"
         }
         return formatter.string(from: date)
     }
-
-    // MARK: - Timeframe Segmented Control
-
-    private var timeframeSegmentedControl: some View {
-        HStack(spacing: 6) {
-            ForEach(ChartTimeframe.allCases) { tf in
-                let isSelected = selectedTimeframe == tf
-                Button {
-                    guard selectedTimeframe != tf else { return }
-                    selectedTimeframe = tf
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    Task {
-                        await loadHistory(for: tf)
-                    }
-                } label: {
-                    Text(tf.rawValue)
-                        .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .rounded))
-                        .foregroundStyle(isSelected ? .white : Color.black.opacity(0.6))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background {
-                            if isSelected {
-                                Capsule()
-                                    .fill(Color.teal)
-                                    .matchedGeometryEffect(id: "TF_PILL", in: tfNamespace)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(4)
-        .background(Color.white.opacity(0.35), in: Capsule())
-    }
-
-    @Namespace private var tfNamespace
-
-
-
 
     // MARK: - Data Loading
 
@@ -522,56 +357,6 @@ struct DetailPortfolioView: View {
                 (self.marketRepo as? MarketDataRepository)?.registerRemoteQuote(quote, fundamentals: fund)
             }
         }
-    }
-
-    private func loadHistory(for tf: ChartTimeframe) async {
-        isLoadingHistory = true
-        defer { isLoadingHistory = false }
-
-        do {
-            let points = try await StockApiClient.shared.fetchHistory(ticker: quote.ticker, period: tf.apiPeriod)
-            if !points.isEmpty {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.historyPoints = points
-                }
-                return
-            }
-        } catch {
-            // Fallback generated points so chart is never broken
-        }
-
-        // Generate smooth fallback curve anchored on current price
-        self.historyPoints = generateFallbackPoints(for: tf)
-    }
-
-    private func generateFallbackPoints(for tf: ChartTimeframe) -> [StockHistoryPoint] {
-        let count = 30
-        let now = Date()
-        let interval: TimeInterval
-        switch tf {
-        case .day: interval = 3600 * 24 / Double(count)
-        case .week: interval = 3600 * 24 * 7 / Double(count)
-        case .month: interval = 3600 * 24 * 30 / Double(count)
-        case .threeMonth: interval = 3600 * 24 * 90 / Double(count)
-        case .ytd: interval = 3600 * 24 * 180 / Double(count)
-        case .year: interval = 3600 * 24 * 365 / Double(count)
-        case .fiveYear: interval = 3600 * 24 * 365 * 5 / Double(count)
-        }
-
-        var points: [StockHistoryPoint] = []
-        var runningPrice = quote.previousClose
-        let stepScale = quote.price * 0.008
-
-        for i in 0..<count {
-            let date = now.addingTimeInterval(-Double(count - 1 - i) * interval)
-            let delta = Double([-2, -1, 0, 1, 2].randomElement() ?? 0) * stepScale
-            runningPrice = max(quote.price * 0.7, runningPrice + delta)
-            if i == count - 1 {
-                runningPrice = quote.price
-            }
-            points.append(StockHistoryPoint(date: date, price: runningPrice))
-        }
-        return points
     }
 }
 
