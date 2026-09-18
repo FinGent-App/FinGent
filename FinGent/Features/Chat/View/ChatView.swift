@@ -187,7 +187,7 @@ struct ChatView: View {
 
 // MARK: - Chat Bubble Row
 
-private struct ChatBubbleRow: View {
+struct ChatBubbleRow: View {
     let message: ChatViewModel.ChatMessage
     var onSelectSource: (URL) -> Void = { _ in }
 

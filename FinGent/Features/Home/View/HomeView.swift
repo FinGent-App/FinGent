@@ -11,8 +11,12 @@ struct HomeView: View {
     @State private var showSearch = false
     @State private var showProfile = false
     @State private var showAddStock = false
-    @State private var navigateToChat = false
     @State private var selectedPortfolioTimeframe: PortfolioTimeframe = .oneDay
+    @State private var isChatActive = false
+    @State private var showHeaderText = false
+    @State private var chatVM = AppContainer.shared.makeChatViewModel()
+    @FocusState private var isChatInputFocused: Bool
+    @State private var selectedSafariURL: IdentifiableURL? = nil
 
     var onSelectChat: () -> Void = {}
     var onSelectSearch: (() -> Void)? = nil
@@ -29,25 +33,59 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                backgroundView
-                ScrollView {
-                    VStack(spacing: 20) {
-                        welcomeHeader
-                        portfolioSnapshotCard
-                        holdingsSection
-                        favoriteStocksSection
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 100)
-                }
-                .refreshable {
-                    await portfolioRepo.syncWithBackend()
-                    viewModel.refresh()
-                }
+            GeometryReader { geo in
+                let screenW = geo.size.width
+                let screenH = geo.size.height
 
-                customTabBar
+                ZStack(alignment: .topLeading) {
+                    // 1. Background gradient bersama
+                    backgroundView
+
+                    // 2. Konten Home (Scrollable)
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            welcomeHeader
+                            portfolioSnapshotCard
+                            holdingsSection
+                            favoriteStocksSection
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 100)
+                    }
+                    .refreshable {
+                        await portfolioRepo.syncWithBackend()
+                        viewModel.refresh()
+                    }
+                    .opacity(isChatActive ? 0 : 1)
+                    .allowsHitTesting(!isChatActive)
+
+                    // 3. Tab Bar Frosted Glass & Ungu Glow
+                    customTabBarBackgroundLayers
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .opacity(isChatActive ? 0 : 1)
+                        .allowsHitTesting(!isChatActive)
+
+                    // 4. Chat View Overlay Content
+                    if isChatActive {
+                        chatOverlayContent(screenW: screenW, screenH: screenH)
+                            .zIndex(5)
+                    }
+
+                    // 5. Lingkaran Liquid Video Tunggal yang Meluncur Halus
+                    liquidCircleButton
+                        .frame(
+                            width: isChatActive ? chatCircleDiameter : circleDiameter,
+                            height: isChatActive ? chatCircleDiameter : circleDiameter
+                        )
+                        .position(
+                            x: screenW / 2,
+                            y: isChatActive ? (screenH / 2 + chatCenterOffsetY) : (screenH - 52)
+                        )
+                        .opacity(chatVM.messages.isEmpty ? 1.0 : 0.0)
+                        .animation(.easeInOut(duration: 0.25), value: chatVM.messages.isEmpty)
+                        .zIndex(10)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -72,9 +110,13 @@ struct HomeView: View {
                                 .glassEffect(.regular.interactive(), in: .circle)
                         }
                     }
+                    .opacity(isChatActive ? 0 : 1)
+                    .allowsHitTesting(!isChatActive)
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
+            .toolbar(isChatActive ? .hidden : .visible, for: .navigationBar)
+            .animation(.easeInOut(duration: 0.25), value: isChatActive)
             .sheet(isPresented: $showSearch) {
                 SearchView(viewModel: AppContainer.shared.makeSearchViewModel())
                     .presentationDetents([.large])
@@ -90,8 +132,8 @@ struct HomeView: View {
                     viewModel.refresh()
                 }
             }
-            .navigationDestination(isPresented: $navigateToChat) {
-                ChatView()
+            .sheet(item: $selectedSafariURL) { item in
+                SafariView(url: item.url)
             }
             .navigationDestination(for: StockQuote.self) { quote in
                 DetailPortfolioView(quote: quote)
@@ -297,13 +339,40 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Custom Tab Bar
+    // MARK: - Liquid Circle & Chat Transition Parameters (Dapat diubah manual sampai pas)
+    private let circleDiameter: CGFloat = 64         // Diameter tombol di tab bar bawah
+    private let chatCircleDiameter: CGFloat = 88     // Diameter tombol saat di tengah chat
+    private let chatCenterOffsetY: CGFloat = -45     // Posisi lingkaran di chat (negatif = geser ke atas dari tengah)
+    private let headerTextOffsetY: CGFloat = -58     // Jarak vertikal teks di atas lingkaran
+    private let videoWidth: CGFloat = 64             // Lebar dasar player video
+    private let videoHeight: CGFloat = 64            // Tinggi dasar player video
+    private let videoScale: CGFloat = 1.2            // Skala zoom video
+    private let videoOffsetX: CGFloat = 0            // Geser horizontal video (X)
+    private let videoOffsetY: CGFloat = 0            // Geser vertikal video (Y)
 
-    private let circleDiameter: CGFloat = 44
+    private func openChat() {
+        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+            isChatActive = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                showHeaderText = true
+            }
+        }
+    }
 
-    private var customTabBar: some View {
+    private func closeChat() {
+        withAnimation(.easeOut(duration: 0.16)) {
+            showHeaderText = false
+        }
+        withAnimation(.spring(response: 0.48, dampingFraction: 0.84)) {
+            isChatActive = false
+        }
+    }
+
+    private var customTabBarBackgroundLayers: some View {
         ZStack(alignment: .bottom) {
-            // Layer 1: Tab bar custom background (z-index 0)
+            // Layer 1: Tab bar custom background
             VStack(spacing: 0) {
                 Color.clear
                     .frame(height: circleDiameter / 2)
@@ -319,17 +388,9 @@ struct HomeView: View {
             )
             .zIndex(0)
 
-            // Layer 2: Lingkaran gradient ungu besar di bawah (z-index 1, di atas tab bar custom)
+            // Layer 2: Lingkaran gradient ungu besar di bawah
             bottomPurpleGlowCircle
                 .zIndex(1)
-
-            // Layer 3: Circle bawah tengah (z-index 2, di atas lingkaran ungu)
-            VStack(spacing: 0) {
-                bottomChatButton
-                Spacer()
-            }
-            .frame(height: circleDiameter / 2 + 52)
-            .zIndex(2)
         }
         .frame(maxWidth: .infinity)
         .ignoresSafeArea(edges: .bottom)
@@ -406,16 +467,192 @@ struct HomeView: View {
         .allowsHitTesting(false)
     }
 
-    private var bottomChatButton: some View {
+    private var liquidCircleButton: some View {
         Button {
-            navigateToChat = true
+            if !isChatActive {
+                openChat()
+            }
         } label: {
-            Circle()
-                .fill(Color.white)
-                .frame(width: circleDiameter, height: circleDiameter)
-                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+            ZStack {
+                Circle()
+                    .fill(Color.white)
+
+                LoopingVideoPlayerView(
+                    videoName: "liquid-circle",
+                    videoExtension: "mp4"
+                )
+                .frame(width: videoWidth, height: videoHeight)
+                .scaleEffect(isChatActive ? (videoScale * (chatCircleDiameter / circleDiameter)) : videoScale)
+                .offset(x: videoOffsetX, y: videoOffsetY)
+            }
+            .clipShape(Circle())
+            .shadow(
+                color: Color.black.opacity(isChatActive ? 0.22 : 0.15),
+                radius: isChatActive ? 12 : 8,
+                x: 0,
+                y: isChatActive ? 6 : 4
+            )
         }
         .buttonStyle(.plain)
+        .disabled(isChatActive)
+    }
+
+    @ViewBuilder
+    private func chatOverlayContent(screenW: CGFloat, screenH: CGFloat) -> some View {
+        ZStack {
+            if chatVM.messages.isEmpty {
+                // Teks "What financial insights\ncan i give you today?" muncul smooth dari atas circle
+                VStack(spacing: 6) {
+                    Text("What financial insights\ncan i give you today?")
+                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color.black.opacity(0.85))
+                        .lineSpacing(4)
+                        .padding(.horizontal, 20)
+                }
+                .opacity(showHeaderText ? 1 : 0)
+                .offset(y: showHeaderText ? 0 : -16)
+                .position(
+                    x: screenW / 2,
+                    y: (screenH / 2 + chatCenterOffsetY) - (chatCircleDiameter / 2) + headerTextOffsetY
+                )
+            } else {
+                // Daftar pesan chat jika percakapan aktif
+                chatMessageList
+                    .padding(.top, 54)
+                    .padding(.bottom, 65)
+            }
+
+            // Input Bar di bagian paling bawah
+            VStack {
+                Spacer()
+                chatInputBar
+            }
+
+            // Floating Top Bar di dalam Chat (Kembali & Reset)
+            VStack {
+                HStack {
+                    Button {
+                        closeChat()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.black.opacity(0.8))
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+
+                    Spacer()
+
+                    if !chatVM.messages.isEmpty {
+                        Button {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                chatVM.resetSession()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.counterclockwise")
+                                Text("Reset")
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.black.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .glassEffect(.regular.interactive(), in: .capsule)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .transition(.opacity)
+    }
+
+    private var chatMessageList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(chatVM.messages) { msg in
+                        ChatBubbleRow(message: msg) { url in
+                            selectedSafariURL = IdentifiableURL(url: url)
+                        }
+                        .id(msg.id)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 16)
+            }
+            .onChange(of: chatVM.messages.count) { _, _ in
+                if let last = chatVM.messages.last {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: chatVM.messages.last?.researchSteps.count) { _, _ in
+                if let last = chatVM.messages.last {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+        }
+    }
+
+    private var chatInputBar: some View {
+        HStack(spacing: 10) {
+            TextField("Tanya saham, misal: Apakah MU akan naik?", text: $chatVM.inputText)
+                .font(.system(size: 14))
+                .foregroundStyle(Color.black)
+                .focused($isChatInputFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.white.opacity(0.55))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(isChatInputFocused ? Color.cyan.opacity(0.5) : Color.black.opacity(0.08), lineWidth: 1)
+                        )
+                )
+                .onSubmit {
+                    guard !isChatSendDisabled else { return }
+                    withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                        chatVM.send(chatVM.inputText)
+                    }
+                }
+
+            Button {
+                withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
+                    chatVM.send(chatVM.inputText)
+                }
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(isChatSendDisabled ? Color.black.opacity(0.2) : Color.cyan)
+            }
+            .disabled(isChatSendDisabled)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Color.white.opacity(0.35)
+                .overlay(
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundStyle(Color.black.opacity(0.06)),
+                    alignment: .top
+                )
+        )
+    }
+
+    private var isChatSendDisabled: Bool {
+        chatVM.inputText.trimmingCharacters(in: .whitespaces).isEmpty || chatVM.isProcessing
     }
 
 
