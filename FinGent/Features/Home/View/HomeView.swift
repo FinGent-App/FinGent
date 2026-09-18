@@ -55,7 +55,10 @@ struct HomeView: View {
                         .padding(.bottom, 100)
                     }
                     .refreshable {
-                        await portfolioRepo.syncWithBackend()
+                        async let syncPortfolio: () = portfolioRepo.syncWithBackend()
+                        async let syncFavorites: () = favoritesRepo.syncWithBackend()
+                        async let refreshMarket: () = MarketDataRepository.shared.refreshFromBackend()
+                        _ = await (syncPortfolio, syncFavorites, refreshMarket)
                         viewModel.refresh()
                     }
                     .opacity(isChatActive ? 0 : 1)
@@ -185,6 +188,8 @@ struct HomeView: View {
                 viewModel.refresh()
                 Task {
                     await portfolioRepo.syncWithBackend()
+                    await favoritesRepo.syncWithBackend()
+                    await MarketDataRepository.shared.refreshFromBackend()
                 }
             }
             .onChange(of: portfolioRepo.userHoldings) { _, _ in

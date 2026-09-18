@@ -14,16 +14,58 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
     private(set) var priceDirections: [String: PriceDirection] = [:]
     private(set) var lastTick: Date = Date()
 
+    // MARK: - Persistence Keys
+
+    private enum Key {
+        static let persistentQuotes = "persisted_stock_quotes_v1"
+        static let lastSavedTimestamp = "persisted_stock_quotes_timestamp"
+    }
+
     // MARK: - Init
 
     private init() {
-        self.quotes = Self.makeInitialQuotes()
+        // 1. Load dari persistent storage terlebih dahulu agar harga terakhir langsung muncul di layar saat app dibuka
+        let savedQuotes = Self.loadPersistedQuotes()
+        let fallbackQuotes = Self.makeInitialQuotes()
+
+        var combined = fallbackQuotes
+        for (ticker, savedQuote) in savedQuotes {
+            combined[ticker] = savedQuote
+        }
+        self.quotes = combined
+
         for ticker in quotes.keys {
             priceDirections[ticker] = .unchanged
         }
+
+        // 2. Segera panggil API di background untuk mengambil harga real-time terbaru dan timpa jika ada perubahan
         Task { [weak self] in
             await self?.refreshFromBackend()
         }
+    }
+
+    // MARK: - Local Persistence
+
+    private func saveQuotes() {
+        let quotesArray = Array(quotes.values)
+        guard let data = try? JSONEncoder().encode(quotesArray) else { return }
+        UserDefaults.standard.set(data, forKey: Key.persistentQuotes)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Key.lastSavedTimestamp)
+    }
+
+    private static func loadPersistedQuotes() -> [String: StockQuote] {
+        guard
+            let data = UserDefaults.standard.data(forKey: Key.persistentQuotes),
+            let quotesArray = try? JSONDecoder().decode([StockQuote].self, from: data),
+            !quotesArray.isEmpty
+        else {
+            return [:]
+        }
+        var dict: [String: StockQuote] = [:]
+        for q in quotesArray {
+            dict[q.ticker.uppercased()] = q
+        }
+        return dict
     }
 
     // MARK: - MarketDataRepositoryProtocol
@@ -101,16 +143,31 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
 
     @MainActor
     func refreshFromBackend() async {
-        let tickers = Array(quotes.keys)
-        guard !tickers.isEmpty else { return }
+        var targetTickers = Set(quotes.keys.map { $0.uppercased() })
+        let holdingTickers = PortfolioRepository.shared.userHoldings.map { $0.ticker.uppercased() }
+        let favTickers = FavoritesRepository.shared.favoriteTickers
+        targetTickers.formUnion(holdingTickers)
+        targetTickers.formUnion(favTickers)
+
+        let tickerList = Array(targetTickers)
+        guard !tickerList.isEmpty else { return }
+
         do {
-            let liveQuotes = try await StockApiClient.shared.fetchBatch(tickers: tickers)
+            let liveQuotes = try await StockApiClient.shared.fetchBatch(tickers: tickerList)
+            guard !liveQuotes.isEmpty else { return }
+
             for q in liveQuotes {
-                let oldPrice = quotes[q.ticker]?.price ?? q.price
+                let upper = q.ticker.uppercased()
+                let oldPrice = quotes[upper]?.price ?? q.price
                 let dir: PriceDirection = q.price > oldPrice ? .up : (q.price < oldPrice ? .down : .unchanged)
-                self.quotes[q.ticker] = q
-                self.priceDirections[q.ticker] = dir
+
+                // Timpa harga lama dengan harga real-time dari API
+                self.quotes[upper] = q
+                self.priceDirections[upper] = dir
             }
+
+            // Simpan harga real-time terbaru ke persistent storage
+            saveQuotes()
             self.lastTick = Date()
         } catch {
             // Silently retain current quotes if backend is momentarily unreachable
@@ -119,11 +176,13 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
 
     @MainActor
     func registerRemoteQuote(_ quote: StockQuote, fundamentals: StockFundamentals? = nil) {
-        self.quotes[quote.ticker] = quote
-        self.priceDirections[quote.ticker] = .unchanged
+        let upper = quote.ticker.uppercased()
+        self.quotes[upper] = quote
+        self.priceDirections[upper] = .unchanged
         if let f = fundamentals {
-            Self.fundamentalsData[quote.ticker] = f
+            Self.fundamentalsData[upper] = f
         }
+        saveQuotes()
         self.lastTick = Date()
     }
 
@@ -191,6 +250,7 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
             freeCashflow: freeCashflow
         )
         Self.fundamentalsData[upper] = fund
+        saveQuotes()
         self.lastTick = Date()
     }
 
