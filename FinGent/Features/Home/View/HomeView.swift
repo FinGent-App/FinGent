@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var portfolioRepo = PortfolioRepository.shared
     @State private var showSearch = false
     @State private var showProfile = false
+    @State private var showNotifications = false
     @State private var showAddStock = false
     @State private var selectedPortfolioTimeframe: PortfolioTimeframe = .oneDay
     @State private var isChatActive = false
@@ -97,17 +98,31 @@ struct HomeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        closeChat()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.black.opacity(0.8))
-                            .frame(width: 40, height: 40)
-                            .glassEffect(.regular.interactive(), in: .circle)
+                    ZStack(alignment: .leading) {
+                        Button {
+                            showProfile = true
+                        } label: {
+                            Image(systemName: "person.circle")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .frame(width: 44, height: 44)
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+                        .opacity(isChatActive ? 0 : 1)
+                        .allowsHitTesting(!isChatActive)
+
+                        Button {
+                            closeChat()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.black.opacity(0.8))
+                                .frame(width: 40, height: 40)
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+                        .opacity(isChatActive ? 1 : 0)
+                        .allowsHitTesting(isChatActive)
                     }
-                    .opacity(isChatActive ? 1 : 0)
-                    .allowsHitTesting(isChatActive)
                 }
                 .sharedBackgroundVisibility(.hidden)
 
@@ -125,9 +140,9 @@ struct HomeView: View {
                             }
 
                             Button {
-                                showProfile = true
+                                showNotifications = true
                             } label: {
-                                Image(systemName: "person.circle")
+                                Image(systemName: "bell")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundStyle(.primary)
                                     .frame(width: 44, height: 44)
@@ -171,6 +186,11 @@ struct HomeView: View {
                 ProfileView()
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
+            }
+            .alert("Notifikasi", isPresented: $showNotifications) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Tidak ada notifikasi baru saat ini.")
             }
             .sheet(isPresented: $showAddStock) {
                 AddStockSheetView {
