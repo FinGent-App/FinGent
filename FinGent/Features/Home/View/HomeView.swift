@@ -396,6 +396,7 @@ struct HomeView: View {
     private let videoScale: CGFloat = 1.2            // Skala zoom video
     private let videoOffsetX: CGFloat = 0            // Geser horizontal video (X)
     private let videoOffsetY: CGFloat = 0            // Geser vertikal video (Y)
+    private let homeVideoOpacity: Double = 0.55      // Opacity video di HomeView (sedikit pudar, di ChatView otomatis 1.0 solid)
 
     private var isCircleVisible: Bool {
         if !isChatActive { return true }
@@ -539,6 +540,8 @@ struct HomeView: View {
                 .frame(width: videoWidth, height: videoHeight)
                 .scaleEffect(isChatActive ? (videoScale * (chatCircleDiameter / circleDiameter)) : videoScale)
                 .offset(x: videoOffsetX, y: videoOffsetY)
+                .opacity(isChatActive ? 1.0 : homeVideoOpacity)
+                .saturation(isChatActive ? 1.25 : 0.7)
             }
             .clipShape(Circle())
             .shadow(
