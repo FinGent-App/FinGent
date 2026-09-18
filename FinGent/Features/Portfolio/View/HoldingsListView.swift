@@ -75,28 +75,13 @@ struct HoldingRowView: View {
                         .lineLimit(1)
                 }
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                // Price & Change (1D like Watchlist)
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(row.formattedPrice)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.black)
-                        .contentTransition(.numericText())
-                        .animation(.easeInOut(duration: 0.25), value: row.currentPrice)
-
-                    let isPositive = isDailyPositive
-                    let sign = isPositive ? "+" : "-"
-                    Text(String(format: "%@%.2f%%", sign, abs(dailyChangePercent)))
-                        .font(.caption2.bold())
-                        .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 4)
-                        )
-                }
+                // Price, 24h Chart & Change Badge (synchronized with StockDetailView)
+                StockRowPriceSectionView(
+                    ticker: row.ticker,
+                    quote: holdingQuote
+                )
             }
             .padding(14)
             .background(

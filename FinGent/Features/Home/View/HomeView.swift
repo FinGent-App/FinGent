@@ -504,26 +504,13 @@ struct HomeView: View {
                     .lineLimit(1)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            // Price & Change
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(stock.formattedPrice)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.black)
-
-                let isPositive = stock.change >= 0
-                let sign = isPositive ? "+" : "-"
-                Text(String(format: "%@%.2f%%", sign, abs(stock.changePercent)))
-                    .font(.caption2.bold())
-                    .foregroundStyle(isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30"))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        (isPositive ? Color(hex: "00B89F") : Color(hex: "FF3B30")).opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 4)
-                    )
-            }
+            // Price, 24h Chart & Change Badge (synchronized with StockDetailView)
+            StockRowPriceSectionView(
+                ticker: stock.ticker,
+                quote: stock
+            )
         }
         .padding(14)
         .background(

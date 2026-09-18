@@ -77,6 +77,10 @@ final class StockDetailChartViewModel: ObservableObject, ChartViewModelProtocol 
 
         let finalPoints = selectedRange == .oneDay ? normalizeToSlots(rawPoints) : rawPoints
 
+        if selectedRange == .oneDay && !rawPoints.isEmpty {
+            Stock24hDataService.shared.registerHistory(ticker: quote.ticker, quote: quote, history: rawPoints)
+        }
+
         withAnimation(.easeInOut(duration: 0.25)) {
             self.dataPoints = finalPoints
             self.isLoading = false
