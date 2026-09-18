@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var selectedPortfolioTimeframe: PortfolioTimeframe = .oneDay
     @State private var isChatActive = false
     @State private var showHeaderText = false
+    @State private var isChatInputVisible = false
     @State private var chatVM = AppContainer.shared.makeChatViewModel()
     @FocusState private var isChatInputFocused: Bool
     @State private var selectedSafariURL: IdentifiableURL? = nil
@@ -72,6 +73,9 @@ struct HomeView: View {
                             .zIndex(5)
                     }
 
+                    let homeCircleY: CGFloat = screenH - 52
+                    let chatCircleY: CGFloat = homeCircleY - chatCircleElevation
+
                     // 5. Lingkaran Liquid Video Tunggal yang Meluncur Halus
                     liquidCircleButton
                         .frame(
@@ -80,43 +84,81 @@ struct HomeView: View {
                         )
                         .position(
                             x: screenW / 2,
-                            y: isChatActive ? (screenH / 2 + chatCenterOffsetY) : (screenH - 52)
+                            y: isChatActive ? chatCircleY : homeCircleY
                         )
-                        .opacity(chatVM.messages.isEmpty ? 1.0 : 0.0)
-                        .animation(.easeInOut(duration: 0.25), value: chatVM.messages.isEmpty)
+                        .opacity(isCircleVisible ? 1.0 : 0.0)
+                        .scaleEffect(isCircleVisible ? 1.0 : 0.82)
+                        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isCircleVisible)
                         .zIndex(10)
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 0) {
-                        Button {
-                            showSearch = true
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(.primary)
-                                .frame(width: 44, height: 44)
-                                .glassEffect(.regular.interactive(), in: .circle)
-                        }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        closeChat()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.black.opacity(0.8))
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .opacity(isChatActive ? 1 : 0)
+                    .allowsHitTesting(isChatActive)
+                }
+                .sharedBackgroundVisibility(.hidden)
 
-                        Button {
-                            showProfile = true
-                        } label: {
-                            Image(systemName: "person.circle")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(.primary)
-                                .frame(width: 44, height: 44)
-                                .glassEffect(.regular.interactive(), in: .circle)
+                ToolbarItem(placement: .topBarTrailing) {
+                    ZStack(alignment: .trailing) {
+                        HStack(spacing: 0) {
+                            Button {
+                                showSearch = true
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 44, height: 44)
+                                    .glassEffect(.regular.interactive(), in: .circle)
+                            }
+
+                            Button {
+                                showProfile = true
+                            } label: {
+                                Image(systemName: "person.circle")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 44, height: 44)
+                                    .glassEffect(.regular.interactive(), in: .circle)
+                            }
+                        }
+                        .opacity(isChatActive ? 0 : 1)
+                        .allowsHitTesting(!isChatActive)
+
+                        if !chatVM.messages.isEmpty {
+                            Button {
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                    chatVM.resetSession()
+                                    isChatInputVisible = false
+                                    isChatInputFocused = false
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.counterclockwise")
+                                    Text("Reset")
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.black.opacity(0.7))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 7)
+                                .glassEffect(.regular.interactive(), in: .capsule)
+                            }
+                            .opacity(isChatActive ? 1 : 0)
+                            .allowsHitTesting(isChatActive)
                         }
                     }
-                    .opacity(isChatActive ? 0 : 1)
-                    .allowsHitTesting(!isChatActive)
                 }
                 .sharedBackgroundVisibility(.hidden)
             }
-            .toolbar(isChatActive ? .hidden : .visible, for: .navigationBar)
-            .animation(.easeInOut(duration: 0.25), value: isChatActive)
             .sheet(isPresented: $showSearch) {
                 SearchView(viewModel: AppContainer.shared.makeSearchViewModel())
                     .presentationDetents([.large])
@@ -342,7 +384,7 @@ struct HomeView: View {
     // MARK: - Liquid Circle & Chat Transition Parameters (Dapat diubah manual sampai pas)
     private let circleDiameter: CGFloat = 64         // Diameter tombol di tab bar bawah
     private let chatCircleDiameter: CGFloat = 88     // Diameter tombol saat di tengah chat
-    private let chatCenterOffsetY: CGFloat = -45     // Posisi lingkaran di chat (negatif = geser ke atas dari tengah)
+    private let chatCircleElevation: CGFloat = 100   // Ketinggian circle naik dari tab bar home (100px)
     private let headerTextOffsetY: CGFloat = -58     // Jarak vertikal teks di atas lingkaran
     private let videoWidth: CGFloat = 64             // Lebar dasar player video
     private let videoHeight: CGFloat = 64            // Tinggi dasar player video
@@ -350,7 +392,13 @@ struct HomeView: View {
     private let videoOffsetX: CGFloat = 0            // Geser horizontal video (X)
     private let videoOffsetY: CGFloat = 0            // Geser vertikal video (Y)
 
+    private var isCircleVisible: Bool {
+        if !isChatActive { return true }
+        return chatVM.messages.isEmpty && !isChatInputVisible
+    }
+
     private func openChat() {
+        isChatInputVisible = false
         withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
             isChatActive = true
         }
@@ -362,11 +410,13 @@ struct HomeView: View {
     }
 
     private func closeChat() {
+        isChatInputFocused = false
         withAnimation(.easeOut(duration: 0.16)) {
             showHeaderText = false
         }
         withAnimation(.spring(response: 0.48, dampingFraction: 0.84)) {
             isChatActive = false
+            isChatInputVisible = false
         }
     }
 
@@ -499,6 +549,9 @@ struct HomeView: View {
 
     @ViewBuilder
     private func chatOverlayContent(screenW: CGFloat, screenH: CGFloat) -> some View {
+        let homeCircleY: CGFloat = screenH - 52
+        let chatCircleY: CGFloat = homeCircleY - chatCircleElevation
+
         ZStack {
             if chatVM.messages.isEmpty {
                 // Teks "What financial insights\ncan i give you today?" muncul smooth dari atas circle
@@ -514,7 +567,7 @@ struct HomeView: View {
                 .offset(y: showHeaderText ? 0 : -16)
                 .position(
                     x: screenW / 2,
-                    y: (screenH / 2 + chatCenterOffsetY) - (chatCircleDiameter / 2) + headerTextOffsetY
+                    y: chatCircleY - (chatCircleDiameter / 2) + headerTextOffsetY
                 )
             } else {
                 // Daftar pesan chat jika percakapan aktif
@@ -523,53 +576,55 @@ struct HomeView: View {
                     .padding(.bottom, 65)
             }
 
-            // Input Bar di bagian paling bawah
+            // Bagian Bawah: Tombol Keyboard di kanan bawah atau Input Bar saat aktif
             VStack {
                 Spacer()
-                chatInputBar
-            }
 
-            // Floating Top Bar di dalam Chat (Kembali & Reset)
-            VStack {
-                HStack {
-                    Button {
-                        closeChat()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.black.opacity(0.8))
-                            .frame(width: 40, height: 40)
-                            .glassEffect(.regular.interactive(), in: .circle)
-                    }
-
-                    Spacer()
-
-                    if !chatVM.messages.isEmpty {
-                        Button {
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                chatVM.resetSession()
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.counterclockwise")
-                                Text("Reset")
-                            }
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.black.opacity(0.7))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .glassEffect(.regular.interactive(), in: .capsule)
-                        }
+                if isChatInputVisible || !chatVM.messages.isEmpty {
+                    chatInputBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    HStack {
+                        Spacer()
+                        floatingKeyboardButton
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-
-                Spacer()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .transition(.opacity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isChatInputFocused {
+                isChatInputFocused = false
+                if chatVM.messages.isEmpty && chatVM.inputText.isEmpty {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                        isChatInputVisible = false
+                    }
+                }
+            }
+        }
+    }
+
+    private var floatingKeyboardButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                isChatInputVisible = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                isChatInputFocused = true
+            }
+        } label: {
+            Image(systemName: "keyboard")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.black.opacity(0.8))
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        }
+        .padding(.trailing, 20)
+        .padding(.bottom, 24)
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 
     private var chatMessageList: some View {
@@ -605,21 +660,13 @@ struct HomeView: View {
     }
 
     private var chatInputBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             TextField("Tanya saham, misal: Apakah MU akan naik?", text: $chatVM.inputText)
-                .font(.system(size: 14))
-                .foregroundStyle(Color.black)
+                .font(.system(size: 15))
+                .foregroundStyle(.primary)
                 .focused($isChatInputFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.white.opacity(0.55))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(isChatInputFocused ? Color.cyan.opacity(0.5) : Color.black.opacity(0.08), lineWidth: 1)
-                        )
-                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
                 .onSubmit {
                     guard !isChatSendDisabled else { return }
                     withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
@@ -634,21 +681,16 @@ struct HomeView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(isChatSendDisabled ? Color.black.opacity(0.2) : Color.cyan)
+                    .foregroundStyle(isChatSendDisabled ? Color.primary.opacity(0.2) : Color.primary)
             }
             .disabled(isChatSendDisabled)
+            .padding(.trailing, 6)
         }
+        .padding(.leading, 2)
+        .padding(.vertical, 2)
+        .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            Color.white.opacity(0.35)
-                .overlay(
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundStyle(Color.black.opacity(0.06)),
-                    alignment: .top
-                )
-        )
+        .padding(.bottom, 12)
     }
 
     private var isChatSendDisabled: Bool {

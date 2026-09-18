@@ -134,21 +134,13 @@ struct ChatView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             TextField("Tanya saham, misal: Apakah MU akan naik?", text: $viewModel.inputText)
-                .font(.system(size: 14))
-                .foregroundStyle(Color.black)
+                .font(.system(size: 15))
+                .foregroundStyle(.primary)
                 .focused($isInputFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color.white.opacity(0.55))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(isInputFocused ? Color.cyan.opacity(0.5) : Color.black.opacity(0.08), lineWidth: 1)
-                        )
-                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
                 .onSubmit {
                     guard !isSendDisabled else { return }
                     withAnimation(.spring(response: 0.85, dampingFraction: 0.88)) {
@@ -163,21 +155,16 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundStyle(isSendDisabled ? Color.black.opacity(0.2) : Color.cyan)
+                    .foregroundStyle(isSendDisabled ? Color.primary.opacity(0.2) : Color.primary)
             }
             .disabled(isSendDisabled)
+            .padding(.trailing, 6)
         }
+        .padding(.leading, 2)
+        .padding(.vertical, 2)
+        .glassEffect(.regular.interactive(), in: .capsule)
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            Color.white.opacity(0.35)
-                .overlay(
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundStyle(Color.black.opacity(0.06)),
-                    alignment: .top
-                )
-        )
+        .padding(.bottom, 12)
     }
 
     private var isSendDisabled: Bool {
