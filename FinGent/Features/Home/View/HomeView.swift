@@ -38,6 +38,11 @@ struct HomeView: View {
             GeometryReader { geo in
                 let screenW = geo.size.width
                 let screenH = geo.size.height
+                let safeAreaBottom = geo.safeAreaInsets.bottom
+                let screenBottomY = screenH + safeAreaBottom
+                let homeCircleY: CGFloat = screenH - 52
+                let chatCircleY: CGFloat = homeCircleY - chatCircleElevation
+                let barHeight: CGFloat = (screenH - homeCircleY) + safeAreaBottom
 
                 ZStack(alignment: .topLeading) {
                     // 1. Background gradient bersama
@@ -53,7 +58,7 @@ struct HomeView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
-                        .padding(.bottom, 100)
+                        .padding(.bottom, barHeight + 24)
                     }
                     .refreshable {
                         async let syncPortfolio: () = portfolioRepo.syncWithBackend()
@@ -65,9 +70,16 @@ struct HomeView: View {
                     .opacity(isChatActive ? 0 : 1)
                     .allowsHitTesting(!isChatActive)
 
-                    // 3. Tab Bar Frosted Glass & Ungu Glow
-                    customTabBarBackgroundLayers
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    // 3. Circle Ungu Glow (Rooted to Physical Screen Bottom, di bawah transparent background & circle)
+                    bottomPurpleGlowCircle
+                        .position(x: screenW / 2, y: screenBottomY + purpleGlowOffsetY)
+                        .opacity(isChatActive ? 0 : 1)
+                        .allowsHitTesting(false)
+
+                    // 4. Tab Bar Frosted Glass (Transparent Background)
+                    customTabBarBackground
+                        .frame(width: screenW, height: barHeight)
+                        .position(x: screenW / 2, y: homeCircleY + barHeight / 2)
                         .opacity(isChatActive ? 0 : 1)
                         .allowsHitTesting(!isChatActive)
 
@@ -76,9 +88,6 @@ struct HomeView: View {
                         chatOverlayContent(screenW: screenW, screenH: screenH)
                             .zIndex(5)
                     }
-
-                    let homeCircleY: CGFloat = screenH - 52
-                    let chatCircleY: CGFloat = homeCircleY - chatCircleElevation
 
                     // 5. Lingkaran Liquid Video Tunggal yang Meluncur Halus
                     liquidCircleButton
@@ -274,8 +283,17 @@ struct HomeView: View {
                 .blur(radius: 40)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .offset(x: 80, y: -180)
+
         }
         .ignoresSafeArea()
+    }
+
+    private var bottomPurpleGlowCircle: some View {
+        Circle()
+            .fill(Color(hex: "C8A8FF"))
+            .frame(width: 300, height: 300)
+            .blur(radius: 80)
+            .allowsHitTesting(false)
     }
 
     private var welcomeHeader: some View {
@@ -407,6 +425,7 @@ struct HomeView: View {
     }
 
     // MARK: - Liquid Circle & Chat Transition Parameters (Dapat diubah manual sampai pas)
+    private let purpleGlowOffsetY: CGFloat = 0       // Offset circle ungu: 0 = titik pusat pas di tepi bawah fisik layar (seperti di Figma)
     private let circleDiameter: CGFloat = 64         // Diameter tombol di tab bar bawah
     private let chatCircleDiameter: CGFloat = 88     // Diameter tombol saat di tengah chat
     private let chatCircleElevation: CGFloat = 100   // Ketinggian circle naik dari tab bar home (100px)
@@ -446,64 +465,17 @@ struct HomeView: View {
         }
     }
 
-    private var customTabBarBackgroundLayers: some View {
-        ZStack(alignment: .bottom) {
-            // Layer 1: Tab bar custom background
-            VStack(spacing: 0) {
-                Color.clear
-                    .frame(height: circleDiameter / 2)
-
-                Color.clear
-                    .frame(height: 52)
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                customTabBarBackground
-                    .padding(.top, circleDiameter / 2)
-                    .ignoresSafeArea(edges: .bottom)
-            )
-            .zIndex(0)
-
-            // Layer 2: Lingkaran gradient ungu besar di bawah
-            bottomPurpleGlowCircle
-                .zIndex(1)
-        }
-        .frame(maxWidth: .infinity)
-        .ignoresSafeArea(edges: .bottom)
-    }
-
-    private var bottomPurpleGlowCircle: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [
-                        Color(hex: "B285FF").opacity(1.0),
-                        Color(hex: "B285FF").opacity(1.0),
-                        Color(hex: "B285FF").opacity(0.0),
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: 150
-                )
-            )
-            .frame(width: 300, height: 300)
-            .blur(radius: 80)
-            .offset(y: 250)
-            .allowsHitTesting(false)
-    }
-
     private var customTabBarBackground: some View {
         ZStack(alignment: .top) {
-            // Thick Frosted Glass Backdrop Blur
+            // Material blur dengan mask vertical gradient (tebal di bawah -> 0% di atas)
             Rectangle()
-                .fill(.thickMaterial)
+                .fill(.ultraThinMaterial)
                 .mask(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0.0),
-                            .init(color: .black.opacity(0.98), location: 0.45),
-                            .init(color: .black.opacity(0.70), location: 0.75),
-                            .init(color: .black.opacity(0.25), location: 0.92),
+                            .init(color: .black.opacity(0.80), location: 0.45),
+                            .init(color: .black.opacity(0.35), location: 0.75),
                             .init(color: .clear, location: 1.0)
                         ],
                         startPoint: .bottom,
@@ -511,34 +483,16 @@ struct HomeView: View {
                     )
                 )
 
-            // Denser Glassmorphism White Sheen (Efek kaca tebal / heavy frosted acrylic)
+            // Glassmorphism Soft White Sheen (jernih & transparan agar warna ungu #C8A8FF tetap pekat)
             LinearGradient(
                 stops: [
-                    .init(color: Color.white.opacity(0.78), location: 0.0),
-                    .init(color: Color.white.opacity(0.64), location: 0.40),
-                    .init(color: Color.white.opacity(0.35), location: 0.72),
-                    .init(color: Color.white.opacity(0.10), location: 0.90),
+                    .init(color: Color.white.opacity(0.25), location: 0.0),
+                    .init(color: Color.white.opacity(0.10), location: 0.45),
                     .init(color: Color.white.opacity(0.0), location: 1.0)
                 ],
                 startPoint: .bottom,
                 endPoint: .top
             )
-
-            // Specular Glass Bevel Highlight (Kilauan batas atas kaca lebih tegas)
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color.white.opacity(0.15), location: 0.0),
-                            .init(color: Color.white.opacity(0.85), location: 0.5),
-                            .init(color: Color.white.opacity(0.15), location: 1.0)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 1.0)
-                .opacity(0.95)
         }
         .allowsHitTesting(false)
     }
