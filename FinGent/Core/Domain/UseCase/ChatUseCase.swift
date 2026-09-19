@@ -136,6 +136,16 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 citations = articles.prefix(3).map { NewsCitation(from: $0) }
             }
 
+            let isTargetMarketIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
+            Task {
+                await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["AppleFoundationModels"],
+                    finalAnswer: cleanedAnswer,
+                    marketType: isTargetMarketIDX ? "IDX" : "US"
+                )
+            }
+
             return AIResponse(
                 answer: cleanedAnswer,
                 bias: bias,

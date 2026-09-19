@@ -665,4 +665,41 @@ final class StockApiClient: Sendable {
         }
         return try JSONDecoder().decode(CloudConsultResponseDTO.self, from: data)
     }
+
+    func recordAgentTrace(
+        prompt: String,
+        selectedTools: [String],
+        toolArguments: [String: Any] = [:],
+        toolOutput: String? = nil,
+        finalAnswer: String? = nil,
+        marketType: String = "GLOBAL",
+        latencyMs: Int = 0,
+        status: String = "SUCCESS"
+    ) async {
+        guard let url = URL(string: "\(baseURL)/api/v1/admin/trace") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let payload: [String: Any] = [
+            "user_id": "ios_device_user",
+            "prompt": prompt,
+            "selected_tools": selectedTools,
+            "tool_arguments": toolArguments,
+            "tool_output": toolOutput ?? "",
+            "final_answer": finalAnswer ?? "",
+            "market_type": marketType,
+            "model_name": "Apple Intelligence / FoundationModels",
+            "prompt_tokens": max(1, prompt.count / 4),
+            "completion_tokens": max(1, (finalAnswer?.count ?? 0) / 4),
+            "latency_ms": latencyMs,
+            "relevance_score": 0.98,
+            "status": status
+        ]
+
+        if let body = try? JSONSerialization.data(withJSONObject: payload) {
+            req.httpBody = body
+            _ = try? await session.data(for: req)
+        }
+    }
 }

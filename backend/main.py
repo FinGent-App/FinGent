@@ -805,7 +805,13 @@ async def call_mcp_tool_endpoint(req: MCPCallRequest):
         }
     except Exception as e:
         logger.error("MCP tool '%s' execution failed: %s", req.name, str(e))
-        raise HTTPException(status_code=500, detail=f"MCP tool execution failed: {str(e)}")
+# ==============================================================================
+# Admin Dashboard & LLMOps Observability (REST & Server-Sent Events)
+# ==============================================================================
+
+from routers.admin_router import admin_router
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin Dashboard"])
+logger.info("✅ Mounted FinGent Admin Dashboard API at /api/v1/admin (SSE: /api/v1/admin/events)")
 
 
 if __name__ == "__main__":
