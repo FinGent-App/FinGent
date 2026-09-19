@@ -78,6 +78,20 @@ final class QueryAnalyzer: Sendable {
 
 final class NewsRankingService: Sendable {
 
+    private static let knownIndoTickers: Set<String> = [
+        "BBCA", "BBRI", "BMRI", "TLKM", "ASII", "UNVR", "GOTO", "BBNI", "ICBP", "AMMN",
+        "ACES", "BREN", "EMTK", "KLBF", "MDKA", "INDF", "PGAS", "PTBA", "ADRO", "ANTM",
+        "PWON", "BSDE", "CTRA", "SMRA", "AVIA", "SILO", "MAPI", "MAPA", "BFIN", "BTPS", "BBTN",
+        "SRTG", "ERAA", "SSIA", "ELSA", "AKRA", "BRPT", "TPIA", "INKP", "INCO", "SMGR", "CPIN"
+    ]
+
+    static func isIDX(ticker: String) -> Bool {
+        let upper = ticker.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if upper.hasSuffix(".JK") { return true }
+        let clean = upper.replacingOccurrences(of: ".JK", with: "")
+        return knownIndoTickers.contains(clean)
+    }
+
     func rank(articles: [NewsArticle], for context: NewsQueryContext, userPrompt: String) -> [NewsArticle] {
         let promptTokens = userPrompt.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
@@ -85,7 +99,32 @@ final class NewsRankingService: Sendable {
 
         let now = Date()
 
-        let scored: [(article: NewsArticle, score: Double)] = articles.map { article in
+        // Strict market filtering: Never cross US news wires into IDX or Indonesian outlets into US stocks
+        let candidateArticles: [NewsArticle]
+        let isTargetIDX: Bool?
+        if let targetTicker = context.tickers.first {
+            let isIDX = Self.isIDX(ticker: targetTicker)
+            isTargetIDX = isIDX
+            candidateArticles = articles.filter { article in
+                if isIDX {
+                    // For IDX stocks, exclude US news wires
+                    if article.source.isUSGlobal && article.source != .yahooFinance {
+                        return false
+                    }
+                } else {
+                    // For US stocks, exclude Indonesian media
+                    if article.source.isIndonesian {
+                        return false
+                    }
+                }
+                return true
+            }
+        } else {
+            isTargetIDX = nil
+            candidateArticles = articles
+        }
+
+        let scored: [(article: NewsArticle, score: Double)] = candidateArticles.map { article in
             var score: Double = 0.0
 
             // 1. Ticker match score
@@ -121,9 +160,17 @@ final class NewsRankingService: Sendable {
                 score += 10.0
             }
 
-            // 4. Source score
-            if article.source == .yahooFinance || article.source == .cnbc || article.source == .sec {
-                score += 10.0
+            // 4. Source & Regional Market score
+            if let isIDX = isTargetIDX {
+                if isIDX && article.source.isIndonesian {
+                    score += 20.0
+                } else if !isIDX && article.source.isUSGlobal {
+                    score += 20.0
+                }
+            } else {
+                if article.source == .yahooFinance || article.source == .cnbc || article.source == .kontan {
+                    score += 10.0
+                }
             }
 
             return (article, score)
@@ -182,7 +229,7 @@ final class NewsRetrievalUseCase: NewsRetrievalUseCaseProtocol {
                 from: nil,
                 to: nil,
                 source: nil,
-                limit: 20
+                limit: 30
             )) ?? newsRepository.getArticles(for: [ticker])
         } else {
             candidates = (try? await newsRepository.articles(
@@ -190,11 +237,11 @@ final class NewsRetrievalUseCase: NewsRetrievalUseCaseProtocol {
                 from: context.timeRange.start,
                 to: context.timeRange.end,
                 source: nil,
-                limit: 20
+                limit: 30
             )) ?? newsRepository.allArticles
         }
 
-        // Rank articles by relevance
+        // Rank articles by relevance & market routing
         let ranked = rankingService.rank(articles: candidates, for: context, userPrompt: prompt)
         let topArticles = Array(ranked.prefix(4))
 

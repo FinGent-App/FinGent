@@ -16,7 +16,13 @@ from services.yahoo_service import (
     search_stocks
 )
 from services.news_db_service import get_news_by_ticker, get_recent_news, get_news_count
-from services.rss_ingestion_service import sync_all_rss_feeds, sync_ticker_news
+from services.rss_ingestion_service import (
+    sync_all_rss_feeds,
+    sync_ticker_news,
+    is_idx_ticker,
+    INDONESIAN_SOURCES,
+    US_GLOBAL_SOURCES
+)
 from services.watchlist_db_service import (
     get_user_watchlist,
     add_to_watchlist,
@@ -192,16 +198,38 @@ async def get_news(
     try:
         if ticker:
             clean_ticker = ticker.strip().upper().replace(".JK", "")
-            articles = await get_news_by_ticker(clean_ticker, limit)
+            is_idx = is_idx_ticker(ticker) or is_idx_ticker(clean_ticker)
+
+            def _filter_by_market(raw_articles: list) -> list:
+                filtered = []
+                for a in raw_articles:
+                    src = a.get("source", "")
+                    if is_idx:
+                        # For IDX, exclude US wires
+                        if src in {"Nasdaq", "Investing.com", "GlobeNewswire", "PR Newswire", "Business Wire"}:
+                            continue
+                    else:
+                        # For US, exclude Indonesian media
+                        if src in INDONESIAN_SOURCES:
+                            continue
+                    filtered.append(a)
+                return filtered
+
+            raw_articles = await get_news_by_ticker(clean_ticker, limit * 2)
+            articles = _filter_by_market(raw_articles)
 
             # If empty and auto_fetch enabled, trigger on-demand ticker RSS sync
             if not articles and auto_fetch:
-                logger.info("No cached news for %s in DB. Fetching on-demand RSS...", clean_ticker)
+                logger.info("No cached news for %s in DB. Fetching on-demand RSS (is_idx=%s)...", clean_ticker, is_idx)
                 await sync_ticker_news(clean_ticker)
-                articles = await get_news_by_ticker(clean_ticker, limit)
+                raw_articles = await get_news_by_ticker(clean_ticker, limit * 2)
+                articles = _filter_by_market(raw_articles)
+
+            articles = articles[:limit]
 
             return {
                 "ticker": clean_ticker,
+                "market": "IDX" if is_idx else "US",
                 "count": len(articles),
                 "articles": articles
             }

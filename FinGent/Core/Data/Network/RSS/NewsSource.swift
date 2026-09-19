@@ -109,3 +109,39 @@ final class CNBCNewsSource: NewsSource {
         return parser.parse(data: data)
     }
 }
+
+// MARK: - Generic RSS News Source (Supports Investing.com, Nasdaq, Kontan, Detik, etc.)
+
+final class GenericRSSNewsSource: NewsSource {
+    let source: NewsSourceType
+    var sourceName: String { source.displayName }
+    let feedURL: URL
+
+    private let session: URLSession
+
+    init(
+        source: NewsSourceType,
+        feedURL: URL,
+        session: URLSession = .shared
+    ) {
+        self.source = source
+        self.feedURL = feedURL
+        self.session = session
+    }
+
+    func fetchArticles() async throws -> [NewsArticle] {
+        var request = URLRequest(url: feedURL)
+        request.timeoutInterval = 10
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/rss+xml, text/xml, */*", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+            throw URLError(.badServerResponse)
+        }
+
+        let parser = RSSParser(defaultSource: source)
+        return parser.parse(data: data)
+    }
+}
+

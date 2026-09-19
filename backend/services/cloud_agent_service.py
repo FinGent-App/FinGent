@@ -6,7 +6,7 @@ from services.milvus_service import search_knowledge_hybrid
 from services.yahoo_service import get_stock_fundamentals, get_single_quote
 from services.portfolio_db_service import get_user_holdings
 from services.news_db_service import get_news_by_ticker
-from services.rss_ingestion_service import extract_tickers, sync_ticker_news
+from services.rss_ingestion_service import extract_tickers, sync_ticker_news, is_idx_ticker, INDONESIAN_SOURCES
 from services.agent_tools_service import analyze_portfolio_impact, analyze_news_impact
 
 logger = logging.getLogger("FinGent.CloudAgent")
@@ -96,7 +96,20 @@ async def consult_cloud_analyst(
         except Exception as e:
             logger.warning("Failed to sync ticker news for %s: %s", target_ticker, str(e))
 
-        ticker_news = await get_news_by_ticker(target_ticker, limit=5)
+        raw_ticker_news = await get_news_by_ticker(target_ticker, limit=10)
+        is_idx = is_idx_ticker(target_ticker)
+        filtered_news = []
+        for n in raw_ticker_news:
+            src = n.get("source", "")
+            if is_idx:
+                if src in {"Nasdaq", "Investing.com", "GlobeNewswire", "PR Newswire", "Business Wire"}:
+                    continue
+            else:
+                if src in INDONESIAN_SOURCES:
+                    continue
+            filtered_news.append(n)
+
+        ticker_news = filtered_news[:5]
         if ticker_news:
             news_lines = []
             for n in ticker_news:

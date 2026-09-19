@@ -93,7 +93,9 @@ final class ChatUseCase: ChatUseCaseProtocol {
         // Step 1: News Retrieval & Sources
         let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
         let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
-        let sourcesStr = sourcesList.isEmpty ? "Yahoo Finance, CNBC" : sourcesList.joined(separator: ", ")
+        let isTargetIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
+        let defaultFallback = isTargetIDX ? "Kontan, Detik Finance, CNN Indonesia" : "Nasdaq, Investing.com, Yahoo Finance"
+        let sourcesStr = sourcesList.isEmpty ? defaultFallback : sourcesList.joined(separator: ", ")
         onProgress?(.readingNews(sources: sourcesStr))
         try? await Task.sleep(nanoseconds: 500_000_000)
 
