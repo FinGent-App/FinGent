@@ -17,7 +17,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
         </div>
         <div className="brand-info">
           <div className="brand-title">FinGent Admin</div>
-          <div className="brand-subtitle">Intelligence & Lakehouse</div>
         </div>
       </div>
 
@@ -34,14 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
             className={`sidebar-nav-btn ${activeTab === 'tools' ? 'active' : ''}`}
             onClick={() => setActiveTab('tools')}
           >
-            <div className="btn-icon-wrapper">
-              <Wrench size={16} />
-            </div>
-            <div className="btn-label-group">
-              <span className="btn-main-label">App Tools</span>
-              <span className="btn-sub-label">Capabilities Matrix</span>
-            </div>
-            <span className="sidebar-badge tools-badge">18</span>
+            <Wrench size={20} className="sidebar-nav-icon" />
+            <span className="sidebar-nav-text">App Tools</span>
           </button>
 
           <button
@@ -49,13 +42,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
             className={`sidebar-nav-btn ${activeTab === 'llmops' ? 'active' : ''}`}
             onClick={() => setActiveTab('llmops')}
           >
-            <div className="btn-icon-wrapper">
-              <Cpu size={16} />
-            </div>
-            <div className="btn-label-group">
-              <span className="btn-main-label">LLMOps & Trace</span>
-              <span className="btn-sub-label">Agent Flowcharts & Costs</span>
-            </div>
+            <Cpu size={20} className="sidebar-nav-icon" />
+            <span className="sidebar-nav-text">LLMOps & Trace</span>
           </button>
 
           <button
@@ -63,13 +51,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
             className={`sidebar-nav-btn ${activeTab === 'tables' ? 'active' : ''}`}
             onClick={() => setActiveTab('tables')}
           >
-            <div className="btn-icon-wrapper">
-              <Database size={16} />
-            </div>
-            <div className="btn-label-group">
-              <span className="btn-main-label">PostgreSQL Tables</span>
-              <span className="btn-sub-label">Data Explorer & Records</span>
-            </div>
+            <Database size={20} className="sidebar-nav-icon" />
+            <span className="sidebar-nav-text">PostgreSQL Tables</span>
           </button>
 
           <button
@@ -77,14 +60,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
             className={`sidebar-nav-btn ${activeTab === 'feeds' ? 'active' : ''}`}
             onClick={() => setActiveTab('feeds')}
           >
-            <div className="btn-icon-wrapper">
-              <Rss size={16} />
-            </div>
-            <div className="btn-label-group">
-              <span className="btn-main-label">RSS Feeds</span>
-              <span className="btn-sub-label">IDX & US Ingestion</span>
-            </div>
-            <span className="sidebar-badge feeds-badge">12</span>
+            <Rss size={20} className="sidebar-nav-icon" />
+            <span className="sidebar-nav-text">RSS Feeds</span>
           </button>
         </nav>
       </div>
