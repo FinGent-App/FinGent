@@ -25,7 +25,8 @@ from services.agent_tools_service import (
     search_market_news,
     get_portfolio_news,
     analyze_news_impact,
-    analyze_portfolio_impact
+    analyze_portfolio_impact,
+    analyze_market_technicals_tool
 )
 
 logger = logging.getLogger("FinGent.MCPServer")
@@ -163,6 +164,21 @@ async def simulate_macro_portfolio_risk(event: str, user_id: str = "default_user
         return json.dumps(risk, indent=2, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": f"Failed to simulate portfolio risk: {str(e)}"})
+
+
+@mcp_server.tool()
+def analyze_stock_market_technicals(ticker: str, timeframe: str = "3M") -> str:
+    """
+    Performs quantitative technical analysis and trend assessment for a stock ticker.
+    Calculates moving averages (MA20, MA50, MA200), Golden Cross vs Death Cross breakout signals,
+    RSI 14 momentum, and dynamic support & resistance levels from historical warehouse data.
+    """
+    try:
+        analysis = analyze_market_technicals_tool(ticker, timeframe)
+        return json.dumps(analysis, indent=2, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to calculate technical analysis for '{ticker}': {str(e)}"})
+
 
 
 # ------------------------------------------------------------------------------

@@ -451,6 +451,37 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       'Tampilkan sentimen berita seputar saham-saham yang saya miliki'
     ],
     data_sources: ['Supabase PostgreSQL Portfolio', 'Supabase News Articles DB']
+  },
+  {
+    id: 'tool-mcp-analyze-technicals',
+    name: 'analyze_stock_market_technicals',
+    display_name: 'Market Technicals & Trend Signals',
+    tier: 'mcp_server',
+    category: 'Market Data',
+    execution_engine: 'Enterprise Data Warehouse (BigQuery / Lakehouse)',
+    latency: '100 - 300 ms',
+    privacy: 'Columnar Historical Analytics Engine',
+    description: 'Menganalisis pergerakan harga historis saham dari Data Warehouse: menghitung Moving Average (MA20, MA50, MA200), mendeteksi sinyal Golden Cross / Death Cross, momentum RSI 14 (Overbought/Oversold), Support/Resistance 60 hari, dan lonjakan volume breakout.',
+    parameters: [
+      {
+        name: 'ticker',
+        type: 'string',
+        required: true,
+        description: "Simbol kode emiten saham (misal: 'BBCA', 'NVDA', 'TLKM', 'MU')."
+      },
+      {
+        name: 'timeframe',
+        type: 'string',
+        required: false,
+        description: "Periode timeframe analisis (default: '3M')."
+      }
+    ],
+    example_queries: [
+      'Bagaimana tren analisis teknikal saham BBCA saat ini?',
+      'Apakah saham NVDA membentuk sinyal Golden Cross?',
+      'Cek level support, resistance, dan RSI saham TLKM'
+    ],
+    data_sources: ['Google BigQuery Data Warehouse', 'Historical OHLCV Store', 'PySpark Features Engine']
   }
 ];
 

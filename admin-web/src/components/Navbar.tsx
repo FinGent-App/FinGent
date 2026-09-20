@@ -27,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
           onClick={() => setActiveTab('tools')}
         >
           <Wrench size={16} />
-          <span>App Tools (17)</span>
+          <span>App Tools (18)</span>
         </button>
 
         <button

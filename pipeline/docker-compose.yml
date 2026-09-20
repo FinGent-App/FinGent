@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # 1. Microsoft Azurite (Azure Data Lake Storage Gen2 Emulator)
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: fingent-azurite-datalake
+    hostname: azurite
+    restart: unless-stopped
+    ports:
+      - "10000:10000"  # Blob & ADLS Gen2 service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    volumes:
+      - ./data/azurite:/data
+    command: "azurite -l /data --blobHost 0.0.0.0 --tableHost 0.0.0.0 --queueHost 0.0.0.0"
+
+  # 2. Apache Airflow Orchestrator (Standalone mode for zero-overhead local development)
+  airflow:
+    image: apache/airflow:2.8.3-python3.10
+    container_name: fingent-airflow-orchestrator
+    restart: unless-stopped
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=True
+      - _AIRFLOW_DB_MIGRATE=true
+      - _AIRFLOW_WWW_USER_CREATE=true
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+    ports:
+      - "8085:8080"  # Airflow Web UI at http://localhost:8085
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./spark:/opt/airflow/spark
+      - ./storage:/opt/airflow/storage
+      - ./data:/opt/airflow/data
+    command: bash -c "airflow db migrate && airflow users create --username admin --firstname FinGent --lastname DE --role Admin --email admin@fingent.local --password admin && airflow standalone"
+    depends_on:
+      - azurite

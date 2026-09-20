@@ -318,3 +318,26 @@ async def analyze_portfolio_impact(user_id: str, event: str) -> Dict[str, Any]:
         "affected_holdings": affected_list,
         "analysis": f"Skenario '{event}' memengaruhi sekitar {exposure_pct:.1f}% dari total portofolio Anda ({len(affected_list)} emiten terdampak)."
     }
+
+
+# ==============================================================================
+# 9. Stock Market Technical Analysis Tool (Data Warehouse Engine)
+# ==============================================================================
+
+def analyze_market_technicals_tool(ticker: str, timeframe: str = "3M") -> Dict[str, Any]:
+    """
+    Analyzes historical stock prices from the Enterprise Data Warehouse (BigQuery/Lakehouse).
+    Calculates moving averages (MA20, MA50, MA200), Golden Cross vs Death Cross signals,
+    momentum indicators (RSI 14), dynamic support & resistance levels, and volume breakout ratios.
+    """
+    try:
+        from pipeline.warehouse.bigquery_client import get_technical_analysis
+        return get_technical_analysis(ticker)
+    except Exception as e:
+        logger.error("Failed to execute technical analysis tool for %s: %s", ticker, str(e))
+        return {
+            "ticker": ticker.upper(),
+            "status": "ERROR",
+            "message": f"Gagal menghitung analisa teknikal untuk '{ticker}': {str(e)}"
+        }
+
