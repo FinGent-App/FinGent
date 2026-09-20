@@ -13,7 +13,8 @@ from services.admin_service import (
     get_table_data,
     delete_table_row,
     get_feeds_status,
-    broadcast_admin_event
+    broadcast_admin_event,
+    get_app_tools
 )
 from services.rss_ingestion_service import sync_all_rss_feeds
 
@@ -68,6 +69,20 @@ async def get_logs(
     except Exception as e:
         logger.error("Failed to retrieve agent query logs: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.get("/tools")
+async def get_tools():
+    """
+    Returns the complete list and metadata of all tools provided in FinGent:
+    On-Device (Apple FoundationModels), Cloud Analyst (Gemini + RAG), and MCP Remote Tools.
+    """
+    try:
+        return get_app_tools()
+    except Exception as e:
+        logger.error("Failed to retrieve app tools catalog: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 class AgentTracePayload(BaseModel):

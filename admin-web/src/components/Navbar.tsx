@@ -1,9 +1,9 @@
 import React from 'react';
-import { Database, Rss, Cpu } from 'lucide-react';
+import { Database, Rss, Cpu, Wrench } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'llmops' | 'tables' | 'feeds';
-  setActiveTab: (tab: 'llmops' | 'tables' | 'feeds') => void;
+  activeTab: 'llmops' | 'tables' | 'feeds' | 'tools';
+  setActiveTab: (tab: 'llmops' | 'tables' | 'feeds' | 'tools') => void;
   sseConnected: boolean;
 }
 
@@ -16,11 +16,20 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, sseConn
         </div>
         <div>
           <div className="brand-title">FinGent Admin Intelligence</div>
-          <div className="brand-subtitle">LLMOps & PostgreSQL Explorer</div>
+          <div className="brand-subtitle">LLMOps & App Tools Explorer</div>
         </div>
       </div>
 
       <div className="nav-tabs" id="nav-tabs-container">
+        <button
+          id="tab-tools-btn"
+          className={`nav-tab-btn ${activeTab === 'tools' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tools')}
+        >
+          <Wrench size={16} />
+          <span>App Tools (17)</span>
+        </button>
+
         <button
           id="tab-llmops-btn"
           className={`nav-tab-btn ${activeTab === 'llmops' ? 'active' : ''}`}

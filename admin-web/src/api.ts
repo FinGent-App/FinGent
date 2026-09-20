@@ -102,3 +102,19 @@ export function connectSSE(
     eventSource.close();
   };
 }
+
+import type { AppToolsResponse } from './types';
+import { FALLBACK_APP_TOOLS_RESPONSE } from './toolsData';
+
+export async function fetchAppTools(): Promise<AppToolsResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/admin/tools`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.warn('Falling back to built-in tools catalog:', err);
+    return FALLBACK_APP_TOOLS_RESPONSE;
+  }
+}
+

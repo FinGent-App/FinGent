@@ -5,9 +5,10 @@ import { Navbar } from './components/Navbar';
 import { LLMOpsView } from './components/LLMOpsView';
 import { TableExplorerView } from './components/TableExplorerView';
 import { RSSFeedsView } from './components/RSSFeedsView';
+import { AppToolsView } from './components/AppToolsView';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'llmops' | 'tables' | 'feeds'>('llmops');
+  const [activeTab, setActiveTab] = useState<'tools' | 'llmops' | 'tables' | 'feeds'>('tools');
   const [analytics, setAnalytics] = useState<LLMOpsAnalytics | null>(null);
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [sseConnected, setSseConnected] = useState<boolean>(false);
@@ -56,6 +57,10 @@ export function App() {
       />
 
       <main className="main-content">
+        {activeTab === 'tools' && (
+          <AppToolsView />
+        )}
+
         {activeTab === 'llmops' && (
           <LLMOpsView analytics={analytics} logs={logs} />
         )}

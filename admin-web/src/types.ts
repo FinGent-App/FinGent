@@ -73,3 +73,39 @@ export interface FeedStatus {
   articles_in_db: number;
   latest_article_at?: string;
 }
+
+export type ToolTier = 'on_device' | 'cloud_agent' | 'mcp_server';
+
+export interface ToolParameter {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  default?: any;
+}
+
+export interface AppTool {
+  id: string;
+  name: string;
+  display_name: string;
+  tier: ToolTier;
+  category: string;
+  execution_engine: string;
+  latency: string;
+  privacy: string;
+  description: string;
+  parameters: ToolParameter[];
+  example_queries: string[];
+  data_sources: string[];
+}
+
+export interface AppToolsResponse {
+  count: number;
+  tier_breakdown: {
+    on_device: number;
+    cloud_agent: number;
+    mcp_server: number;
+  };
+  tools: AppTool[];
+}
+
