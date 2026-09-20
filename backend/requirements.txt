@@ -11,3 +11,6 @@ pymilvus>=3.0.0
 fastembed>=0.8.0
 google-generativeai>=0.8.0
 mcp>=2.2.0
+google-cloud-bigquery>=3.20.0
+pyarrow>=15.0.0
+
