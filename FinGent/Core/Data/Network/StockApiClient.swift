@@ -7,7 +7,7 @@ final class StockApiClient: Sendable {
     static let shared = StockApiClient()
 
     // Google Cloud Run production backend
-    let baseURL: String = "https://fingent-backend-321195005615.asia-southeast2.run.app"
+    let baseURL: String = "https://fingent-backend-238432086960.asia-southeast2.run.app"
 
     private let session: URLSession
 

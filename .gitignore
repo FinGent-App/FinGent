@@ -70,7 +70,7 @@ htmlcov/
 # Docker & Database Data / Dumps
 postgres_data/
 backend/postgres_data/
-data/
+/data/
 pipeline/data/
 *.dump
 *.sql.gz
