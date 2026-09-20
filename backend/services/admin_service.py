@@ -506,7 +506,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Mengambil ringkasan portofolio pengguna: total nilai pasar, total modal investasi, keuntungan/kerugian (P&L) kumulatif, dan status portofolio.",
+        "description": "Gets the overall portfolio summary. Use ONLY when user explicitly asks about overall portfolio summary or total net worth, NOT for specific stock questions.",
         "parameters": [],
         "example_queries": [
             "Berapa total nilai portofolio saya?",
@@ -524,13 +524,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Mendapatkan rincian posisi kepemilikan saham spesifik (lot/lembar, harga beli rata-rata, nilai pasar saat ini, unrealized P&L) atau seluruh saham ('ALL').",
+        "description": "Gets details of a specific stock holding by ticker symbol (e.g. 'MU', 'BBCA'). Only use 'ALL' when the user explicitly asks to view all portfolio holdings.",
         "parameters": [
             {
                 "name": "ticker",
                 "type": "string",
                 "required": True,
-                "description": "Simbol ticker saham yang dicari (misal 'BBCA', 'MU') atau gunakan 'ALL' untuk melihat seluruh posisi."
+                "description": "The stock ticker symbol to look up, e.g. 'MU' or 'BBCA'. Use 'ALL' ONLY if user asks to see all holdings."
             }
         ],
         "example_queries": [
@@ -549,13 +549,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Menghitung performa return berbobot portofolio beserta breakdown per emiten untuk periode harian, mingguan, bulanan, YTD, atau tahunan.",
+        "description": "Gets portfolio performance (return percentage) for a given time period. Valid periods: daily, weekly, monthly, ytd, yearly.",
         "parameters": [
             {
                 "name": "period",
                 "type": "string",
                 "required": True,
-                "description": "Periode performa: 'daily', 'weekly', 'monthly', 'ytd', atau 'yearly'."
+                "description": "Time period: daily, weekly, monthly, ytd, or yearly."
             }
         ],
         "example_queries": [
@@ -574,7 +574,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Menghitung diversifikasi portofolio berdasarkan breakdown sektor industri dan bobot persentase tiap saham.",
+        "description": "Gets the portfolio allocation breakdown by sector and stock. Use ONLY when user explicitly asks about overall portfolio allocation.",
         "parameters": [],
         "example_queries": [
             "Bagaimana alokasi sektor dalam portofolio saya?",
@@ -592,13 +592,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Mengidentifikasi saham yang bergerak paling menguntungkan (top gainers) atau paling tertekan (top losers) di dalam portofolio pengguna hari ini.",
+        "description": "Gets the top movers (gainers and losers) in the portfolio. Use ONLY when user explicitly asks about portfolio movers.",
         "parameters": [
             {
                 "name": "direction",
                 "type": "string",
                 "required": True,
-                "description": "Filter arah pergerakan: 'gainers', 'losers', atau 'all'."
+                "description": "Filter direction: 'gainers', 'losers', or 'all'."
             }
         ],
         "example_queries": [
@@ -617,13 +617,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
-        "description": "Menghitung keuntungan atau kerugian belum terealisasi (floating P&L dalam nominal Rupiah dan persentase) per saham atau total portofolio.",
+        "description": "Gets the unrealized gain or loss for a specific stock ticker symbol (e.g. 'MU') or the entire portfolio ('ALL').",
         "parameters": [
             {
                 "name": "ticker",
                 "type": "string",
                 "required": True,
-                "description": "Simbol ticker saham (misal 'MU', 'BBCA') atau gunakan 'ALL' untuk total portofolio."
+                "description": "Stock ticker to check, e.g. 'MU'. Use 'ALL' ONLY if user asks for full portfolio P&L."
             }
         ],
         "example_queries": [
@@ -642,13 +642,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels + Backend Yahoo API",
         "latency": "50 - 150 ms",
         "privacy": "Anonymized Ticker Request",
-        "description": "Mengambil harga saham terkini (live / real-time quote), perubahan 24 jam, persentase naik/turun, rentang harga harian (day low/high), dan volume perdagangan.",
+        "description": "Gets the current stock quote including price, change, volume, and intraday range for a given ticker symbol.",
         "parameters": [
             {
                 "name": "ticker",
                 "type": "string",
                 "required": True,
-                "description": "Kode emiten saham (misal 'BBCA', 'TLKM', 'NVDA', 'AAPL')."
+                "description": "The stock ticker symbol, e.g. 'BBCA', 'GOTO', 'TLKM', 'AAPL', 'NVDA'."
             }
         ],
         "example_queries": [
@@ -667,19 +667,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Apple FoundationModels (Swift Native)",
         "latency": "0 ms (Cached) / 100 ms",
         "privacy": "Anonymized Ticker Request",
-        "description": "Mengambil persentase return historis saham individu untuk periode harian, mingguan, bulanan, year-to-date (YTD), atau 1 tahun.",
+        "description": "Gets the performance (return percentage) of a stock over different time periods: daily, weekly, monthly, ytd, yearly.",
         "parameters": [
             {
                 "name": "ticker",
                 "type": "string",
                 "required": True,
-                "description": "Simbol ticker saham (misal 'BBCA', 'ASII')."
+                "description": "The stock ticker symbol."
             },
             {
                 "name": "period",
                 "type": "string",
                 "required": True,
-                "description": "Rentang waktu: 'daily', 'weekly', 'monthly', 'ytd', 'yearly', atau 'all'."
+                "description": "Time period: 'daily', 'weekly', 'monthly', 'ytd', 'yearly', or 'all'."
             }
         ],
         "example_queries": [
@@ -700,19 +700,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Google Gemini 1.5/3.6 Flash + Zilliz Milvus Vector RAG",
         "latency": "800 - 1,500 ms",
         "privacy": "Multi-Modal Synthesized & Grounded (Zero Hallucination)",
-        "description": "Agen riset cloud mendalam yang mengorkestrasi pencarian vektor Milvus (SEC 10-K/8-K, puluhan ribu artikel berita finansial), rasio valuasi fundamental live, dan sintesis multi-modal cerdas dengan bukti sitasi berita terverifikasi.",
+        "description": "Consults the specialized FinGent Cloud Research Agent (powered by Google Gemini with Vector RAG, SEC 10-K/8-K regulatory filings, live market fundamentals, and macroeconomic scenario simulation) for deep financial analysis, valuation assessments, SEC regulatory insights, or complex market research.",
         "parameters": [
             {
                 "name": "query",
                 "type": "string",
                 "required": True,
-                "description": "Pertanyaan riset finansial atau isu pasar mendalam."
+                "description": "The specific financial query, research topic, or complex question to analyze deeply."
             },
             {
                 "name": "ticker",
                 "type": "string",
                 "required": False,
-                "description": "Ticker saham spesifik yang menjadi fokus analisa (misal 'MU', 'BBCA', 'NVDA')."
+                "description": "Optional stock ticker symbol to focus the research on, e.g. 'BBCA', 'AAPL', 'NVDA', 'MU', 'GOTO'."
             }
         ],
         "example_queries": [
@@ -733,19 +733,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "200 - 400 ms",
         "privacy": "Dense Semantic Embeddings RAG",
-        "description": "Melakukan dense vector semantic search ke database Zilliz Cloud Milvus untuk menemukan artikel berita finansial, pengumuman bursa, dan pengungkapan regulasi SEC.",
+        "description": "Performs dense vector semantic search across news articles, market disclosures, and SEC filings (Form 10-K, 10-Q, 8-K) stored in Zilliz Cloud Milvus.",
         "parameters": [
             {
                 "name": "query",
                 "type": "string",
                 "required": True,
-                "description": "Topik atau kata kunci pencarian finansial semantik."
+                "description": "Financial topic or semantic keyword query."
             },
             {
                 "name": "limit",
                 "type": "integer",
                 "required": False,
-                "description": "Jumlah dokumen teratas yang dikembalikan (default: 5)."
+                "description": "Maximum number of top matching documents to return (default: 5)."
             }
         ],
         "example_queries": [
@@ -764,19 +764,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "300 - 500 ms",
         "privacy": "Portfolio Exposure Simulation Engine",
-        "description": "Menghitung estimasi tingkat risiko dan proyeksi dampak skenario makroekonomi (kenaikan suku bunga The Fed / BI, inflasi tinggi, depresiasi Rupiah terhadap Dollar) terhadap saham-saham portofolio pengguna.",
+        "description": "Calculates estimated risk level and projected return impact of macroeconomic events (e.g., Fed interest rate hikes, inflation, currency devaluation, recession) against the user's specific stock portfolio holdings.",
         "parameters": [
             {
                 "name": "event",
                 "type": "string",
                 "required": True,
-                "description": "Skenario makroekonomi (misal: 'The Fed raises interest rates 50 bps', 'Inflasi naik tinggi', 'Depresiasi Rupiah')."
+                "description": "Macroeconomic scenario (e.g., 'The Fed raises interest rates 50 bps', 'High Inflation Surge', 'Rupiah Depreciation')."
             },
             {
                 "name": "user_id",
                 "type": "string",
                 "required": False,
-                "description": "ID pengguna portofolio (default: 'default_user')."
+                "description": "Portfolio user ID (default: 'default_user')."
             }
         ],
         "example_queries": [
@@ -795,13 +795,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "250 - 450 ms",
         "privacy": "Catalyst & Sentiment Analysis",
-        "description": "Menganalisis bias sentimen (BULLISH / BEARISH / NEUTRAL), katalis pemberitaan, dan mendeteksi saham-saham yang terpengaruh beserta live harga pasar.",
+        "description": "Analyzes sentiment score, bullish/bearish bias, and potential price impact of news headlines or market topics.",
         "parameters": [
             {
                 "name": "topic_or_headline",
                 "type": "string",
                 "required": True,
-                "description": "Judul berita, isu pasar, atau topik yang ingin dianalisis dampaknya."
+                "description": "News headline, market topic, or catalyst to analyze."
             }
         ],
         "example_queries": [
@@ -820,13 +820,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "300 - 600 ms",
         "privacy": "Market Fundamentals Aggregation",
-        "description": "Membandingkan 2 atau lebih saham secara berdampingan: harga, pergerakan 24 jam, valuasi P/E, PBV, ROE, EPS, Free Cash Flow, Dividend Yield, dan Market Cap.",
+        "description": "Compares two or more stocks side-by-side on price, valuation ratios, returns, and fundamentals.",
         "parameters": [
             {
                 "name": "tickers",
                 "type": "array<string>",
                 "required": True,
-                "description": "Daftar simbol ticker saham yang dibandingkan (misal ['BBCA', 'BMRI', 'BBRI'] atau ['AAPL', 'MSFT'])."
+                "description": "List of stock ticker symbols to compare (e.g., ['BBCA', 'BMRI'] or ['AAPL', 'MSFT'])."
             }
         ],
         "example_queries": [
@@ -845,13 +845,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "150 - 300 ms",
         "privacy": "Market Fundamentals Aggregation",
-        "description": "Mengambil metrik valuasi lengkap: Trailing P/E, Forward P/E, Price to Book (PBV), Return on Equity (ROE), EPS, Free Cash Flow, Dividend Yield, dan Kapitalisasi Pasar.",
+        "description": "Retrieves key financial multiples and fundamental metrics: Trailing P/E, Forward P/E, PBV, ROE, EPS, Free Cash Flow, Dividend Yield, and Market Cap.",
         "parameters": [
             {
                 "name": "ticker_or_name",
                 "type": "string",
                 "required": True,
-                "description": "Kode emiten atau nama perusahaan (misal 'BBCA', 'TLKM', 'AAPL')."
+                "description": "Stock ticker symbol or company name (e.g., 'BBCA', 'TLKM', 'AAPL')."
             }
         ],
         "example_queries": [
@@ -870,19 +870,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "100 - 200 ms",
         "privacy": "Public Equities Search",
-        "description": "Pencarian saham cerdas berdasarkan nama perusahaan, alias brand, atau simbol ticker (misal 'bca' -> BBCA.JK, 'micron' -> MU).",
+        "description": "Searches stocks by company name, brand alias, or ticker symbol (e.g. 'micron', 'apple', 'bca'). Returns full quote information for top matching stocks.",
         "parameters": [
             {
                 "name": "query",
                 "type": "string",
                 "required": True,
-                "description": "Nama perusahaan atau query pencarian."
+                "description": "Company name or search query."
             },
             {
                 "name": "limit",
                 "type": "integer",
                 "required": False,
-                "description": "Batas hasil pencarian (default: 5)."
+                "description": "Search results limit (default: 5)."
             }
         ],
         "example_queries": [
@@ -901,13 +901,13 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "150 - 300 ms",
         "privacy": "Bursa Composite Market Data",
-        "description": "Mengambil daftar saham top gainers, top losers, dan pergerakan indeks acuan IHSG atau pasar global.",
+        "description": "Retrieves top market gainers, losers, and benchmark index performance (IHSG).",
         "parameters": [
             {
                 "name": "mover_type",
                 "type": "string",
                 "required": False,
-                "description": "'gainers' untuk saham tercuan atau 'losers' untuk saham tertekan (default: 'gainers')."
+                "description": "'gainers' for top gainers or 'losers' for top losers (default: 'gainers')."
             }
         ],
         "example_queries": [
@@ -926,19 +926,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
         "latency": "200 - 400 ms",
         "privacy": "Personalized to User Portfolio",
-        "description": "Mengambil berita terkini yang secara khusus difilter hanya untuk saham-saham yang dimiliki di portofolio aktif pengguna.",
+        "description": "Retrieves recent financial news articles specifically related to stocks in the user's active portfolio holdings.",
         "parameters": [
             {
                 "name": "user_id",
                 "type": "string",
                 "required": False,
-                "description": "ID pengguna (default: 'default_user')."
+                "description": "User ID (default: 'default_user')."
             },
             {
                 "name": "ticker",
                 "type": "string",
                 "required": False,
-                "description": "Filter opsional untuk ticker spesifik."
+                "description": "Optional filter for specific ticker symbol."
             }
         ],
         "example_queries": [
@@ -956,19 +956,19 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "execution_engine": "Enterprise Data Warehouse (BigQuery / Lakehouse)",
         "latency": "100 - 300 ms",
         "privacy": "Columnar Historical Analytics Engine",
-        "description": "Menganalisis pergerakan harga historis saham dari Data Warehouse: menghitung Moving Average (MA20, MA50, MA200), mendeteksi sinyal Golden Cross / Death Cross, momentum RSI 14 (Overbought/Oversold), Support/Resistance 60 hari, dan lonjakan volume breakout.",
+        "description": "Performs quantitative technical analysis and trend assessment for a stock ticker. Calculates moving averages (MA20, MA50, MA200), Golden Cross vs Death Cross breakout signals, RSI 14 momentum, and dynamic support & resistance levels from historical warehouse data.",
         "parameters": [
             {
                 "name": "ticker",
                 "type": "string",
                 "required": True,
-                "description": "Simbol kode emiten saham (misal: 'BBCA', 'NVDA', 'TLKM', 'MU')."
+                "description": "Stock ticker symbol (e.g., 'BBCA', 'NVDA', 'TLKM', 'MU')."
             },
             {
                 "name": "timeframe",
                 "type": "string",
                 "required": False,
-                "description": "Periode timeframe analisis (default: '3M')."
+                "description": "Technical analysis timeframe period (default: '3M')."
             }
         ],
         "example_queries": [

@@ -244,29 +244,29 @@ export const AppToolsView: React.FC = () => {
           {filteredTools.map(tool => {
             const badge = getTierBadge(tool.tier);
             return (
-              <div key={tool.id} className="tool-card glass-panel" id={tool.id}>
+              <div key={tool.id} className="tool-card" id={tool.id}>
                 {/* Top header of card */}
                 <div className="tool-card-header">
                   <div className="tool-title-row">
                     <div className="tool-symbol-icon">
                       {tool.tier === 'on_device' ? '📱' : tool.tier === 'cloud_agent' ? '☁️' : '🌐'}
                     </div>
-                    <div>
-                      <div className="tool-display-name">{tool.display_name}</div>
-                      <div className="tool-raw-name font-mono">{tool.name}</div>
+                    <div className="tool-title-col">
+                      <div className="tool-func-name font-mono">
+                        {tool.name.endsWith('()') ? tool.name : `${tool.name}()`}
+                      </div>
+                      <div 
+                        className="tier-badge"
+                        style={{
+                          color: badge.color,
+                          backgroundColor: badge.bg,
+                          borderColor: badge.border
+                        }}
+                      >
+                        {badge.icon}
+                        <span>{badge.label}</span>
+                      </div>
                     </div>
-                  </div>
-
-                  <div 
-                    className="tier-badge"
-                    style={{
-                      color: badge.color,
-                      backgroundColor: badge.bg,
-                      borderColor: badge.border
-                    }}
-                  >
-                    {badge.icon}
-                    <span>{badge.label}</span>
                   </div>
                 </div>
 

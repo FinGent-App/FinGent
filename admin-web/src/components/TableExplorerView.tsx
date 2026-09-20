@@ -267,7 +267,7 @@ export const TableExplorerView: React.FC = () => {
               <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Detail Baris PostgreSQL ({activeTable})</h3>
               <button
                 onClick={() => setInspectRow(null)}
-                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>

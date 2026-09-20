@@ -102,7 +102,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
                 return (
                   <div key={tool} className="dist-item">
                     <div className="dist-labels">
-                      <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>{tool}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>{tool}</span>
                       <span style={{ color: 'var(--text-secondary)' }}>{count} calls ({pct}%)</span>
                     </div>
                     <div className="dist-track">
@@ -130,7 +130,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
             <div>
               <div className="dist-labels">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#fff' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
                   IDX / Indonesia Stocks
                 </span>
@@ -151,7 +151,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
 
             <div>
               <div className="dist-labels">
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#fff' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-primary)' }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }} />
                   US / Global Equities
                 </span>
@@ -188,7 +188,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
         {logs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🤖</div>
-            <div style={{ fontWeight: 600, color: '#fff', marginBottom: '0.25rem' }}>Belum ada riwayat percakapan</div>
+            <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Belum ada riwayat percakapan</div>
             <div style={{ fontSize: '0.85rem' }}>
               Ajukan pertanyaan di aplikasi iPhone Anda (misal: "Kenapa saham BBCA turun?") untuk melihat alur eksekusi tool di sini secara live!
             </div>

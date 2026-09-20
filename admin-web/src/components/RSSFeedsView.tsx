@@ -86,7 +86,7 @@ export const RSSFeedsView: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                 {feed.name}
               </div>
 
@@ -94,9 +94,9 @@ export const RSSFeedsView: React.FC = () => {
                 Kategori: {feed.category}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0.85rem', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0.85rem', background: 'rgba(255, 255, 255, 0.65)', border: '1px solid rgba(0, 0, 0, 0.06)', borderRadius: '8px', fontSize: '0.8rem', marginBottom: '0.85rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Artikel di PostgreSQL:</span>
-                <span style={{ fontWeight: 700, color: '#fff', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
                   {feed.articles_in_db.toLocaleString()}
                 </span>
               </div>
