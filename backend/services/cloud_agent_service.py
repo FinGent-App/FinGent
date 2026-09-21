@@ -128,6 +128,52 @@ async def consult_cloud_analyst(
                 })
             news_context = f"VERIFIED NEWS HEADLINES & CATALYSTS FOR {target_ticker}:\n" + "\n".join(news_lines)
 
+    # Step 2.7: Fetch Quantitative Technical Indicators from Gold Layer / BigQuery Lakehouse
+    gold_technical_context = ""
+    if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
+        try:
+            import sys
+            from pathlib import Path
+            try:
+                from pipeline.warehouse.bigquery_client import warehouse_client
+            except ModuleNotFoundError:
+                parent_dir = str(Path(__file__).resolve().parent.parent.parent)
+                if parent_dir not in sys.path:
+                    sys.path.insert(0, parent_dir)
+                from pipeline.warehouse.bigquery_client import warehouse_client
+
+            gold_analysis = warehouse_client.get_technical_analysis(target_ticker)
+            if gold_analysis and gold_analysis.get("status") != "NO_DATA":
+                ma = gold_analysis.get("moving_averages", {})
+                rsi = gold_analysis.get("momentum_rsi", {})
+                levels = gold_analysis.get("price_levels", {})
+                vol = gold_analysis.get("volume_analysis", {})
+
+                gold_technical_context = (
+                    f"QUANTITATIVE TECHNICAL INDICATORS FROM DATA LAKEHOUSE (GOLD LAYER / BIGQUERY DWH) FOR {target_ticker}:\n"
+                    f"- Signal: {gold_analysis.get('signal')}\n"
+                    f"- Trend Bias: {gold_analysis.get('trend_bias')}\n"
+                    f"- Moving Averages: MA20: {ma.get('ma_20'):,} | MA50: {ma.get('ma_50'):,} | MA200: {ma.get('ma_200', 'N/A')}\n"
+                    f"- Golden Cross Signal: {'ACTIVE (MA20 > MA50 - Bullish Momentum)' if ma.get('golden_cross_active') else 'INACTIVE / Death Cross'}\n"
+                    f"- RSI 14-Day Momentum: {rsi.get('rsi_14')} ({rsi.get('condition')})\n"
+                    f"- Dynamic Support: {levels.get('support_60d'):,} | Resistance: {levels.get('resistance_60d'):,}\n"
+                    f"- Volume Breakout Ratio: {vol.get('breakout_ratio')}x\n"
+                    f"- Summary: {gold_analysis.get('summary')}\n"
+                )
+
+                citations.append({
+                    "id": f"gold_dwh_{target_ticker}",
+                    "title": f"BigQuery Gold Layer Technical Analysis ({target_ticker})",
+                    "doc_type": "technical_analysis",
+                    "badge_label": "BigQuery (Gold Layer)",
+                    "source_url": "gs://fingent-lakehouse-508006/gold/technical_indicators_latest.parquet",
+                    "score": 1.0,
+                    "ticker": target_ticker
+                })
+                logger.info("✅ Injected Gold Layer DWH technicals into research context for %s", target_ticker)
+        except Exception as e:
+            logger.warning("Failed to fetch Gold Layer technical indicators for %s: %s", target_ticker, str(e))
+
     # Step 3: Fetch User Portfolio Context (Strictly Scoped)
     portfolio_context = ""
     try:
@@ -185,6 +231,7 @@ async def consult_cloud_analyst(
         "   - If the user holds that specific stock, you may briefly relate the catalyst to their position in that stock.\n"
         "   - STRICTLY FORBIDDEN: Do NOT mention, assume, or read other unrelated portfolio holdings (such as AAPL, BBCA, etc.). They have no relevance to this inquiry.\n"
         "2. Do not hallucinate or invent numbers. Clearly cite news headlines or SEC filings when making statements.\n"
+        "3. When technical trends, moving averages, or price momentum are relevant, explicitly reference the QUANTITATIVE TECHNICAL INDICATORS from the Data Lakehouse (Gold Layer / BigQuery) such as Moving Averages (MA20/50), RSI 14 condition, Support/Resistance levels, and Golden Cross status.\n"
         "Keep the output structured with sections: Ringkasan Utama, Katalis Berita & Analisis Finansial, dan Implikasi Strategis bagi Investor."
     )
 
@@ -193,6 +240,8 @@ async def consult_cloud_analyst(
         combined_evidence.append(news_context)
     if market_context:
         combined_evidence.append(market_context)
+    if gold_technical_context:
+        combined_evidence.append(gold_technical_context)
     if portfolio_context:
         combined_evidence.append(portfolio_context)
     if macro_context:
