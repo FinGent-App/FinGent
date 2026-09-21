@@ -85,24 +85,9 @@ def run_cleanser_pipeline(market: str = "ALL"):
     """
     logger.info("Starting News Cleanser & Deduplication ETL for market: %s", market)
 
-    # 1. Locate Bronze files
-    bronze_dir = Path("data/lakehouse/bronze/news")
-    if not bronze_dir.exists():
-        logger.warning("No bronze directory found at %s. Creating directory...", bronze_dir)
-        bronze_dir.mkdir(parents=True, exist_ok=True)
-        return []
-
-    raw_articles = []
-    for p in bronze_dir.glob("**/*.json"):
-        try:
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list):
-                    raw_articles.extend(data)
-                elif isinstance(data, dict):
-                    raw_articles.append(data)
-        except Exception as e:
-            logger.warning("Failed to read %s: %s", p, str(e))
+    # 1. Locate Bronze files (queries GCS gs://fingent-lakehouse-508006/bronze and local cache)
+    from pipeline.storage.adls_client import data_lake
+    raw_articles = data_lake.read_bronze_files("news")
 
     logger.info("Found %d raw articles in Bronze Layer.", len(raw_articles))
     if not raw_articles:

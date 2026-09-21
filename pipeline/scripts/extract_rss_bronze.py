@@ -72,12 +72,14 @@ def extract_rss_to_bronze(market_filter: str = "ALL", limit_feeds: int = 10):
                 if parsed_items:
                     safe_name = feed["name"].lower().replace(" ", "_")
                     filename = f"{safe_name}_{int(now.timestamp())}.json"
-                    file_path = bronze_out_dir / filename
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        json.dump(parsed_items, f, indent=2)
+                    payload_bytes = json.dumps(parsed_items, indent=2).encode("utf-8")
+
+                    from pipeline.storage.adls_client import data_lake
+                    subpath = f"news/year={year}/month={month}/day={day}/{filename}"
+                    uri = data_lake.upload_raw_bronze(subpath, payload_bytes)
 
                     extracted_count += len(parsed_items)
-                    logger.info("Saved %d raw items from %s to Bronze at %s", len(parsed_items), feed["name"], file_path)
+                    logger.info("Saved %d raw items from %s to Bronze at %s", len(parsed_items), feed["name"], uri)
 
             except Exception as e:
                 logger.warning("Failed to extract %s: %s", feed["name"], str(e))

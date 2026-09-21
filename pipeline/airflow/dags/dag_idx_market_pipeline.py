@@ -30,19 +30,19 @@ with DAG(
     # Task 1: Extract IDX RSS feeds into Bronze Lake
     extract_idx_bronze = BashOperator(
         task_id='extract_idx_rss_bronze',
-        bash_command='python3 -m pipeline.scripts.extract_rss_bronze --market IDX'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.scripts.extract_rss_bronze --market IDX'
     )
 
     # Task 2: Distributed PySpark Data Cleansing & Entity Extraction into Silver Parquet
     pyspark_cleanse_silver_idx = BashOperator(
         task_id='pyspark_cleanse_silver_idx',
-        bash_command='python3 -m pipeline.spark.spark_news_cleanser --market IDX'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.spark.spark_news_cleanser --market IDX'
     )
 
     # Task 3: Vectorize & Upsert to Milvus Vector DB
     sync_milvus_rag_idx = BashOperator(
         task_id='sync_milvus_rag_idx',
-        bash_command='python3 -m pipeline.scripts.sync_milvus_silver --market IDX'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.scripts.sync_milvus_silver --market IDX'
     )
 
     extract_idx_bronze >> pyspark_cleanse_silver_idx >> sync_milvus_rag_idx

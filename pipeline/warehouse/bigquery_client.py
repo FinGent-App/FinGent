@@ -44,17 +44,18 @@ class FinGentWarehouse:
         """
         clean_ticker = ticker.strip().upper()
 
-        # 1. First, check if we have pre-calculated Gold layer features
-        gold_path = "data/lakehouse/gold/technical_indicators_latest.parquet"
-        if os.path.exists(gold_path):
-            try:
-                df = pd.read_parquet(gold_path)
-                ticker_df = df[df["ticker"] == clean_ticker].sort_values("trade_date")
-                if not ticker_df.empty:
-                    latest = ticker_df.iloc[-1].to_dict()
+        # 1. First, check if we have pre-calculated Gold layer features (GCS or local)
+        try:
+            from pipeline.storage.adls_client import data_lake
+            gold_records = data_lake.read_gold_records("technical_indicators_latest")
+            if gold_records:
+                ticker_records = [r for r in gold_records if r.get("ticker") == clean_ticker]
+                if ticker_records:
+                    ticker_records.sort(key=lambda x: str(x.get("trade_date", "")))
+                    latest = ticker_records[-1]
                     return self._format_analysis_summary(clean_ticker, latest)
-            except Exception as e:
-                logger.warning("Error reading gold technicals: %s", str(e))
+        except Exception as e:
+            logger.warning("Error reading gold technicals: %s", str(e))
 
         # 2. Fallback: on-demand calculation via yfinance
         try:

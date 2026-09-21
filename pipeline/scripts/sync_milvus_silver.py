@@ -16,33 +16,17 @@ logger = logging.getLogger("FinGent.MilvusSync")
 
 
 def sync_silver_to_milvus(market: str = "ALL"):
-    silver_dir = Path("data/lakehouse/silver")
-    if not silver_dir.exists():
-        logger.warning("Silver layer not found at %s. Nothing to sync.", silver_dir)
+    from pipeline.storage.adls_client import data_lake
+    all_records = data_lake.read_silver_records()
+
+    if market != "ALL":
+        all_records = [r for r in all_records if r.get("market") == market]
+
+    if not all_records:
+        logger.warning("No silver records found in GCS or local layer for market %s.", market)
         return 0
 
-    parquet_files = list(silver_dir.glob("**/*.parquet"))
-    if not parquet_files:
-        # Check json fallback
-        parquet_files = list(silver_dir.glob("**/*.json"))
-
-    if not parquet_files:
-        logger.warning("No silver records found to sync.")
-        return 0
-
-    all_records = []
-    for pf in parquet_files:
-        try:
-            if pf.suffix == ".parquet":
-                df = pd.read_parquet(pf)
-                all_records.extend(df.to_dict(orient="records"))
-            else:
-                with open(pf, "r", encoding="utf-8") as f:
-                    all_records.extend(json.load(f))
-        except Exception as e:
-            logger.warning("Failed to load silver file %s: %s", pf, str(e))
-
-    logger.info("Loaded %d cleaned articles from Silver layer for vector indexing.", len(all_records))
+    logger.info("Loaded %d cleaned articles from Silver layer (GCS gs://fingent-lakehouse-508006/silver) for vector indexing.", len(all_records))
 
     # Prepare Milvus / FastEmbed embeddings
     try:

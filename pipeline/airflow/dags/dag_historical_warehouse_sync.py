@@ -30,7 +30,7 @@ with DAG(
     # Task 1: PySpark Technical Indicators Calculation
     calculate_technicals = BashOperator(
         task_id='calculate_technicals_gold',
-        bash_command='python3 -m pipeline.spark.spark_technical_calculator'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.spark.spark_technical_calculator'
     )
 
     # Task 2: Data Quality & Sanity Check

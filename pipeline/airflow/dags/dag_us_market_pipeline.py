@@ -30,19 +30,19 @@ with DAG(
     # Task 1: Extract US RSS feeds into Bronze Lake
     extract_us_bronze = BashOperator(
         task_id='extract_us_rss_bronze',
-        bash_command='python3 -m pipeline.scripts.extract_rss_bronze --market US'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.scripts.extract_rss_bronze --market US'
     )
 
     # Task 2: Distributed PySpark Data Cleansing & Entity Extraction into Silver Parquet
     pyspark_cleanse_silver = BashOperator(
         task_id='pyspark_cleanse_silver',
-        bash_command='python3 -m pipeline.spark.spark_news_cleanser --market US'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.spark.spark_news_cleanser --market US'
     )
 
     # Task 3: Vectorize & Upsert to Milvus Vector DB
     sync_milvus_rag = BashOperator(
         task_id='sync_milvus_rag',
-        bash_command='python3 -m pipeline.scripts.sync_milvus_silver --market US'
+        bash_command='export PYTHONPATH=/home/airflow/gcs/dags:$PWD:$PYTHONPATH; cd /home/airflow/gcs/dags 2>/dev/null || true; python3 -m pipeline.scripts.sync_milvus_silver --market US'
     )
 
     extract_us_bronze >> pyspark_cleanse_silver >> sync_milvus_rag
