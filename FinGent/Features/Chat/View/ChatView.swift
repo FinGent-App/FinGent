@@ -14,20 +14,14 @@ struct ChatView: View {
             VStack(spacing: 0) {
                 if !isChatting {
                     Spacer(minLength: 0)
-                }
 
-                HStack(spacing: 0) {
-                    if !isChatting {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        headerText(isChatting: false)
                         Spacer(minLength: 0)
                     }
-
-                    headerText(isChatting: isChatting)
-
-                    Spacer(minLength: 0)
+                    .padding(.bottom, 24)
                 }
-                .padding(.leading, isChatting ? 20 : 0)
-                .padding(.top, isChatting ? 12 : 0)
-                .padding(.bottom, isChatting ? 8 : 24)
 
                 if isChatting {
                     messageList
@@ -66,6 +60,23 @@ struct ChatView: View {
         }
         .sheet(item: $selectedSafariURL) { item in
             SafariView(url: item.url)
+        }
+        .overlay(alignment: .top) {
+            if isChatting {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color.black.opacity(0.25), location: 0.0),
+                        .init(color: Color.black.opacity(0.12), location: 0.45),
+                        .init(color: Color.black.opacity(0.03), location: 0.8),
+                        .init(color: Color.clear, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 105)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+            }
         }
         .preferredColorScheme(.light)
     }
@@ -109,7 +120,7 @@ struct ChatView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 4)
+                .padding(.top, 148)
                 .padding(.bottom, 16)
             }
             .onChange(of: viewModel.messages.count) { _, _ in

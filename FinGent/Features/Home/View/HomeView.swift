@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var chatVM = AppContainer.shared.makeChatViewModel()
     @FocusState private var isChatInputFocused: Bool
     @State private var selectedSafariURL: IdentifiableURL? = nil
+    @State private var safeAreaTop: CGFloat = 59
 
     var onSelectChat: () -> Void = {}
     var onSelectSearch: (() -> Void)? = nil
@@ -38,6 +39,7 @@ struct HomeView: View {
             GeometryReader { geo in
                 let screenW = geo.size.width
                 let screenH = geo.size.height
+                let safeAreaTop = geo.safeAreaInsets.top
                 let safeAreaBottom = geo.safeAreaInsets.bottom
                 let screenBottomY = screenH + safeAreaBottom
                 let homeCircleY: CGFloat = screenH - 52
@@ -85,7 +87,8 @@ struct HomeView: View {
 
                     // 4. Chat View Overlay Content
                     if isChatActive {
-                        chatOverlayContent(screenW: screenW, screenH: screenH)
+                        chatOverlayContent(screenW: screenW, screenH: screenH, safeAreaTop: safeAreaTop)
+                            .ignoresSafeArea(edges: .top)
                             .zIndex(5)
                     }
 
@@ -103,6 +106,16 @@ struct HomeView: View {
                         .scaleEffect(isCircleVisible ? 1.0 : 0.82)
                         .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isCircleVisible)
                         .zIndex(10)
+                }
+                .onAppear {
+                    if geo.safeAreaInsets.top > 0 {
+                        self.safeAreaTop = geo.safeAreaInsets.top
+                    }
+                }
+                .onChange(of: geo.safeAreaInsets.top) { _, newTop in
+                    if newTop > 0 {
+                        self.safeAreaTop = newTop
+                    }
                 }
             }
             .toolbar {
@@ -229,6 +242,23 @@ struct HomeView: View {
             }
             .onChange(of: marketRepo.lastTick) { _, _ in
                 viewModel.refresh()
+            }
+        }
+        .overlay(alignment: .top) {
+            if isChatActive && !chatVM.messages.isEmpty {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color.black.opacity(0.25), location: 0.0),
+                        .init(color: Color.black.opacity(0.12), location: 0.45),
+                        .init(color: Color.black.opacity(0.03), location: 0.8),
+                        .init(color: Color.clear, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: safeAreaTop + 54)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
             }
         }
         .preferredColorScheme(.light)
@@ -530,11 +560,11 @@ struct HomeView: View {
     }
 
     @ViewBuilder
-    private func chatOverlayContent(screenW: CGFloat, screenH: CGFloat) -> some View {
+    private func chatOverlayContent(screenW: CGFloat, screenH: CGFloat, safeAreaTop: CGFloat) -> some View {
         let homeCircleY: CGFloat = screenH - 52
         let chatCircleY: CGFloat = homeCircleY - chatCircleElevation
 
-        ZStack {
+        ZStack(alignment: .top) {
             if chatVM.messages.isEmpty {
                 // Teks "What financial insights\ncan i give you today?" muncul smooth dari atas circle
                 VStack(spacing: 6) {
@@ -553,8 +583,7 @@ struct HomeView: View {
                 )
             } else {
                 // Daftar pesan chat jika percakapan aktif
-                chatMessageList
-                    .padding(.top, 54)
+                chatMessageList(safeAreaTop: safeAreaTop)
                     .padding(.bottom, 65)
             }
 
@@ -609,7 +638,7 @@ struct HomeView: View {
         .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 
-    private var chatMessageList: some View {
+    private func chatMessageList(safeAreaTop: CGFloat) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -621,9 +650,11 @@ struct HomeView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 4)
+                .padding(.top, (safeAreaTop * 2) + 40)
                 .padding(.bottom, 16)
             }
+            .offset(y: -safeAreaTop)
+            .padding(.bottom, -safeAreaTop)
             .onChange(of: chatVM.messages.count) { _, _ in
                 if let last = chatVM.messages.last {
                     withAnimation(.easeOut(duration: 0.3)) {
