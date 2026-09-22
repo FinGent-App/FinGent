@@ -67,8 +67,22 @@ def sync_silver_to_milvus(market: str = "ALL"):
 
         # Upsert to Milvus if connected
         try:
-            from services.milvus_service import get_milvus_client, COLLECTION_NAME
-            client = get_milvus_client()
+            from pymilvus import MilvusClient
+            milvus_uri = os.getenv("MILVUS_URI", "https://in03-6434b859fba728b.serverless.gcp-us-west1.cloud.zilliz.com")
+            milvus_token = os.getenv("MILVUS_TOKEN", "91aed176ff208a1389cbba47937902a4419da9402c4e2bde664f7cbe2b6611c429f2049f5795de0ab19a2de9f7a3fa3b910a2ad8")
+            collection_name = os.getenv("MILVUS_COLLECTION", "fingent_knowledge")
+
+            client = None
+            if milvus_uri and milvus_token:
+                client = MilvusClient(uri=milvus_uri, token=milvus_token)
+            else:
+                try:
+                    from services.milvus_service import get_milvus_client, COLLECTION_NAME
+                    client = get_milvus_client()
+                    collection_name = COLLECTION_NAME
+                except Exception:
+                    pass
+
             if client:
                 entities = []
                 for meta, emb in zip(metadata_list, embeddings):
@@ -84,11 +98,13 @@ def sync_silver_to_milvus(market: str = "ALL"):
                         "user_id": "system"
                     })
 
-                client.upsert(collection_name=COLLECTION_NAME, data=entities)
-                logger.info("✅ Upserted %d vector records to Zilliz Milvus collection '%s'", len(entities), COLLECTION_NAME)
+                client.upsert(collection_name=collection_name, data=entities)
+                logger.info("✅ Upserted %d vector records to Zilliz Milvus collection '%s'", len(entities), collection_name)
                 synced_count = len(entities)
+            else:
+                logger.warning("Milvus client could not be initialized. Skipping upsert.")
         except Exception as e:
-            logger.warning("Milvus cloud upsert deferred (offline mode): %s", str(e))
+            logger.warning("Milvus cloud upsert deferred: %s", str(e))
             synced_count = len(texts_to_embed)
 
     logger.info("Silver-to-Milvus Vector Sync complete. Processed %d documents.", len(texts_to_embed))
