@@ -15,7 +15,7 @@ from services.agent_tools_service import analyze_portfolio_impact, analyze_news_
 logger = logging.getLogger("FinGent.CloudAgent")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-3.6-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-flash-latest")
 
 # In-memory TTL Caches to avoid redundant expensive network calls
 # BigQuery Lakehouse Gold Layer technicals: 30 minutes TTL
@@ -323,31 +323,55 @@ async def consult_cloud_analyst(
         f"ANALYST BRIEFING:"
     )
 
-    # Invoke Gemini with fast generation config & asyncio thread execution
+    # Invoke Gemini with multi-model fallback chain to ensure resilience against quota/availability issues
     analyst_report = ""
-    used_model = GEMINI_MODEL
-    try:
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        generation_config = {
-            "max_output_tokens": 600,
-            "temperature": 0.2,
-            "top_p": 0.8
-        }
-        resp = await asyncio.to_thread(
-            model.generate_content,
-            full_prompt,
-            generation_config=generation_config
-        )
-        analyst_report = resp.text.strip()
-    except Exception as e:
-        logger.error("Gemini Cloud Agent generation failed: %s. Falling back to structured evidence.", str(e))
+    used_model = "Deterministic-Analyst-Fallback"
+    
+    preferred_model = os.getenv("GEMINI_MODEL", "models/gemini-flash-latest")
+    raw_candidates = [
+        preferred_model if preferred_model.startswith("models/") else f"models/{preferred_model}",
+        "models/gemini-flash-latest",
+        "models/gemini-3.5-flash",
+        "models/gemini-3.7-flash"
+    ]
+    seen_models = set()
+    models_to_try = [m for m in raw_candidates if not (m in seen_models or seen_models.add(m))]
+
+    for candidate in models_to_try:
+        try:
+            model = genai.GenerativeModel(candidate)
+            generation_config = {
+                "max_output_tokens": 800,
+                "temperature": 0.2,
+                "top_p": 0.8
+            }
+            resp = await asyncio.to_thread(
+                model.generate_content,
+                full_prompt,
+                generation_config=generation_config
+            )
+            if resp and resp.text:
+                analyst_report = resp.text.strip()
+                used_model = candidate
+                logger.info("✅ Successfully generated research briefing with model: %s", candidate)
+                break
+        except Exception as e:
+            logger.warning("⚠️ Gemini model %s failed: %s. Trying next candidate...", candidate, str(e))
+
+    if not analyst_report:
+        logger.error("All Gemini model candidates failed. Falling back to structured evidence synthesis.")
         used_model = "Deterministic-Analyst-Fallback"
+        news_summaries = []
+        for c in citations[:5]:
+            news_summaries.append(f"• **{c.get('title')}** ({c.get('badge_label', 'News')})\n  Sumber: {c.get('source_url', 'N/A')}")
+        
         analyst_report = (
             f"**Executive Research Summary for '{query}'**\n\n"
             f"{market_context}\n"
-            f"**Regulatory & News Evidence Found:**\n"
-            + "\n".join([f"- {c['title']} ({c['doc_type'].upper()}): {c.get('source_url', '')}" for c in citations[:3]])
-            + f"\n\n**Analyst Note:** Based on available SEC and market filings, review valuation multiples against target sector peers."
+            f"**Katalis Berita & Bukti Riset Terkini:**\n"
+            + "\n".join(news_summaries)
+            + f"\n\n{gold_technical_context}\n"
+            + f"**Catatan Analis:** Berdasarkan data pasar dan berita di atas, pantau katalis sektor dan level teknikal untuk konfirmasi momentum."
         )
     # Record execution trace for Admin Dashboard Observability & SSE
     latency_ms = int((time.time() - start_time) * 1000)
