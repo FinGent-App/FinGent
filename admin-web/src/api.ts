@@ -1,6 +1,6 @@
 import type { AgentLog, LLMOpsAnalytics, TableOverview, TableDataResponse, FeedStatus } from './types';
 
-export const API_BASE = import.meta.env.VITE_API_URL || localStorage.getItem('fingent_api_url') || 'http://localhost:8000';
+export const API_BASE = import.meta.env.VITE_API_URL || localStorage.getItem('fingent_api_url') || 'https://fingent-backend-238432086960.asia-southeast2.run.app';
 
 export async function fetchAnalytics(): Promise<LLMOpsAnalytics> {
   const res = await fetch(`${API_BASE}/api/v1/admin/analytics`);
