@@ -1,7 +1,9 @@
+import asyncio
 import os
 import time
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from cachetools import TTLCache
 import google.generativeai as genai
 from services.milvus_service import search_knowledge_hybrid
 from services.yahoo_service import get_stock_fundamentals, get_single_quote
@@ -15,6 +17,12 @@ logger = logging.getLogger("FinGent.CloudAgent")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-3.6-flash")
 
+# In-memory TTL Caches to avoid redundant expensive network calls
+# BigQuery Lakehouse Gold Layer technicals: 30 minutes TTL
+_bigquery_tech_cache: TTLCache = TTLCache(maxsize=100, ttl=1800)
+# Live Market Data & Fundamentals: 5 minutes TTL
+_market_data_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
+
 # Configure Google Generative AI client using REST transport for low latency & reliability
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY, transport="rest")
@@ -23,18 +31,149 @@ else:
     logger.warning("⚠️ GEMINI_API_KEY not found in environment. Cloud Agent running in fallback mode.")
 
 
+def _get_cached_market_data(ticker: str) -> str:
+    """Fetches stock fundamentals and quote with in-memory caching."""
+    if not ticker or ticker in ["MARKET", "GLOBAL"]:
+        return ""
+    if ticker in _market_data_cache:
+        logger.info("⚡ [CACHE HIT] Market data for %s retrieved from TTL cache", ticker)
+        return _market_data_cache[ticker]
+
+    try:
+        fund = get_stock_fundamentals(ticker)
+        quote = get_single_quote(ticker)
+        market_context = (
+            f"LIVE MARKET DATA FOR {ticker}:\n"
+            f"- Name: {fund.get('name', ticker)}\n"
+            f"- Price: ${quote.get('price', 0.0):.2f} (24h: {quote.get('change_percent', 0.0):+.2f}%)\n"
+            f"- Sector: {fund.get('sector', 'N/A')}\n"
+            f"- Forward P/E: {fund.get('forward_pe', 'N/A')}\n"
+            f"- Trailing P/E: {fund.get('pe_ratio', 'N/A')}\n"
+            f"- PBV Ratio: {fund.get('pbv_ratio', 'N/A')}\n"
+            f"- EPS: {fund.get('eps', 'N/A')}\n"
+            f"- Free Cash Flow: {fund.get('free_cashflow', 'N/A')}\n"
+            f"- Market Cap: ${fund.get('market_cap', 0.0):,.0f}\n"
+        )
+        _market_data_cache[ticker] = market_context
+        return market_context
+    except Exception as e:
+        logger.warning("Failed to fetch live market context for %s: %s", ticker, str(e))
+        return ""
+
+
+def _get_cached_gold_technicals(ticker: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """Fetches BigQuery Gold Layer technical indicators with in-memory caching."""
+    if not ticker or ticker in ["MARKET", "GLOBAL"]:
+        return "", []
+    if ticker in _bigquery_tech_cache:
+        logger.info("⚡ [CACHE HIT] BigQuery Gold Layer technicals for %s retrieved from TTL cache", ticker)
+        return _bigquery_tech_cache[ticker]
+
+    try:
+        import sys
+        from pathlib import Path
+        try:
+            from pipeline.warehouse.bigquery_client import warehouse_client
+        except ModuleNotFoundError:
+            parent_dir = str(Path(__file__).resolve().parent.parent.parent)
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+            from pipeline.warehouse.bigquery_client import warehouse_client
+
+        gold_analysis = warehouse_client.get_technical_analysis(ticker)
+        if gold_analysis and gold_analysis.get("status") != "NO_DATA":
+            ma = gold_analysis.get("moving_averages", {})
+            rsi = gold_analysis.get("momentum_rsi", {})
+            levels = gold_analysis.get("price_levels", {})
+            vol = gold_analysis.get("volume_analysis", {})
+
+            context = (
+                f"QUANTITATIVE TECHNICAL INDICATORS FROM DATA LAKEHOUSE (GOLD LAYER / BIGQUERY DWH) FOR {ticker}:\n"
+                f"- Signal: {gold_analysis.get('signal')}\n"
+                f"- Trend Bias: {gold_analysis.get('trend_bias')}\n"
+                f"- Moving Averages: MA20: {ma.get('ma_20'):,} | MA50: {ma.get('ma_50'):,} | MA200: {ma.get('ma_200', 'N/A')}\n"
+                f"- Golden Cross Signal: {'ACTIVE (MA20 > MA50 - Bullish Momentum)' if ma.get('golden_cross_active') else 'INACTIVE / Death Cross'}\n"
+                f"- RSI 14-Day Momentum: {rsi.get('rsi_14')} ({rsi.get('condition')})\n"
+                f"- Dynamic Support: {levels.get('support_60d'):,} | Resistance: {levels.get('resistance_60d'):,}\n"
+                f"- Volume Breakout Ratio: {vol.get('breakout_ratio')}x\n"
+                f"- Summary: {gold_analysis.get('summary')}\n"
+            )
+
+            citations = [{
+                "id": f"gold_dwh_{ticker}",
+                "title": f"BigQuery Gold Layer Technical Analysis ({ticker})",
+                "doc_type": "technical_analysis",
+                "badge_label": "BigQuery (Gold Layer)",
+                "source_url": "gs://fingent-lakehouse-508006/gold/technical_indicators_latest.parquet",
+                "score": 1.0,
+                "ticker": ticker
+            }]
+            result = (context, citations)
+            _bigquery_tech_cache[ticker] = result
+            return result
+    except Exception as e:
+        logger.warning("Failed to fetch Gold Layer technical indicators for %s: %s", ticker, str(e))
+    return "", []
+
+
+async def _fetch_verified_news_context(ticker: str) -> Tuple[str, List[Dict[str, Any]]]:
+    """Syncs and extracts verified news for the target ticker."""
+    if not ticker or ticker in ["MARKET", "GLOBAL"]:
+        return "", []
+
+    try:
+        try:
+            await sync_ticker_news(ticker)
+        except Exception as sync_err:
+            logger.warning("Failed to sync ticker news for %s: %s", ticker, str(sync_err))
+
+        raw_ticker_news = await get_news_by_ticker(ticker, limit=10)
+        is_idx = is_idx_ticker(ticker)
+        filtered_news = []
+        for n in raw_ticker_news:
+            src = n.get("source", "")
+            if is_idx:
+                if src in {"Nasdaq", "Investing.com", "GlobeNewswire", "PR Newswire", "Business Wire"}:
+                    continue
+            else:
+                if src in INDONESIAN_SOURCES:
+                    continue
+            filtered_news.append(n)
+
+        ticker_news = filtered_news[:5]
+        if ticker_news:
+            news_lines = []
+            news_citations = []
+            for n in ticker_news:
+                news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}\n  Ringkasan: {n.get('summary', '')}\n  Link: {n.get('url', '')}")
+                news_citations.append({
+                    "id": n.get("id"),
+                    "title": n.get("title"),
+                    "doc_type": "news",
+                    "badge_label": f"{n.get('source', 'News')} (RSS)",
+                    "source_url": n.get("url"),
+                    "score": 1.0,
+                    "ticker": ticker
+                })
+            return f"VERIFIED NEWS HEADLINES & CATALYSTS FOR {ticker}:\n" + "\n".join(news_lines), news_citations
+    except Exception as e:
+        logger.warning("Failed to fetch verified news for %s: %s", ticker, str(e))
+    return "", []
+
+
 async def consult_cloud_analyst(
     query: str,
     ticker: Optional[str] = None,
     user_id: str = "default_user"
 ) -> Dict[str, Any]:
     """
-    Executes deep cloud financial research by orchestrating:
+    Executes deep cloud financial research with parallelized I/O:
     1. Vector Semantic RAG across SEC filings, financial news, and portfolio records (Zilliz Milvus).
-    2. Live market valuation and fundamental ratios (Yahoo Finance).
-    3. Portfolio exposure calculation (Supabase PostgreSQL).
-    4. Multi-modal synthesis via Google Gemini 1.5/3.6 Flash.
-    Returns an executive research briefing for the iOS master agent.
+    2. Live market valuation and fundamental ratios (Yahoo Finance - Cached).
+    3. Verified RSS news headlines.
+    4. Quantitative technical indicators (BigQuery Gold Layer - Cached).
+    5. Portfolio exposure calculation (Supabase PostgreSQL).
+    6. Multi-modal synthesis via Google Gemini 1.5/3.6 Flash (Fast Token Generation).
     """
     start_time = time.time()
     clean_ticker = ticker.strip().upper() if ticker else None
@@ -43,15 +182,54 @@ async def consult_cloud_analyst(
         if extracted:
             clean_ticker = extracted[0]
 
+    target_ticker = clean_ticker
+    is_macro = any(k in query.lower() for k in ["fed", "rate", "bunga", "inflasi", "inflation", "dampak", "impact", "recession", "resesi"])
+
+    # --------------------------------------------------------------------------
+    # FAST PARALLEL CONCURRENT DATA GATHERING (asyncio.gather)
+    # --------------------------------------------------------------------------
+    rag_task = asyncio.to_thread(search_knowledge_hybrid, query_text=query, ticker=target_ticker, user_id=user_id, limit=5)
+    market_task = asyncio.to_thread(_get_cached_market_data, target_ticker) if target_ticker else None
+    news_task = _fetch_verified_news_context(target_ticker) if target_ticker else None
+    gold_task = asyncio.to_thread(_get_cached_gold_technicals, target_ticker) if target_ticker else None
+    holdings_task = get_user_holdings(user_id)
+    macro_task = analyze_portfolio_impact(user_id=user_id, event=query) if is_macro else None
+
+    # Execute all independent network and database queries concurrently
+    tasks = [rag_task, holdings_task]
+    if market_task:
+        tasks.append(market_task)
+    if news_task:
+        tasks.append(news_task)
+    if gold_task:
+        tasks.append(gold_task)
+    if macro_task:
+        tasks.append(macro_task)
+
+    gathered_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Unpack safely
+    idx = 0
+    raw_rag = gathered_results[idx]; idx += 1
+    raw_holdings = gathered_results[idx]; idx += 1
+    raw_market = gathered_results[idx] if market_task else ""; idx += (1 if market_task else 0)
+    raw_news = gathered_results[idx] if news_task else ("", []); idx += (1 if news_task else 0)
+    raw_gold = gathered_results[idx] if gold_task else ("", []); idx += (1 if gold_task else 0)
+    raw_macro = gathered_results[idx] if macro_task else None
+
+    rag_hits = raw_rag if isinstance(raw_rag, list) else []
+    holdings = raw_holdings if isinstance(raw_holdings, list) else []
+    market_context = raw_market if isinstance(raw_market, str) else ""
+    news_context, news_citations = raw_news if isinstance(raw_news, tuple) else ("", [])
+    gold_technical_context, gold_citations = raw_gold if isinstance(raw_gold, tuple) else ("", [])
+    macro_impact = raw_macro if isinstance(raw_macro, dict) else None
+
     citations = []
     rag_context_lines = []
 
-    # Step 1: Query Zilliz Milvus Vector RAG (SEC filings, News, Portfolio)
-    rag_hits = search_knowledge_hybrid(query_text=query, ticker=clean_ticker, user_id=user_id, limit=5)
-    
-    # Filter out portfolio documents of unrelated tickers when focusing on a specific stock
+    # Process Milvus RAG citations
     for h in rag_hits:
-        if clean_ticker and h.get("doc_type") == "portfolio" and h.get("ticker") != clean_ticker:
+        if target_ticker and h.get("doc_type") == "portfolio" and h.get("ticker") != target_ticker:
             continue
 
         citations.append({
@@ -68,173 +246,45 @@ async def consult_cloud_analyst(
             f"{h.get('content', '')}"
         )
 
-    # Step 2: Fetch Live Market Fundamentals & Quotes
-    market_context = ""
-    target_ticker = clean_ticker or (citations[0]["ticker"] if citations and citations[0].get("ticker") not in ["MARKET", "GLOBAL", None] else None)
-    if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
-        try:
-            fund = get_stock_fundamentals(target_ticker)
-            quote = get_single_quote(target_ticker)
-            market_context = (
-                f"LIVE MARKET DATA FOR {target_ticker}:\n"
-                f"- Name: {fund.get('name', target_ticker)}\n"
-                f"- Price: ${quote.get('price', 0.0):.2f} (24h: {quote.get('change_percent', 0.0):+.2f}%)\n"
-                f"- Sector: {fund.get('sector', 'N/A')}\n"
-                f"- Forward P/E: {fund.get('forward_pe', 'N/A')}\n"
-                f"- Trailing P/E: {fund.get('pe_ratio', 'N/A')}\n"
-                f"- PBV Ratio: {fund.get('pbv_ratio', 'N/A')}\n"
-                f"- EPS: {fund.get('eps', 'N/A')}\n"
-                f"- Free Cash Flow: {fund.get('free_cashflow', 'N/A')}\n"
-                f"- Market Cap: ${fund.get('market_cap', 0.0):,.0f}\n"
-            )
-        except Exception as e:
-            logger.warning("Failed to fetch live market context for %s: %s", target_ticker, str(e))
+    # Add News and BigQuery Gold citations
+    citations.extend(news_citations)
+    citations.extend(gold_citations)
 
-    # Step 2.5: Ingest & Retrieve Verified News for Target Ticker
-    news_context = ""
-    if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
-        try:
-            await sync_ticker_news(target_ticker)
-        except Exception as e:
-            logger.warning("Failed to sync ticker news for %s: %s", target_ticker, str(e))
-
-        raw_ticker_news = await get_news_by_ticker(target_ticker, limit=10)
-        is_idx = is_idx_ticker(target_ticker)
-        filtered_news = []
-        for n in raw_ticker_news:
-            src = n.get("source", "")
-            if is_idx:
-                if src in {"Nasdaq", "Investing.com", "GlobeNewswire", "PR Newswire", "Business Wire"}:
-                    continue
-            else:
-                if src in INDONESIAN_SOURCES:
-                    continue
-            filtered_news.append(n)
-
-        ticker_news = filtered_news[:5]
-        if ticker_news:
-            news_lines = []
-            for n in ticker_news:
-                news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}\n  Ringkasan: {n.get('summary', '')}\n  Link: {n.get('url', '')}")
-                # Add to citations for the iOS UI cards
-                citations.append({
-                    "id": n.get("id"),
-                    "title": n.get("title"),
-                    "doc_type": "news",
-                    "badge_label": f"{n.get('source', 'News')} (RSS)",
-                    "source_url": n.get("url"),
-                    "score": 1.0,
-                    "ticker": target_ticker
-                })
-            news_context = f"VERIFIED NEWS HEADLINES & CATALYSTS FOR {target_ticker}:\n" + "\n".join(news_lines)
-
-    # Step 2.7: Fetch Quantitative Technical Indicators from Gold Layer / BigQuery Lakehouse
-    gold_technical_context = ""
-    if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
-        try:
-            import sys
-            from pathlib import Path
-            try:
-                from pipeline.warehouse.bigquery_client import warehouse_client
-            except ModuleNotFoundError:
-                parent_dir = str(Path(__file__).resolve().parent.parent.parent)
-                if parent_dir not in sys.path:
-                    sys.path.insert(0, parent_dir)
-                from pipeline.warehouse.bigquery_client import warehouse_client
-
-            gold_analysis = warehouse_client.get_technical_analysis(target_ticker)
-            if gold_analysis and gold_analysis.get("status") != "NO_DATA":
-                ma = gold_analysis.get("moving_averages", {})
-                rsi = gold_analysis.get("momentum_rsi", {})
-                levels = gold_analysis.get("price_levels", {})
-                vol = gold_analysis.get("volume_analysis", {})
-
-                gold_technical_context = (
-                    f"QUANTITATIVE TECHNICAL INDICATORS FROM DATA LAKEHOUSE (GOLD LAYER / BIGQUERY DWH) FOR {target_ticker}:\n"
-                    f"- Signal: {gold_analysis.get('signal')}\n"
-                    f"- Trend Bias: {gold_analysis.get('trend_bias')}\n"
-                    f"- Moving Averages: MA20: {ma.get('ma_20'):,} | MA50: {ma.get('ma_50'):,} | MA200: {ma.get('ma_200', 'N/A')}\n"
-                    f"- Golden Cross Signal: {'ACTIVE (MA20 > MA50 - Bullish Momentum)' if ma.get('golden_cross_active') else 'INACTIVE / Death Cross'}\n"
-                    f"- RSI 14-Day Momentum: {rsi.get('rsi_14')} ({rsi.get('condition')})\n"
-                    f"- Dynamic Support: {levels.get('support_60d'):,} | Resistance: {levels.get('resistance_60d'):,}\n"
-                    f"- Volume Breakout Ratio: {vol.get('breakout_ratio')}x\n"
-                    f"- Summary: {gold_analysis.get('summary')}\n"
-                )
-
-                citations.append({
-                    "id": f"gold_dwh_{target_ticker}",
-                    "title": f"BigQuery Gold Layer Technical Analysis ({target_ticker})",
-                    "doc_type": "technical_analysis",
-                    "badge_label": "BigQuery (Gold Layer)",
-                    "source_url": "gs://fingent-lakehouse-508006/gold/technical_indicators_latest.parquet",
-                    "score": 1.0,
-                    "ticker": target_ticker
-                })
-                logger.info("✅ Injected Gold Layer DWH technicals into research context for %s", target_ticker)
-        except Exception as e:
-            logger.warning("Failed to fetch Gold Layer technical indicators for %s: %s", target_ticker, str(e))
-
-    # Step 3: Fetch User Portfolio Context (Strictly Scoped)
+    # Process Holdings Context
     portfolio_context = ""
-    try:
-        holdings = await get_user_holdings(user_id)
-        if holdings:
-            if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
-                # ONLY inspect holding for this specific stock if the user owns it
-                target_holding = next((h for h in holdings if h.get("ticker", "").upper() == target_ticker), None)
-                if target_holding:
-                    portfolio_context = (
-                        f"USER RELEVANT POSITION IN {target_ticker}:\n"
-                        f"• {target_ticker}: {target_holding.get('shares')} shares @ avg purchase ${target_holding.get('price_per_share', 0.0):.2f} "
-                        f"(Total Invested: ${target_holding.get('invested_amount', 0.0):.2f})\n"
-                        f"(STRICT INSTRUCTION: The user is only asking about {target_ticker}. Only mention this holding if relevant. DO NOT mention or reference other holdings.)"
-                    )
-                else:
-                    portfolio_context = f"USER POSITION IN {target_ticker}: User does not currently hold {target_ticker} in their portfolio."
+    if holdings:
+        if target_ticker and target_ticker not in ["MARKET", "GLOBAL"]:
+            target_holding = next((h for h in holdings if h.get("ticker", "").upper() == target_ticker), None)
+            if target_holding:
+                portfolio_context = (
+                    f"USER RELEVANT POSITION IN {target_ticker}:\n"
+                    f"• {target_ticker}: {target_holding.get('shares')} shares @ avg purchase ${target_holding.get('price_per_share', 0.0):.2f} "
+                    f"(Total Invested: ${target_holding.get('invested_amount', 0.0):.2f})\n"
+                    f"(STRICT INSTRUCTION: The user is only asking about {target_ticker}. Only mention this holding if relevant. DO NOT mention or reference other holdings.)"
+                )
             else:
-                # Only include all holdings if the query explicitly asks about the overall portfolio
-                lower_q = query.lower()
-                portfolio_keywords = ["portofolio", "portfolio", "holding", "semua saham", "aset", "total kekayaan", "alokasi"]
-                if any(kw in lower_q for kw in portfolio_keywords):
-                    holding_summaries = [
-                        f"• {h.get('ticker')}: {h.get('shares')} shares @ avg purchase ${h.get('price_per_share', 0.0):.2f} (Total Invested: ${h.get('invested_amount', 0.0):.2f})"
-                        for h in holdings
-                    ]
-                    portfolio_context = "USER PORTFOLIO HOLDINGS (Supabase PostgreSQL):\n" + "\n".join(holding_summaries)
-    except Exception as e:
-        logger.warning("Failed to fetch user holdings: %s", str(e))
+                portfolio_context = f"USER POSITION IN {target_ticker}: User does not currently hold {target_ticker} in their portfolio."
+        else:
+            lower_q = query.lower()
+            portfolio_keywords = ["portofolio", "portfolio", "holding", "semua saham", "aset", "total kekayaan", "alokasi"]
+            if any(kw in lower_q for kw in portfolio_keywords):
+                holding_summaries = [
+                    f"• {h.get('ticker')}: {h.get('shares')} shares @ avg purchase ${h.get('price_per_share', 0.0):.2f} (Total Invested: ${h.get('invested_amount', 0.0):.2f})"
+                    for h in holdings
+                ]
+                portfolio_context = "USER PORTFOLIO HOLDINGS (Supabase PostgreSQL):\n" + "\n".join(holding_summaries)
 
-    # Step 4: Macroeconomic Scenario Evaluation (if query mentions macro risks)
+    # Process Macro Context
     macro_context = ""
-    lower_q = query.lower()
-    if any(k in lower_q for k in ["fed", "rate", "bunga", "inflasi", "inflation", "dampak", "impact", "recession", "resesi"]):
-        try:
-            impact = await analyze_portfolio_impact(user_id=user_id, event=query)
-            macro_context = (
-                f"MACRO RISK SCENARIO ANALYSIS:\n"
-                f"- Scenario: {impact.get('event')}\n"
-                f"- Portfolio Exposure: {impact.get('exposure_percent')}%\n"
-                f"- Summary: {impact.get('analysis')}\n"
-            )
-        except Exception as e:
-            logger.warning("Macro scenario evaluation failed: %s", str(e))
+    if macro_impact:
+        macro_context = (
+            f"MACRO RISK SCENARIO ANALYSIS:\n"
+            f"- Scenario: {macro_impact.get('event')}\n"
+            f"- Portfolio Exposure: {macro_impact.get('exposure_percent')}%\n"
+            f"- Summary: {macro_impact.get('analysis')}\n"
+        )
 
-    # Step 5: Synthesize Research with Gemini Cloud Agent
-    system_prompt = (
-        "You are the FinGent Senior Wall Street Research Analyst (Cloud Research Agent). "
-        "You serve as the specialized cloud research co-pilot for the user's personal investment assistant. "
-        "Provide an authoritative, rigorous, objective, and concise financial research briefing in natural, professional Indonesian. "
-        "Ground your analysis strictly on the provided factual evidence (Latest News Headlines, Market Valuation, SEC Filings). "
-        "CRITICAL RULES FOR STOCK QUERIES:\n"
-        "1. When the user asks why a specific stock is rising/falling or its outlook (e.g. Micron / MU):\n"
-        "   - Focus PRIMARILY on the latest news headlines, company catalysts, industry developments (e.g. AI HBM memory demand, earnings, guidance), and market momentum for THAT specific stock.\n"
-        "   - If the user holds that specific stock, you may briefly relate the catalyst to their position in that stock.\n"
-        "   - STRICTLY FORBIDDEN: Do NOT mention, assume, or read other unrelated portfolio holdings (such as AAPL, BBCA, etc.). They have no relevance to this inquiry.\n"
-        "2. Do not hallucinate or invent numbers. Clearly cite news headlines or SEC filings when making statements.\n"
-        "3. When technical trends, moving averages, or price momentum are relevant, explicitly reference the QUANTITATIVE TECHNICAL INDICATORS from the Data Lakehouse (Gold Layer / BigQuery) such as Moving Averages (MA20/50), RSI 14 condition, Support/Resistance levels, and Golden Cross status.\n"
-        "Keep the output structured with sections: Ringkasan Utama, Katalis Berita & Analisis Finansial, dan Implikasi Strategis bagi Investor."
-    )
-
+    # Build synthesis evidence
     combined_evidence = []
     if news_context:
         combined_evidence.append(news_context)
@@ -251,6 +301,19 @@ async def consult_cloud_analyst(
 
     evidence_text = "\n\n".join(combined_evidence) if combined_evidence else "No external documents found in database."
 
+    system_prompt = (
+        "You are the FinGent Senior Wall Street Research Analyst (Cloud Research Agent). "
+        "Provide an authoritative, objective, and concise financial briefing in natural, professional Indonesian. "
+        "Ground your analysis strictly on the provided factual evidence (Latest News Headlines, Market Valuation, SEC Filings). "
+        "CRITICAL RULES:\n"
+        "1. When the user asks about a specific stock (e.g. Micron / MU):\n"
+        "   - Focus PRIMARILY on news headlines, catalysts, company fundamentals, and market momentum for THAT specific stock.\n"
+        "   - STRICTLY FORBIDDEN: Do NOT mention other unrelated portfolio holdings.\n"
+        "2. Do not hallucinate numbers. Explicitly cite news or SEC filings.\n"
+        "3. Explicitly reference the QUANTITATIVE TECHNICAL INDICATORS from BigQuery (MA20/50, RSI 14 condition, Support/Resistance) when relevant.\n"
+        "Keep the output structured with sections: Ringkasan Utama, Katalis Berita & Analisis Finansial, dan Implikasi Strategis."
+    )
+
     full_prompt = (
         f"{system_prompt}\n\n"
         f"=== FACTUAL GROUNDING CONTEXT ===\n"
@@ -260,22 +323,30 @@ async def consult_cloud_analyst(
         f"ANALYST BRIEFING:"
     )
 
-    # Invoke Gemini 3.6/1.5 Flash
+    # Invoke Gemini with fast generation config & asyncio thread execution
     analyst_report = ""
     used_model = GEMINI_MODEL
     try:
         model = genai.GenerativeModel(GEMINI_MODEL)
-        resp = model.generate_content(full_prompt)
+        generation_config = {
+            "max_output_tokens": 600,
+            "temperature": 0.2,
+            "top_p": 0.8
+        }
+        resp = await asyncio.to_thread(
+            model.generate_content,
+            full_prompt,
+            generation_config=generation_config
+        )
         analyst_report = resp.text.strip()
     except Exception as e:
         logger.error("Gemini Cloud Agent generation failed: %s. Falling back to structured evidence.", str(e))
-        # Deterministic fallback so the system remains resilient
         used_model = "Deterministic-Analyst-Fallback"
         analyst_report = (
             f"**Executive Research Summary for '{query}'**\n\n"
             f"{market_context}\n"
             f"**Regulatory & News Evidence Found:**\n"
-            + "\n".join([f"- {c['title']} ({c['doc_type'].upper()}): {c['source_url']}" for c in citations[:3]])
+            + "\n".join([f"- {c['title']} ({c['doc_type'].upper()}): {c.get('source_url', '')}" for c in citations[:3]])
             + f"\n\n**Analyst Note:** Based on available SEC and market filings, review valuation multiples against target sector peers."
         )
     # Record execution trace for Admin Dashboard Observability & SSE

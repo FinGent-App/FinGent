@@ -97,21 +97,21 @@ final class ChatUseCase: ChatUseCaseProtocol {
         let defaultFallback = isTargetIDX ? "Kontan, Detik Finance, CNN Indonesia" : "Nasdaq, Investing.com, Yahoo Finance"
         let sourcesStr = sourcesList.isEmpty ? defaultFallback : sourcesList.joined(separator: ", ")
         onProgress?(.readingNews(sources: sourcesStr))
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         // Step 2: Analyzing Stock History
         onProgress?(.analyzingStockHistory)
         if let ticker = context.tickers.first {
             _ = try? await StockApiClient.shared.fetchHistory(ticker: ticker, period: "1mo")
         }
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         // Step 3: Analyzing SEC
         onProgress?(.analyzingSEC)
         if let ticker = context.tickers.first, !ticker.hasSuffix(".JK") {
             _ = try? await StockApiClient.shared.fetchSecFilings(ticker: ticker, limit: 3)
         }
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         // Step 4: Generating Results for you
         onProgress?(.generatingResults)
