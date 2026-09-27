@@ -108,7 +108,7 @@ struct FinGentChatSheetView: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Tanya seputar saham atau portofolio...", text: $viewModel.inputText)
+            TextField("Ask about stocks or your portfolio...", text: $viewModel.inputText)
                 .font(.system(size: 14))
                 .foregroundStyle(.white)
                 .focused($isInputFocused)

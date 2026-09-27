@@ -278,7 +278,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
            - FACTS: What the verified knowledge base and latest news explicitly report.
            - ANALYSIS: What these facts imply for the company, user's position, and market.
            - OUTLOOK / BIAS: State a clear probabilistic bias (Bullish, Bearish, or Neutral). Never state that a stock is certain to rise or fall.
-        4. Provide an actionable, well-reasoned answer in Indonesian (natural, friendly, professional tone).
+        4. Provide an actionable, well-reasoned answer in English (clear, professional, Wall Street research tone).
         5. At the very end of your response, output a single bias tag on a new line:
            [BIAS: BULLISH] or [BIAS: BEARISH] or [BIAS: NEUTRAL].
         """
@@ -295,7 +295,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         ragCitations: [NewsCitation] = [],
         cloudGrounding: String? = nil
     ) -> (answer: String, bias: MarketBias) {
-        let ticker = context.tickers.first ?? "Pasar"
+        let ticker = context.tickers.first ?? "Market"
         let quote = context.tickers.first.flatMap { marketRepo.getQuote(for: $0) }
 
         // Analyze sentiment across retrieved articles
@@ -318,14 +318,14 @@ final class ChatUseCase: ChatUseCaseProtocol {
             bias = .neutral
         }
 
-        var text = "Berdasarkan analisis terintegrasi **FinGent Intelligence (Zilliz Cloud RAG & Live Market)**, berikut ringkasan untuk **\(ticker)**:\n\n"
+        var text = "Based on integrated analysis from **FinGent Intelligence (Zilliz Cloud RAG & Live Market)**, here is the briefing for **\(ticker)**:\n\n"
 
         if let q = quote {
-            text += "📊 **Kondisi Pasar Terkini:**\nHarga berada di **\(q.formattedPrice)** dengan pergerakan harian **\(q.formattedChange)** (\(String(format: "%.2f", q.changePercent))%).\n\n"
+            text += "📊 **Current Market Snapshot:**\nPrice is trading at **\(q.formattedPrice)** with daily movement of **\(q.formattedChange)** (\(String(format: "%.2f", q.changePercent))%).\n\n"
         }
 
         if let cg = cloudGrounding, !cg.isEmpty {
-            text += "⚡ **Temuan Analisis Cloud Agent:**\n\(cg)\n\n"
+            text += "⚡ **Cloud Agent Research Findings:**\n\(cg)\n\n"
         }
 
         // Display user holding position for the target stock only
@@ -333,16 +333,16 @@ final class ChatUseCase: ChatUseCaseProtocol {
            let userHolding = PortfolioRepository.shared.userHoldings.first(where: { $0.ticker.uppercased() == targetTicker.uppercased() }) {
             let avgPriceStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.pricePerShare))" : "Rp \(Int(userHolding.pricePerShare))"
             let investedStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.investedAmount))" : "Rp \(Int(userHolding.investedAmount))"
-            text += "💼 **Posisi Portofolio Anda (\(userHolding.ticker)):**\n"
-            text += "• Anda memiliki **\(userHolding.shares) lembar** dengan harga beli rata-rata **\(avgPriceStr)** (Total Investasi: **\(investedStr)**).\n\n"
+            text += "💼 **Your Portfolio Position (\(userHolding.ticker)):**\n"
+            text += "• You hold **\(userHolding.shares) shares** with average purchase price of **\(avgPriceStr)** (Total Investment: **\(investedStr)**).\n\n"
         }
 
         // Display Portfolio Citations if available (strictly matching target ticker)
         let portfolioCitations = ragCitations.filter { p in
-            p.source == .portfolio && (ticker == "Pasar" || p.title.uppercased().contains(ticker.uppercased()))
+            p.source == .portfolio && (ticker == "Market" || p.title.uppercased().contains(ticker.uppercased()))
         }
         if !portfolioCitations.isEmpty {
-            text += "💼 **Catatan Portofolio:**\n"
+            text += "💼 **Portfolio Notes:**\n"
             for p in portfolioCitations {
                 text += "• \(p.title)\n"
             }
@@ -352,7 +352,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         // Display SEC Citations if available
         let secCitations = ragCitations.filter { $0.source == .sec }
         if !secCitations.isEmpty {
-            text += "🏛️ **Laporan Resmi SEC (EDGAR/Yahoo):**\n"
+            text += "🏛️ **Official SEC Regulatory Filings (EDGAR/Yahoo):**\n"
             for s in secCitations {
                 text += "• \(s.badgeLabel ?? "SEC Filing"): \(s.title)\n"
             }
@@ -361,7 +361,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
 
         // Display News Citations if available
         if !articles.isEmpty {
-            text += "📰 **Fakta & Katalis dari Berita Terbaru:**\n"
+            text += "📰 **Facts & Catalysts from Recent News:**\n"
             for (i, article) in articles.prefix(3).enumerated() {
                 let relativeTime = article.publishedAt.timeAgoDisplay()
                 text += "\(i + 1). **\(article.title)** (\(article.source.displayName), \(relativeTime))\n"
@@ -371,17 +371,17 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        text += "\n💡 **Analisis & Outlook:**\n"
+        text += "\n💡 **Analysis & Outlook:**\n"
         switch bias {
         case .bullish:
-            text += "Katalis berita dan fundamental terkini menunjukkan sentimen yang konstruktif. Namun, pergerakan jangka pendek tetap bergantung pada likuiditas pasar."
+            text += "Recent news catalysts and market fundamentals indicate constructive sentiment. However, short-term momentum remains dependent on overall market liquidity."
         case .bearish:
-            text += "Data terkini mengindikasikan adanya kehati-hatian investor atau potensi koreksi jangka pendek. Disarankan untuk memantau level proteksi risiko."
+            text += "Recent data indicates investor caution or potential short-term pullback. Risk management and monitoring key support levels are recommended."
         case .neutral:
-            text += "Kondisi pasar saat ini berada dalam fase konsolidasi seimbang tanpa dorongan arah ekstrem."
+            text += "Market conditions are currently in a balanced consolidation phase without an extreme directional bias."
         }
 
-        text += "\n\n*(Catatan: Rangkuman disintesis dari Zilliz Milvus Vector RAG, SEC Filings, dan Live News feeds).*"
+        text += "\n\n*(Note: Summary synthesized from Zilliz Milvus Vector RAG, SEC Filings, and Live News feeds).*"
 
         return (text, bias)
     }

@@ -146,7 +146,7 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Tanya saham, misal: Apakah MU akan naik?", text: $viewModel.inputText)
+            TextField("Ask about stocks, e.g., Will MU go up?", text: $viewModel.inputText)
                 .font(.system(size: 15))
                 .foregroundStyle(.primary)
                 .focused($isInputFocused)

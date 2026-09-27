@@ -117,7 +117,7 @@ export const AppToolsView: React.FC = () => {
           <div>
             <h1 className="tools-page-title">App Tools & Capabilities Directory</h1>
             <p className="tools-page-subtitle">
-              Daftar resmi seluruh tool yang disediakan di aplikasi FinGent. Terdiri dari eksekusi <strong>Local On-Device</strong> (Apple Intelligence), <strong>Cloud Research Agent</strong> (Gemini 3.6 Flash + Milvus RAG), dan <strong>MCP Remote Protocol</strong>.
+              Official directory of all tools and capabilities in FinGent, powered by <strong>Local On-Device</strong> (Apple Intelligence), <strong>Cloud Research Agent</strong> (Gemini Flash + Milvus RAG), and <strong>MCP Remote Protocol</strong>.
             </p>
           </div>
         </div>
@@ -149,7 +149,7 @@ export const AppToolsView: React.FC = () => {
           <input
             id="tools-search-input"
             type="text"
-            placeholder="Cari nama tool, fungsi, parameter, atau kata kunci prompt..."
+            placeholder="Search tool name, function, parameter, or prompt keyword..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="search-field"
@@ -202,7 +202,7 @@ export const AppToolsView: React.FC = () => {
             onChange={e => setSelectedCategory(e.target.value)}
             className="category-dropdown"
           >
-            <option value="all">Semua Kategori</option>
+            <option value="all">All Categories</option>
             {categories.filter(c => c !== 'all').map(cat => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -212,7 +212,7 @@ export const AppToolsView: React.FC = () => {
 
       {/* 3. Results Summary */}
       <div className="tools-results-summary">
-        <span>Menampilkan <strong>{filteredTools.length}</strong> dari {tools.length} tool terdaftar</span>
+        <span>Showing <strong>{filteredTools.length}</strong> of {tools.length} registered tools</span>
         {(searchQuery || selectedTier !== 'all' || selectedCategory !== 'all') && (
           <button 
             className="reset-filters-link"
@@ -222,7 +222,7 @@ export const AppToolsView: React.FC = () => {
               setSelectedCategory('all');
             }}
           >
-            Reset filter
+            Reset filters
           </button>
         )}
       </div>
@@ -231,13 +231,13 @@ export const AppToolsView: React.FC = () => {
       {loading ? (
         <div className="loading-state glass-panel">
           <div className="pulse-dot" />
-          <span>Memuat katalog tools FinGent...</span>
+          <span>Loading FinGent tools catalog...</span>
         </div>
       ) : filteredTools.length === 0 ? (
         <div className="empty-state glass-panel">
           <Wrench size={36} color="var(--text-muted)" />
-          <h3>Tidak ada tool yang cocok</h3>
-          <p>Coba gunakan kata kunci pencarian yang lain atau reset filter tier & kategori.</p>
+          <h3>No matching tools found</h3>
+          <p>Try using different search keywords or reset tier & category filters.</p>
         </div>
       ) : (
         <div className="tools-cards-grid">
@@ -330,7 +330,7 @@ export const AppToolsView: React.FC = () => {
                 <div className="tool-section">
                   <div className="section-title">
                     <Sparkles size={12} />
-                    <span>Contoh Pertanyaan User</span>
+                    <span>Example User Prompts</span>
                   </div>
                   <div className="example-prompts-list">
                     {tool.example_queries.map((ex, eIdx) => (
@@ -338,7 +338,7 @@ export const AppToolsView: React.FC = () => {
                         key={eIdx} 
                         className="example-prompt-chip"
                         onClick={() => handleCopyPrompt(ex)}
-                        title="Klik untuk menyalin pertanyaan"
+                        title="Click to copy prompt"
                       >
                         <span>"{ex}"</span>
                         <button className="copy-icon-btn">
@@ -353,7 +353,7 @@ export const AppToolsView: React.FC = () => {
                 <div className="tool-section data-sources-section">
                   <div className="section-title">
                     <Database size={12} />
-                    <span>Sumber Data</span>
+                    <span>Data Sources</span>
                   </div>
                   <div className="sources-pills">
                     {tool.data_sources.map((src, sIdx) => (
@@ -440,7 +440,7 @@ export const AppToolsView: React.FC = () => {
                 className="modal-dismiss-btn"
                 onClick={() => setSelectedToolForInspect(null)}
               >
-                Tutup
+                Close
               </button>
             </div>
           </div>

@@ -674,7 +674,7 @@ struct HomeView: View {
 
     private var chatInputBar: some View {
         HStack(spacing: 8) {
-            TextField("Tanya saham, misal: Apakah MU akan naik?", text: $chatVM.inputText)
+            TextField("Ask about stocks, e.g., Will MU go up?", text: $chatVM.inputText)
                 .font(.system(size: 15))
                 .foregroundStyle(.primary)
                 .focused($isChatInputFocused)

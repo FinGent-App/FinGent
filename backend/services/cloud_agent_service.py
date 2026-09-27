@@ -303,7 +303,7 @@ async def consult_cloud_analyst(
 
     system_prompt = (
         "You are the FinGent Senior Wall Street Research Analyst (Cloud Research Agent). "
-        "Provide an authoritative, objective, and concise financial briefing in natural, professional Indonesian. "
+        "Provide an authoritative, objective, and concise financial briefing in natural, professional English. "
         "Ground your analysis strictly on the provided factual evidence (Latest News Headlines, Market Valuation, SEC Filings). "
         "CRITICAL RULES:\n"
         "1. When the user asks about a specific stock (e.g. Micron / MU):\n"
@@ -311,7 +311,7 @@ async def consult_cloud_analyst(
         "   - STRICTLY FORBIDDEN: Do NOT mention other unrelated portfolio holdings.\n"
         "2. Do not hallucinate numbers. Explicitly cite news or SEC filings.\n"
         "3. Explicitly reference the QUANTITATIVE TECHNICAL INDICATORS from BigQuery (MA20/50, RSI 14 condition, Support/Resistance) when relevant.\n"
-        "Keep the output structured with sections: Ringkasan Utama, Katalis Berita & Analisis Finansial, dan Implikasi Strategis."
+        "Keep the output structured with sections: Executive Summary, News Catalysts & Financial Analysis, and Strategic Implications."
     )
 
     full_prompt = (
@@ -363,15 +363,15 @@ async def consult_cloud_analyst(
         used_model = "Deterministic-Analyst-Fallback"
         news_summaries = []
         for c in citations[:5]:
-            news_summaries.append(f"• **{c.get('title')}** ({c.get('badge_label', 'News')})\n  Sumber: {c.get('source_url', 'N/A')}")
+            news_summaries.append(f"• **{c.get('title')}** ({c.get('badge_label', 'News')})\n  Source: {c.get('source_url', 'N/A')}")
         
         analyst_report = (
             f"**Executive Research Summary for '{query}'**\n\n"
             f"{market_context}\n"
-            f"**Katalis Berita & Bukti Riset Terkini:**\n"
+            f"**Latest News Catalysts & Research Evidence:**\n"
             + "\n".join(news_summaries)
             + f"\n\n{gold_technical_context}\n"
-            + f"**Catatan Analis:** Berdasarkan data pasar dan berita di atas, pantau katalis sektor dan level teknikal untuk konfirmasi momentum."
+            + f"**Analyst Note:** Based on the market data and evidence above, monitor sector catalysts and technical levels for momentum confirmation."
         )
     # Record execution trace for Admin Dashboard Observability & SSE
     latency_ms = int((time.time() - start_time) * 1000)

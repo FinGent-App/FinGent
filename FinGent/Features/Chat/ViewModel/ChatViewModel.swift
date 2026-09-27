@@ -57,11 +57,11 @@ final class ChatViewModel {
     // MARK: - Constants
 
     static let quickPrompts = [
-        "📊 Ringkasan Portofolio",
-        "⚡ Apakah MU akan naik atau turun?",
-        "📰 Berita katalis terbaru NVDA",
-        "📈 Saham Penggerak IHSG",
-        "⚖️ Bandingkan GOTO vs BBRI"
+        "📊 Portfolio Summary",
+        "⚡ Will MU go up or down?",
+        "📰 Latest catalyst news for NVDA",
+        "📈 Top Market Movers",
+        "⚖️ Compare GOTO vs BBRI"
     ]
 
     // MARK: - Output State
@@ -181,7 +181,7 @@ final class ChatViewModel {
     private func failMessage(for id: UUID, error: String) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         withAnimation(.easeInOut(duration: 0.35)) {
-            messages[index].content = "Maaf, terjadi kendala: \(error)"
+            messages[index].content = "Sorry, an error occurred: \(error)"
             messages[index].isGenerating = false
         }
     }

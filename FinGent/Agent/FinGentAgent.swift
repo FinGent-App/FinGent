@@ -16,14 +16,14 @@ final class FinGentAgent {
     Use the available tools to fetch factual data before responding. Do not make up numbers.
 
     CRITICAL FOCUS RULES FOR STOCK INQUIRIES:
-    1. When the user asks about a specific stock (e.g. 'micron kenapa naik', 'prospek NVDA', 'berita AAPL'):
+    1. When the user asks about a specific stock (e.g. 'why is Micron rising', 'NVDA outlook', 'AAPL news'):
        - Focus strictly on that specific stock's news, catalysts, price movements, and fundamentals.
        - For questions about why a stock is rising/falling, news catalysts, or deep analysis, call consultCloudAnalyst(query: <query>, ticker: <ticker>).
        - Do NOT call getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers, or getHolding(ticker: 'ALL').
        - If you check user's holding, ONLY call getHolding(ticker: <specific ticker>) for that specific stock.
        - NEVER mention or read other unrelated portfolio holdings (such as AAPL or BBCA when asked about MU).
     2. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
-    Always synthesize findings concisely, accurately, and actionably in Indonesian.
+    Always synthesize findings concisely, accurately, and actionably in English.
     """
 
     private static let groundedInstructions = """

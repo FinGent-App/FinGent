@@ -38,7 +38,7 @@ struct MCPSimulateMacroPortfolioRiskTool: Tool {
     let description = "Calculates estimated portfolio risk and projected return impact for macroeconomic events (e.g. Fed interest rate changes, inflation, currency devaluation, recession) against the user's holdings via the MCP Server."
 
     @Generable struct Arguments {
-        @Guide(description: "The macroeconomic event or scenario to simulate, e.g. 'The Fed raises interest rates by 50 bps', 'Inflasi naik tinggi', 'Resesi global'.")
+        @Guide(description: "The macroeconomic event or scenario to simulate, e.g. 'The Fed raises interest rates by 50 bps', 'High Inflation Surge', 'Global Recession'.")
         var event: String
     }
 

@@ -14,9 +14,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
     description: 'Gets the overall portfolio summary. Use ONLY when user explicitly asks about overall portfolio summary or total net worth, NOT for specific stock questions.',
     parameters: [],
     example_queries: [
-      'Berapa total nilai portofolio saya?',
-      'Ringkasan portofolio saya sekarang',
-      'Apakah portofolio saya sedang profit atau loss?'
+      'What is my total portfolio net worth?',
+      'Summary of my current portfolio balance',
+      'Is my portfolio in profit or loss today?'
     ],
     data_sources: ['PortfolioRepository (Local Swift)', 'MarketDataRepository']
   },
@@ -39,9 +39,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Berapa lembar saham BBCA yang saya punya?',
-      'Cek posisi saham Micron (MU)',
-      'Tampilkan semua saham di portofolio saya'
+      'How many shares of BBCA do I currently hold?',
+      'Check my Micron (MU) holding position',
+      'Show all stock positions in my portfolio'
     ],
     data_sources: ['PortfolioRepository (Local Swift)', 'StockTickerExtractor']
   },
@@ -64,9 +64,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Bagaimana performa portofolio saya minggu ini?',
-      'Berapa return portofolio sejak awal tahun (YTD)?',
-      'Cek kinerja portofolio bulanan'
+      'How is my portfolio performing this week?',
+      'What is my year-to-date (YTD) portfolio return?',
+      'Check my monthly portfolio performance'
     ],
     data_sources: ['PortfolioRepository', 'MarketDataRepository']
   },
@@ -82,9 +82,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
     description: 'Gets the portfolio allocation breakdown by sector and stock. Use ONLY when user explicitly asks about overall portfolio allocation.',
     parameters: [],
     example_queries: [
-      'Bagaimana alokasi sektor dalam portofolio saya?',
-      'Berapa persen porsi saham teknologi di portofolio?',
-      'Tampilkan komposisi saham terbesar saya'
+      'What is the sector allocation of my portfolio?',
+      'What percentage of my portfolio is in technology stocks?',
+      'Show my largest stock holdings by weighting'
     ],
     data_sources: ['PortfolioRepository', 'MarketDataRepository']
   },
@@ -107,9 +107,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Saham apa yang paling naik di portofolio saya hari ini?',
-      'Siapa top loser di portofolio saya?',
-      'Tampilkan saham yang bergerak signifikan hari ini'
+      'Which stock gained the most in my portfolio today?',
+      'Who are the top losers in my portfolio?',
+      'Show significant moving stocks in my portfolio today'
     ],
     data_sources: ['PortfolioRepository', 'MarketDataRepository']
   },
@@ -132,9 +132,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Berapa floating profit saham BBCA saya?',
-      'Hitung total floating loss/gain seluruh portofolio',
-      'Apakah saham MU saya sedang untung?'
+      'What is the floating profit on my BBCA shares?',
+      'Calculate total unrealized P&L for my entire portfolio',
+      'Am I in profit on my MU holding?'
     ],
     data_sources: ['PortfolioRepository', 'MarketDataRepository']
   },
@@ -157,9 +157,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Berapa harga saham BBCA sekarang?',
-      'Cek harga terkini saham Apple (AAPL)',
-      'Berapa pergerakan saham GOTO hari ini?'
+      'What is the current stock price of BBCA?',
+      'Check real-time stock price for Apple (AAPL)',
+      'How is GOTO moving today?'
     ],
     data_sources: ['Yahoo Finance API', 'Local Market Cache']
   },
@@ -178,7 +178,7 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
         name: 'ticker',
         type: 'string',
         required: true,
-        description: "The stock ticker symbol."
+        description: 'The stock ticker symbol.'
       },
       {
         name: 'period',
@@ -188,9 +188,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Bagaimana performa saham BBCA 1 tahun terakhir?',
-      'Berapa return saham NVDA dalam 1 bulan ini?',
-      'Tampilkan rekap performa lengkap saham ASII'
+      'How has BBCA performed over the past 1 year?',
+      'What is NVDA stock return over the past month?',
+      'Show 1-year historical performance breakdown for ASII'
     ],
     data_sources: ['MarketDataRepository', 'Yahoo Finance']
   },
@@ -221,9 +221,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Kenapa saham Micron (MU) naik tajam kemarin?',
-      'Bagaimana prospek NVDA dan persaingannya di data center?',
-      'Analisis sentimen dan berita terbaru seputar laba BBRI'
+      'Why did Micron (MU) surge sharply yesterday?',
+      'What is the outlook for NVDA and data center competition?',
+      'Analyze latest news sentiment and earnings catalysts for BBRI'
     ],
     data_sources: ['Google Gemini 3.6 Flash', 'Zilliz Cloud Milvus (Vector RAG)', 'SEC Filings (10-K, 8-K)', 'Supabase News DB', 'Yahoo Finance']
   },
@@ -254,9 +254,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Cari berita akuisisi atau aksi korporasi bank BUMN',
-      'Filing SEC terkait belanja modal AI Nvidia',
-      'Sentimen perang dagang terhadap semikonduktor'
+      'Search acquisition news or corporate actions for major banks',
+      'SEC filings regarding Nvidia AI capital expenditure',
+      'Semiconductor industry trade policy and tariff sentiment'
     ],
     data_sources: ['Zilliz Cloud Milvus (768-dim Vectors)', 'BGE-base-en/id Embeddings']
   },
@@ -269,7 +269,7 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
     execution_engine: 'FastMCP Server (JSON-RPC 2.0 / SSE)',
     latency: '300 - 500 ms',
     privacy: 'Portfolio Exposure Simulation Engine',
-    description: "Calculates estimated risk level and projected return impact of macroeconomic events (e.g., Fed interest rate hikes, inflation, currency devaluation, recession) against the user's specific stock portfolio holdings.",
+    description: 'Calculates estimated risk level and projected return impact of macroeconomic events (e.g., Fed interest rate hikes, inflation, currency devaluation, recession) against the user\'s specific stock portfolio holdings.',
     parameters: [
       {
         name: 'event',
@@ -285,9 +285,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Bagaimana jika suku bunga BI naik 50 bps terhadap portofolio saya?',
-      'Simulasikan dampak pelemahan kurs Rupiah ke saham-saham saya',
-      'Apa pengaruh lonjakan inflasi terhadap sektor perbankan dan konsumsi?'
+      'How will a 50 bps Fed rate hike impact my portfolio?',
+      'Simulate currency depreciation impact on my holdings',
+      'What is the effect of an inflation surge on banking and consumer sectors?'
     ],
     data_sources: ['Supabase PostgreSQL Portfolio', 'Yahoo Finance Live Quotes', 'Macro Sensitivity Model']
   },
@@ -310,9 +310,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Analisis sentimen rilis laporan keuangan kuartalan Apple',
-      'Dampak berita kenaikan harga batubara ke emiten energi',
-      'Sentimen isu pemangkasan suku bunga acuan'
+      'Analyze sentiment for Apple quarterly earnings release',
+      'Impact of rising coal prices on energy sector equities',
+      'Market sentiment on potential interest rate cuts'
     ],
     data_sources: ['Zilliz Cloud Milvus', 'Yahoo Finance Quotes', 'Supabase News DB']
   },
@@ -335,9 +335,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Bandingkan saham BBCA dan BMRI dari segi valuasi',
-      'Komparasi sektor teknologi: NVDA vs AMD vs INTC',
-      'Bandingkan dividen yield ASII, BBRI, dan TLKM'
+      'Compare BBCA and BMRI based on valuation multiples',
+      'Tech sector comparison: NVDA vs AMD vs INTC',
+      'Compare dividend yield between ASII, BBRI, and TLKM'
     ],
     data_sources: ['Yahoo Finance Fundamentals', 'Batch Quote Service']
   },
@@ -360,9 +360,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Berapa P/E ratio dan PBV saham BBCA?',
-      'Cek rasio fundamental keuangan TLKM',
-      'Berapa dividend yield saham ASII?'
+      'What is the P/E ratio and PBV of BBCA?',
+      'Check key financial fundamental ratios for TLKM',
+      'What is the dividend yield of ASII?'
     ],
     data_sources: ['Yahoo Finance Fundamentals Engine']
   },
@@ -391,9 +391,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Cari saham BCA atau bank mandiri',
-      'Cari kode saham produsen memori Micron',
-      'Cari emiten mobil listrik'
+      'Search ticker symbol for Bank Central Asia',
+      'Find stock ticker for memory chipmaker Micron',
+      'Search for electric vehicle and battery manufacturers'
     ],
     data_sources: ['Yahoo Finance Search API', 'Local Ticker Dictionary']
   },
@@ -416,9 +416,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Tampilkan saham top gainers hari ini',
-      'Siapa saja saham yang turun paling dalam?',
-      'Bagaimana kondisi indeks IHSG hari ini?'
+      'Show top market gainers today',
+      'Which stocks are declining the most today?',
+      'What is the current performance of the benchmark index?'
     ],
     data_sources: ['Yahoo Finance Market Movers Service', 'Bursa Index Feed']
   },
@@ -447,8 +447,8 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Berita apa yang paling relevan untuk portofolio saya hari ini?',
-      'Tampilkan sentimen berita seputar saham-saham yang saya miliki'
+      'What are the most relevant news headlines for my portfolio today?',
+      'Show news sentiment across the stocks I currently own'
     ],
     data_sources: ['Supabase PostgreSQL Portfolio', 'Supabase News Articles DB']
   },
@@ -477,9 +477,9 @@ export const FALLBACK_APP_TOOLS: AppTool[] = [
       }
     ],
     example_queries: [
-      'Bagaimana tren analisis teknikal saham BBCA saat ini?',
-      'Apakah saham NVDA membentuk sinyal Golden Cross?',
-      'Cek level support, resistance, dan RSI saham TLKM'
+      'What is the technical analysis trend for BBCA right now?',
+      'Is NVDA forming a Golden Cross breakout signal?',
+      'Check support, resistance levels, and RSI for TLKM'
     ],
     data_sources: ['Google BigQuery Data Warehouse', 'Historical OHLCV Store', 'PySpark Features Engine']
   }

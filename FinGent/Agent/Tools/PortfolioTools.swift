@@ -14,7 +14,7 @@ struct GetPortfolioSummaryTool: Tool {
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else {
-            return "Portofolio kamu saat ini masih kosong (0 saham). Tambahkan saham terlebih dahulu."
+            return "Your portfolio is currently empty (0 stocks). Please add stocks first."
         }
         let resolved = resolveHoldings(holdings)
         let totalMarket = resolved.reduce(0) { $0 + $1.marketValue }
@@ -47,7 +47,7 @@ struct GetHoldingTool: Tool {
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else {
-            return "Portofolio kamu saat ini belum memiliki saham."
+            return "Your portfolio currently has no stocks."
         }
         let resolved = resolveHoldings(holdings)
         let rawTicker = arguments.ticker.trimmingCharacters(in: .whitespaces)
@@ -68,7 +68,7 @@ struct GetHoldingTool: Tool {
         let targetTicker = StockTickerExtractor().extractTickers(from: rawTicker).first ?? rawTicker.uppercased()
 
         guard let holding = resolved.first(where: { $0.ticker.uppercased() == targetTicker }) else {
-            return "Kamu saat ini tidak memiliki posisi saham '\(targetTicker)' di portofolio."
+            return "You do not currently hold a position in '\(targetTicker)' in your portfolio."
         }
 
         return """
@@ -97,7 +97,7 @@ struct GetPortfolioPerformanceTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
-        guard !holdings.isEmpty else { return "Portofolio kamu saat ini belum memiliki saham." }
+        guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
 
         let resolved = resolveHoldings(holdings)
         let data = MarketDataRepository.shared
@@ -143,10 +143,10 @@ struct GetPortfolioAllocationTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
-        guard !holdings.isEmpty else { return "Portofolio kamu saat ini belum memiliki saham." }
+        guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
         let resolved = resolveHoldings(holdings)
         let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        guard totalValue > 0 else { return "Total nilai portofolio adalah Rp 0." }
+        guard totalValue > 0 else { return "Total portfolio value is Rp 0." }
 
         var sectorAlloc: [String: Double] = [:]
         for h in resolved { sectorAlloc[h.sector, default: 0] += h.marketValue }
@@ -176,7 +176,7 @@ struct GetPortfolioMoversTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
-        guard !holdings.isEmpty else { return "Portofolio kamu saat ini belum memiliki saham." }
+        guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
 
         let resolved = resolveHoldings(holdings)
         let data = MarketDataRepository.shared
@@ -216,7 +216,7 @@ struct GetUnrealizedGainTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
-        guard !holdings.isEmpty else { return "Portofolio kamu saat ini belum memiliki saham." }
+        guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
         let resolved = resolveHoldings(holdings)
         let rawTicker = arguments.ticker.trimmingCharacters(in: .whitespaces)
 
@@ -237,7 +237,7 @@ struct GetUnrealizedGainTool: Tool {
         let targetTicker = StockTickerExtractor().extractTickers(from: rawTicker).first ?? rawTicker.uppercased()
 
         guard let h = resolved.first(where: { $0.ticker.uppercased() == targetTicker }) else {
-            return "Kamu saat ini tidak memiliki posisi saham '\(targetTicker)' di portofolio."
+            return "You do not currently hold a position in '\(targetTicker)' in your portfolio."
         }
 
         return """
