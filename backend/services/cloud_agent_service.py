@@ -42,10 +42,15 @@ def _get_cached_market_data(ticker: str) -> str:
     try:
         fund = get_stock_fundamentals(ticker)
         quote = get_single_quote(ticker)
+        is_idx = is_idx_ticker(ticker)
+        curr = quote.get("currency", "IDR" if is_idx else "USD")
+        curr_sym = "Rp " if curr == "IDR" else "$"
+        price_val = quote.get("price", 0.0)
+        formatted_price = f"{curr_sym}{price_val:,.0f}" if curr == "IDR" else f"{curr_sym}{price_val:,.2f}"
         market_context = (
             f"LIVE MARKET DATA FOR {ticker}:\n"
             f"- Name: {fund.get('name', ticker)}\n"
-            f"- Price: ${quote.get('price', 0.0):.2f} (24h: {quote.get('change_percent', 0.0):+.2f}%)\n"
+            f"- Price: {formatted_price} ({curr}) (24h: {quote.get('change_percent', 0.0):+.2f}%)\n"
             f"- Sector: {fund.get('sector', 'N/A')}\n"
             f"- Forward P/E: {fund.get('forward_pe', 'N/A')}\n"
             f"- Trailing P/E: {fund.get('pe_ratio', 'N/A')}\n"
@@ -232,12 +237,21 @@ async def consult_cloud_analyst(
         if target_ticker and h.get("doc_type") == "portfolio" and h.get("ticker") != target_ticker:
             continue
 
+        raw_url = h.get("source_url") or ""
+        if not raw_url:
+            if h.get("doc_type") == "sec":
+                raw_url = f"https://www.sec.gov/edgar/searchedgar/companysearch?company={target_ticker or ''}"
+            elif h.get("doc_type") == "portfolio":
+                raw_url = f"https://finance.yahoo.com/quote/{target_ticker or 'MARKET'}"
+            else:
+                raw_url = f"https://finance.yahoo.com/quote/{target_ticker or 'MARKET'}"
+
         citations.append({
             "id": h.get("id"),
             "title": h.get("title"),
             "doc_type": h.get("doc_type"),
             "badge_label": h.get("badge_label"),
-            "source_url": h.get("source_url"),
+            "source_url": raw_url,
             "score": round(h.get("score", 0.0), 4),
             "ticker": h.get("ticker")
         })
@@ -341,7 +355,7 @@ async def consult_cloud_analyst(
         try:
             model = genai.GenerativeModel(candidate)
             generation_config = {
-                "max_output_tokens": 800,
+                "max_output_tokens": 4096,
                 "temperature": 0.2,
                 "top_p": 0.8
             }

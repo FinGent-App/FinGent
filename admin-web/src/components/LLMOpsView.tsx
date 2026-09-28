@@ -259,29 +259,48 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
                         Grounded by:
                       </span>
-                      {log.citations.map((c, i) => (
-                        <a 
-                          key={i} 
-                          href={c.source_url} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          style={{
-                            fontSize: '0.725rem',
-                            textDecoration: 'none',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: '#38bdf8',
-                            padding: '0.2rem 0.5rem',
-                            borderRadius: '4px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            border: '1px solid rgba(56, 189, 248, 0.2)'
-                          }}
-                        >
-                          <span>{c.badge_label || c.title}</span>
-                          <ExternalLink size={10} />
-                        </a>
-                      ))}
+                      {log.citations.map((c, i) => {
+                        const hasValidLink = c.source_url && (c.source_url.startsWith('http://') || c.source_url.startsWith('https://')) && !c.source_url.includes('localhost:5173');
+                        return hasValidLink ? (
+                          <a 
+                            key={i} 
+                            href={c.source_url} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{
+                              fontSize: '0.725rem',
+                              textDecoration: 'none',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: '#38bdf8',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              border: '1px solid rgba(56, 189, 248, 0.2)'
+                            }}
+                          >
+                            <span>{c.badge_label || c.title}</span>
+                            <ExternalLink size={10} />
+                          </a>
+                        ) : (
+                          <span 
+                            key={i}
+                            style={{
+                              fontSize: '0.725rem',
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: '#94a3b8',
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              border: '1px solid rgba(148, 163, 184, 0.2)'
+                            }}
+                          >
+                            <span>{c.badge_label || c.title}</span>
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
 

@@ -188,6 +188,7 @@ struct ChatView: View {
 struct ChatBubbleRow: View {
     let message: ChatViewModel.ChatMessage
     var onSelectSource: (URL) -> Void = { _ in }
+    @State private var isCopied: Bool = false
 
     var body: some View {
         if message.role == .user {
@@ -203,7 +204,7 @@ struct ChatBubbleRow: View {
                     .padding(.vertical, 4)
             }
         } else {
-            HStack(alignment: .top, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 10) {
                     if message.content.isEmpty {
                         // Asynchronous Research Steps Badges (Only while generating)
@@ -235,12 +236,27 @@ struct ChatBubbleRow: View {
                             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
                         }
                     } else {
-                        // Message text (shown once generated)
-                        Text(message.content)
-                            .font(.system(size: 16.5))
-                            .lineSpacing(5)
-                            .foregroundStyle(Color.black.opacity(0.88))
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        // Top row with response text and copy button at top right
+                        HStack(alignment: .top, spacing: 8) {
+                            Text(message.content)
+                                .font(.system(size: 16.5))
+                                .lineSpacing(5)
+                                .foregroundStyle(Color.black.opacity(0.88))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button {
+                                copyResponse()
+                            } label: {
+                                Image(systemName: isCopied ? "checkmark" : "document.on.document")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(isCopied ? Color(hex: "0066FF") : Color.black.opacity(0.4))
+                                    .frame(width: 28, height: 28)
+                                    .background(Circle().fill(Color.black.opacity(0.05)))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Salin respon AI")
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
 
                         // Sources Section (Prefix source: and circular icons)
                         if !message.sources.isEmpty {
@@ -269,8 +285,19 @@ struct ChatBubbleRow: View {
                 .animation(.easeInOut(duration: 0.35), value: message.content.isEmpty)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 4)
+            }
+        }
+    }
 
-                Spacer(minLength: 20)
+    private func copyResponse() {
+        UIPasteboard.general.string = message.content
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isCopied = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isCopied = false
             }
         }
     }
