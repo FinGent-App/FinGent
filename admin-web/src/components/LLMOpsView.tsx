@@ -11,7 +11,9 @@ import {
   ChevronDown, 
   ChevronRight, 
   ExternalLink,
-  Bot
+  Bot,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 
 interface LLMOpsViewProps {
@@ -329,6 +331,78 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
                         {log.final_answer}
                       </div>
                     )}
+
+                    {/* User Feedback (Like / Dislike) Indicator */}
+                    <div 
+                      className="trace-feedback-container"
+                      style={{
+                        marginTop: '0.75rem',
+                        paddingTop: '0.65rem',
+                        borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.785rem' }}>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Feedback Respon:</span>
+                        {log.feedback === 'like' ? (
+                          <span 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.2rem 0.65rem',
+                              borderRadius: '999px',
+                              background: 'rgba(16, 185, 129, 0.14)',
+                              color: 'var(--accent-emerald, #10b981)',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              fontWeight: 600,
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            <ThumbsUp size={12} />
+                            <span>Disukai Pengguna (Helpful)</span>
+                          </span>
+                        ) : log.feedback === 'dislike' ? (
+                          <span 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.2rem 0.65rem',
+                              borderRadius: '999px',
+                              background: 'rgba(239, 68, 68, 0.14)',
+                              color: '#f87171',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              fontWeight: 600,
+                              fontSize: '0.75rem'
+                            }}
+                          >
+                            <ThumbsDown size={12} />
+                            <span>Tidak Disukai (Unhelpful)</span>
+                          </span>
+                        ) : (
+                          <span 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.2rem 0.55rem',
+                              borderRadius: '999px',
+                              background: 'rgba(255, 255, 255, 0.04)',
+                              color: 'var(--text-muted)',
+                              fontSize: '0.725rem',
+                              fontStyle: 'normal'
+                            }}
+                          >
+                            <span style={{ opacity: 0.6 }}>Belum ada rating</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

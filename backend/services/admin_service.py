@@ -76,7 +76,8 @@ async def record_agent_log(
     latency_ms: int = 0,
     relevance_score: float = 0.95,
     status: str = "SUCCESS",
-    error_message: Optional[str] = None
+    error_message: Optional[str] = None,
+    feedback: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Persists an agent execution trace to PostgreSQL and broadcasts live via SSE.
@@ -99,6 +100,7 @@ async def record_agent_log(
         "relevance_score": float(relevance_score),
         "status": status,
         "error_message": error_message,
+        "feedback": feedback,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 
@@ -108,9 +110,9 @@ async def record_agent_log(
             user_id, prompt, selected_tools, tool_arguments, tool_output,
             final_answer, citations, market_type, model_name, prompt_tokens,
             completion_tokens, total_tokens, latency_ms, relevance_score,
-            status, error_message
+            status, error_message, feedback
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
         ) RETURNING id, created_at;
         """
         try:
@@ -131,7 +133,8 @@ async def record_agent_log(
                 latency_ms,
                 relevance_score,
                 status,
-                error_message
+                error_message,
+                feedback
             )
             if row:
                 log_record["id"] = str(row["id"])
@@ -164,7 +167,7 @@ async def get_recent_logs(limit: int = 50, offset: int = 0) -> List[Dict[str, An
         id, user_id, prompt, selected_tools, tool_arguments, tool_output,
         final_answer, citations, market_type, model_name, prompt_tokens,
         completion_tokens, total_tokens, latency_ms, relevance_score,
-        status, error_message, created_at
+        status, error_message, created_at, feedback
     FROM agent_query_logs
     ORDER BY created_at DESC
     LIMIT $1 OFFSET $2;
@@ -187,6 +190,79 @@ async def get_recent_logs(limit: int = 50, offset: int = 0) -> List[Dict[str, An
                 pass
         results.append(d)
     return results
+
+
+async def update_agent_log_feedback(
+    log_id: Optional[str] = None,
+    prompt: Optional[str] = None,
+    feedback: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Updates the feedback ('like' | 'dislike' | None) for an agent decision trace.
+    Broadcasts real-time update to web dashboards via SSE.
+    """
+    matched_id: Optional[str] = None
+    target_prompt = prompt
+
+    # Normalize feedback value (treat 'none' or empty string as None)
+    clean_feedback = feedback if feedback in ("like", "dislike") else None
+
+    if is_connected():
+        try:
+            if log_id:
+                row = await fetch_one(
+                    """
+                    UPDATE agent_query_logs
+                    SET feedback = $1
+                    WHERE id = $2::uuid
+                    RETURNING id, prompt;
+                    """,
+                    clean_feedback,
+                    log_id
+                )
+                if row:
+                    matched_id = str(row["id"])
+                    target_prompt = row["prompt"]
+            
+            # If not matched by id or id not provided, fallback to latest trace matching prompt
+            if not matched_id and prompt:
+                row = await fetch_one(
+                    """
+                    UPDATE agent_query_logs
+                    SET feedback = $1
+                    WHERE id = (
+                        SELECT id FROM agent_query_logs
+                        WHERE prompt = $2
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                    )
+                    RETURNING id, prompt;
+                    """,
+                    clean_feedback,
+                    prompt
+                )
+                if row:
+                    matched_id = str(row["id"])
+                    target_prompt = row["prompt"]
+        except Exception as e:
+            logger.error("Failed to update feedback in PostgreSQL: %s", str(e))
+
+    # Also update in-memory cache if applicable
+    for record in reversed(_in_memory_logs):
+        if (log_id and record.get("id") == log_id) or (prompt and record.get("prompt") == prompt):
+            record["feedback"] = clean_feedback
+            if not matched_id:
+                matched_id = record.get("id")
+            break
+
+    # Broadcast event via SSE so admin dashboard updates immediately
+    event_payload = {
+        "id": matched_id or log_id,
+        "prompt": target_prompt,
+        "feedback": clean_feedback
+    }
+    await broadcast_admin_event("trace_feedback_updated", event_payload)
+    return event_payload
 
 
 # ==============================================================================

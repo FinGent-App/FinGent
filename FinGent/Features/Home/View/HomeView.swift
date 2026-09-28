@@ -643,9 +643,15 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(chatVM.messages) { msg in
-                        ChatBubbleRow(message: msg) { url in
-                            selectedSafariURL = IdentifiableURL(url: url)
-                        }
+                        ChatBubbleRow(
+                            message: msg,
+                            onFeedback: { fb in
+                                chatVM.submitFeedback(for: msg.id, type: fb)
+                            },
+                            onSelectSource: { url in
+                                selectedSafariURL = IdentifiableURL(url: url)
+                            }
+                        )
                         .id(msg.id)
                     }
                 }

@@ -22,6 +22,11 @@ final class ChatViewModel {
         }
     }
 
+    enum ChatFeedbackType: String, Codable, Sendable {
+        case like
+        case dislike
+    }
+
     struct ChatMessage: Identifiable, Sendable {
         let id: UUID
         enum Role { case user, assistant }
@@ -32,6 +37,9 @@ final class ChatViewModel {
         var sources: [NewsCitation]
         var researchSteps: [ResearchStepItem]
         var isGenerating: Bool
+        var userPrompt: String?
+        var feedback: ChatFeedbackType?
+        var traceId: String?
 
         init(
             id: UUID = UUID(),
@@ -41,7 +49,10 @@ final class ChatViewModel {
             confidence: Double? = nil,
             sources: [NewsCitation] = [],
             researchSteps: [ResearchStepItem] = [],
-            isGenerating: Bool = false
+            isGenerating: Bool = false,
+            userPrompt: String? = nil,
+            feedback: ChatFeedbackType? = nil,
+            traceId: String? = nil
         ) {
             self.id = id
             self.role = role
@@ -51,6 +62,9 @@ final class ChatViewModel {
             self.sources = sources
             self.researchSteps = researchSteps
             self.isGenerating = isGenerating
+            self.userPrompt = userPrompt
+            self.feedback = feedback
+            self.traceId = traceId
         }
     }
 
@@ -105,7 +119,8 @@ final class ChatViewModel {
                     status: .inProgress
                 )
             ],
-            isGenerating: true
+            isGenerating: true,
+            userPrompt: prompt
         )
         inputText = ""
         messages.append(contentsOf: [userMsg, assistantMsg])
@@ -123,6 +138,22 @@ final class ChatViewModel {
             } catch {
                 self.failMessage(for: assistantMessageId, error: error.localizedDescription)
             }
+        }
+    }
+
+    /// Submits or toggles user feedback (like / dislike) for an assistant response.
+    func submitFeedback(for messageId: UUID, type: ChatFeedbackType) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        let current = messages[index].feedback
+        let newFeedback: ChatFeedbackType? = (current == type) ? nil : type
+        messages[index].feedback = newFeedback
+
+        let prompt = messages[index].userPrompt
+        let traceId = messages[index].traceId
+        let feedbackStr = newFeedback?.rawValue ?? "none"
+
+        Task {
+            await StockApiClient.shared.submitFeedback(traceId: traceId, prompt: prompt, feedback: feedbackStr)
         }
     }
 

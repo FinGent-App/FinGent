@@ -26,6 +26,7 @@ export interface AgentLog {
   relevance_score: number;
   status: string;
   error_message?: string;
+  feedback?: 'like' | 'dislike' | null;
   created_at: string;
 }
 

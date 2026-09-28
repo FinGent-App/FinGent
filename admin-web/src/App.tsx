@@ -36,6 +36,15 @@ export function App() {
           setLogs(prev => [data, ...prev.slice(0, 99)]);
           // Refresh analytics
           fetchAnalytics().then(setAnalytics).catch(() => {});
+        } else if (eventType === 'trace_feedback_updated' && data) {
+          setLogs(prev => prev.map(log => {
+            const matchesId = data.id && (log.id === data.id || log.id === String(data.id));
+            const matchesPrompt = data.prompt && log.prompt === data.prompt;
+            if (matchesId || matchesPrompt) {
+              return { ...log, feedback: data.feedback };
+            }
+            return log;
+          }));
         }
       },
       connected => {

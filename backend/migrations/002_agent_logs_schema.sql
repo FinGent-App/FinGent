@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS agent_query_logs (
     relevance_score NUMERIC(5, 2) DEFAULT 0.95,   -- 0.00 to 1.00
     status VARCHAR(20) NOT NULL DEFAULT 'SUCCESS', -- 'SUCCESS', 'ERROR', 'FILTERED'
     error_message TEXT,
+    feedback VARCHAR(20) DEFAULT NULL,            -- 'like', 'dislike', or NULL
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

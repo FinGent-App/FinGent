@@ -666,6 +666,7 @@ final class StockApiClient: Sendable {
         return try JSONDecoder().decode(CloudConsultResponseDTO.self, from: data)
     }
 
+    @discardableResult
     func recordAgentTrace(
         prompt: String,
         selectedTools: [String],
@@ -675,8 +676,8 @@ final class StockApiClient: Sendable {
         marketType: String = "GLOBAL",
         latencyMs: Int = 0,
         status: String = "SUCCESS"
-    ) async {
-        guard let url = URL(string: "\(baseURL)/api/v1/admin/trace") else { return }
+    ) async -> String? {
+        guard let url = URL(string: "\(baseURL)/api/v1/admin/trace") else { return nil }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -696,6 +697,31 @@ final class StockApiClient: Sendable {
             "relevance_score": 0.98,
             "status": status
         ]
+
+        guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
+        req.httpBody = body
+        guard let (data, _) = try? await session.data(for: req),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = json["id"] as? String else {
+            return nil
+        }
+        return id
+    }
+
+    /// Submits user rating feedback (like / dislike) for an AI query response trace.
+    func submitFeedback(
+        traceId: String? = nil,
+        prompt: String? = nil,
+        feedback: String
+    ) async {
+        guard let url = URL(string: "\(baseURL)/api/v1/admin/trace/feedback") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        var payload: [String: Any] = ["feedback": feedback]
+        if let traceId { payload["trace_id"] = traceId }
+        if let prompt { payload["prompt"] = prompt }
 
         if let body = try? JSONSerialization.data(withJSONObject: payload) {
             req.httpBody = body

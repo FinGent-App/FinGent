@@ -98,6 +98,13 @@ export function connectSSE(
     } catch {}
   });
 
+  eventSource.addEventListener('trace_feedback_updated', (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data);
+      onEvent('trace_feedback_updated', data);
+    } catch {}
+  });
+
   return () => {
     eventSource.close();
   };

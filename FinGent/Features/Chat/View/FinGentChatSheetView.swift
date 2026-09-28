@@ -80,9 +80,15 @@ struct FinGentChatSheetView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(viewModel.messages) { msg in
-                        ChatBubbleView(message: msg) { url in
-                            selectedSafariURL = IdentifiableURL(url: url)
-                        }
+                        ChatBubbleView(
+                            message: msg,
+                            onFeedback: { fb in
+                                viewModel.submitFeedback(for: msg.id, type: fb)
+                            },
+                            onSelectSource: { url in
+                                selectedSafariURL = IdentifiableURL(url: url)
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal, 16)
@@ -171,6 +177,7 @@ struct FinGentChatSheetView: View {
 
 private struct ChatBubbleView: View {
     let message: ChatViewModel.ChatMessage
+    var onFeedback: ((ChatViewModel.ChatFeedbackType) -> Void)? = nil
     var onSelectSource: (URL) -> Void = { _ in }
     @State private var isCopied: Bool = false
 
@@ -263,6 +270,35 @@ private struct ChatBubbleView: View {
                             .padding(.top, 4)
                             .transition(.opacity)
                         }
+
+                        // Like & Dislike Action Row (Icon saja tanpa border)
+                        HStack(spacing: 16) {
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                onFeedback?(.like)
+                            } label: {
+                                Image(systemName: message.feedback == .like ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(message.feedback == .like ? Color.cyan : Color.white.opacity(0.38))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Suka respon")
+
+                            Button {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                onFeedback?(.dislike)
+                            } label: {
+                                Image(systemName: message.feedback == .dislike ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(message.feedback == .dislike ? Color.red : Color.white.opacity(0.38))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Tidak suka respon")
+
+                            Spacer()
+                        }
+                        .padding(.top, 4)
+                        .transition(.opacity)
                     }
                 }
                 .animation(.easeInOut(duration: 0.35), value: message.content.isEmpty)

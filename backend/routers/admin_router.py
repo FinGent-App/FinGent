@@ -14,7 +14,8 @@ from services.admin_service import (
     delete_table_row,
     get_feeds_status,
     broadcast_admin_event,
-    get_app_tools
+    get_app_tools,
+    update_agent_log_feedback
 )
 from services.rss_ingestion_service import sync_all_rss_feeds
 
@@ -101,6 +102,7 @@ class AgentTracePayload(BaseModel):
     relevance_score: float = 0.95
     status: str = "SUCCESS"
     error_message: Optional[str] = None
+    feedback: Optional[str] = None
 
 
 @admin_router.post("/trace")
@@ -124,11 +126,35 @@ async def record_trace(payload: AgentTracePayload):
             latency_ms=payload.latency_ms,
             relevance_score=payload.relevance_score,
             status=payload.status,
-            error_message=payload.error_message
+            error_message=payload.error_message,
+            feedback=payload.feedback
         )
         return {"status": "recorded", "id": res.get("id")}
     except Exception as e:
         logger.error("Failed to record agent trace: %s", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FeedbackPayload(BaseModel):
+    trace_id: Optional[str] = None
+    prompt: Optional[str] = None
+    feedback: Optional[str] = "like"  # "like", "dislike", or "none"/None
+
+
+@admin_router.post("/trace/feedback")
+async def record_trace_feedback(payload: FeedbackPayload):
+    """
+    Records user feedback (like / dislike) for an AI response trace and broadcasts it via SSE.
+    """
+    try:
+        updated = await update_agent_log_feedback(
+            log_id=payload.trace_id,
+            prompt=payload.prompt,
+            feedback=payload.feedback
+        )
+        return {"status": "success", "data": updated}
+    except Exception as e:
+        logger.error("Failed to record trace feedback: %s", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
