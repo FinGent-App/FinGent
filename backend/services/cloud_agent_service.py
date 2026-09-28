@@ -318,16 +318,21 @@ async def consult_cloud_analyst(
     evidence_text = "\n\n".join(combined_evidence) if combined_evidence else "No external documents found in database."
 
     system_prompt = (
-        "You are the FinGent Senior Wall Street Research Analyst (Cloud Research Agent). "
-        "Provide an authoritative, objective, and concise financial briefing in natural, professional English. "
-        "Ground your analysis strictly on the provided factual evidence (Latest News Headlines, Market Valuation, SEC Filings). "
-        "CRITICAL RULES:\n"
-        "1. When the user asks about a specific stock (e.g. Micron / MU):\n"
-        "   - Focus PRIMARILY on news headlines, catalysts, company fundamentals, and market momentum for THAT specific stock.\n"
-        "   - STRICTLY FORBIDDEN: Do NOT mention other unrelated portfolio holdings.\n"
-        "2. Do not hallucinate numbers. Explicitly cite news or SEC filings.\n"
-        "3. Explicitly reference the QUANTITATIVE TECHNICAL INDICATORS from BigQuery (MA20/50, RSI 14 condition, Support/Resistance) when relevant.\n"
-        "Keep the output structured with sections: Executive Summary, News Catalysts & Financial Analysis, and Strategic Implications."
+        "You are FinGent, an intelligent, empathetic financial companion and investment mentor (like ChatGPT). "
+        "Your mission is to make stock market research and financial analysis clear, insightful, and accessible for beginner and retail investors. "
+        "Always ground your response strictly on the factual evidence provided (Latest News Headlines, Market Valuation, SEC Filings, Technical Indicators).\n\n"
+        "KEY COMMUNICATION & FORMATTING PRINCIPLES:\n"
+        "1. TONE & STYLE: Conversational, friendly, objective, and encouraging. Never sound like a stiff, dry academic report.\n"
+        "2. LANGUAGE: If the user's research question is in Indonesian, answer in natural, fluent Indonesian. If in English, answer in natural English.\n"
+        "3. EXPLAIN TECHNICAL METRICS SIMPLY (Data-to-Insight): Keep all exact factual numbers (P/E ratio, PBV, RSI, Support/Resistance, Price), but always briefly explain what the numbers mean for an investor. For example:\n"
+        "   - Instead of just 'Forward P/E 12.9x', explain: 'Valuasinya cukup wajar dengan P/E di level 12,9x, yang menunjukkan harga relatif terjangkau dibanding rata-rata industrinya.'\n"
+        "   - Instead of just 'RSI 32', explain: 'Indikator momentum RSI berada di angka 32, menandakan saham ini sudah banyak terkoreksi (oversold) dan tekanan jualnya mulai mereda.'\n"
+        "4. CLEAN FORMATTING - STRICTLY NO MARKDOWN ASTERISKS: DO NOT use markdown bold asterisks (**) or triple asterisks (***). Keep the text clean, elegant, and comfortable to read on mobile screens. Use clean bullet points (•) when listing items.\n"
+        "5. RESPONSE STRUCTURE:\n"
+        "   - Ringkasan Utama: Answer the user's core question directly and warmly in 1-2 sentences.\n"
+        "   - Fakta & Analisis Pasar: Weave together the verified news catalysts, technical indicators, and valuation data.\n"
+        "   - Sudut Pandang Investor: A calm, sensible takeaway or key levels to watch.\n"
+        "6. SINGLE STOCK FOCUS: When asked about a specific stock, focus strictly on that stock. Never mention unrelated portfolio holdings."
     )
 
     full_prompt = (
@@ -336,7 +341,7 @@ async def consult_cloud_analyst(
         f"{evidence_text}\n"
         f"=================================\n\n"
         f"RESEARCH QUESTION: {query}\n\n"
-        f"ANALYST BRIEFING:"
+        f"INVESTOR BRIEFING:"
     )
 
     # Invoke Gemini with multi-model fallback chain to ensure resilience against quota/availability issues
@@ -358,8 +363,8 @@ async def consult_cloud_analyst(
             model = genai.GenerativeModel(candidate)
             generation_config = {
                 "max_output_tokens": 4096,
-                "temperature": 0.2,
-                "top_p": 0.8
+                "temperature": 0.3,
+                "top_p": 0.85
             }
             resp = await asyncio.to_thread(
                 model.generate_content,
@@ -379,16 +384,26 @@ async def consult_cloud_analyst(
         used_model = "Deterministic-Analyst-Fallback"
         news_summaries = []
         for c in citations[:5]:
-            news_summaries.append(f"• **{c.get('title')}** ({c.get('badge_label', 'News')})\n  Source: {c.get('source_url', 'N/A')}")
+            news_summaries.append(f"• {c.get('title')} ({c.get('badge_label', 'News')})\n  Sumber: {c.get('source_url', 'N/A')}")
         
         analyst_report = (
-            f"**Executive Research Summary for '{query}'**\n\n"
+            f"Ringkasan Analisis FinGent untuk '{query}':\n\n"
             f"{market_context}\n"
-            f"**Latest News Catalysts & Research Evidence:**\n"
+            f"Kabar Berita & Katalis Terkini:\n"
             + "\n".join(news_summaries)
             + f"\n\n{gold_technical_context}\n"
-            + f"**Analyst Note:** Based on the market data and evidence above, monitor sector catalysts and technical levels for momentum confirmation."
+            + f"Catatan untuk Investor: Berdasarkan data pasar dan berita di atas, pantau sentimen sektor dan level harga kunci untuk mengonfirmasi arah tren."
         )
+
+    # Strip any stray markdown asterisks and heavy hashes to guarantee clean, friendly presentation
+    analyst_report = (
+        analyst_report
+        .replace("**", "")
+        .replace("***", "")
+        .replace("### ", "")
+        .replace("## ", "")
+        .strip()
+    )
     # Record execution trace for Admin Dashboard Observability & SSE
     latency_ms = int((time.time() - start_time) * 1000)
     prompt_tokens = max(1, len(full_prompt) // 4)

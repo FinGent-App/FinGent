@@ -307,14 +307,19 @@ final class ChatUseCase: ChatUseCaseProtocol {
             bias = .neutral
         }
 
-        var text = "Based on integrated analysis from **FinGent Intelligence (Zilliz Cloud RAG & Live Market)**, here is the briefing for **\(ticker)**:\n\n"
+        let isIdr = NewsRankingService.isIDX(ticker: ticker)
+        var text = isIdr
+            ? "Halo! Berikut rangkuman perkembangan pasar untuk \(ticker):\n\n"
+            : "Here is the market insight for \(ticker):\n\n"
 
         if let q = quote {
-            text += "📊 **Current Market Snapshot:**\nPrice is trading at **\(q.formattedPrice)** with daily movement of **\(q.formattedChange)** (\(String(format: "%.2f", q.changePercent))%).\n\n"
+            text += isIdr
+                ? "📊 Kondisi Pasar Saat Ini:\nHarga saham diperdagangkan di level \(q.formattedPrice) dengan perubahan harian \(q.formattedChange) (\(String(format: "%.2f", q.changePercent))%).\n\n"
+                : "📊 Current Market Snapshot:\nTrading at \(q.formattedPrice) with daily movement of \(q.formattedChange) (\(String(format: "%.2f", q.changePercent))%).\n\n"
         }
 
         if let cg = cloudGrounding, !cg.isEmpty {
-            text += "⚡ **Cloud Agent Research Findings:**\n\(cg)\n\n"
+            text += "⚡ Analisis Riset:\n\(sanitizeFriendlyText(cg))\n\n"
         }
 
         // Display user holding position for the target stock only
@@ -322,8 +327,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
            let userHolding = PortfolioRepository.shared.userHoldings.first(where: { $0.ticker.uppercased() == targetTicker.uppercased() }) {
             let avgPriceStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.pricePerShare))" : "Rp \(Int(userHolding.pricePerShare))"
             let investedStr = userHolding.isUSD ? "$\(String(format: "%.2f", userHolding.investedAmount))" : "Rp \(Int(userHolding.investedAmount))"
-            text += "💼 **Your Portfolio Position (\(userHolding.ticker)):**\n"
-            text += "• You hold **\(userHolding.shares) shares** with average purchase price of **\(avgPriceStr)** (Total Investment: **\(investedStr)**).\n\n"
+            text += "💼 Posisi di Portofolio Anda (\(userHolding.ticker)):\n"
+            text += "• Anda memiliki \(userHolding.shares) lembar saham dengan harga beli rata-rata \(avgPriceStr) (Total Investasi: \(investedStr)).\n\n"
         }
 
         // Display Portfolio Citations if available (strictly matching target ticker)
@@ -331,7 +336,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             p.source == .portfolio && (ticker == "Market" || p.title.uppercased().contains(ticker.uppercased()))
         }
         if !portfolioCitations.isEmpty {
-            text += "💼 **Portfolio Notes:**\n"
+            text += "💼 Catatan Portofolio:\n"
             for p in portfolioCitations {
                 text += "• \(p.title)\n"
             }
@@ -341,41 +346,48 @@ final class ChatUseCase: ChatUseCaseProtocol {
         // Display SEC Citations if available
         let secCitations = ragCitations.filter { $0.source == .sec }
         if !secCitations.isEmpty {
-            text += "🏛️ **Official SEC Regulatory Filings (EDGAR/Yahoo):**\n"
+            text += "🏛️ Dokumen Regulator Resmi (SEC / Keterbukaan Informasi):\n"
             for s in secCitations {
-                text += "• \(s.badgeLabel ?? "SEC Filing"): \(s.title)\n"
+                text += "• \(s.badgeLabel ?? "Dokumen"): \(s.title)\n"
             }
             text += "\n"
         }
 
         // Display News Citations if available
         if !articles.isEmpty {
-            text += "📰 **Facts & Catalysts from Recent News:**\n"
+            text += "📰 Kabar Berita & Katalis Terkini:\n"
             for (i, article) in articles.prefix(3).enumerated() {
                 let relativeTime = article.publishedAt.timeAgoDisplay()
-                text += "\(i + 1). **\(article.title)** (\(article.source.displayName), \(relativeTime))\n"
+                text += "\(i + 1). \(article.title) (\(article.source.displayName), \(relativeTime))\n"
                 if let summary = article.summary, !summary.isEmpty {
-                    text += "   _\(summary)_\n"
+                    text += "   \(summary)\n"
                 }
             }
         }
 
-        text += "\n💡 **Analysis & Outlook:**\n"
+        text += "\n💡 Sudut Pandang untuk Investor:\n"
         switch bias {
         case .bullish:
-            text += "Recent news catalysts and market fundamentals indicate constructive sentiment. However, short-term momentum remains dependent on overall market liquidity."
+            text += "Katalis berita dan data pasar menunjukkan sentimen positif. Bagi investor bertahap, pergerakan ini bisa dicermati untuk akumulasi secara terukur."
         case .bearish:
-            text += "Recent data indicates investor caution or potential short-term pullback. Risk management and monitoring key support levels are recommended."
+            text += "Kondisi saat ini menunjukkan pasar cenderung berhati-hati atau sedang koreksi wajar. Bagi pemula, disarankan tetap tenang dan perhatikan level harga aman sebelum menambah posisi."
         case .neutral:
-            text += "Market conditions are currently in a balanced consolidation phase without an extreme directional bias."
+            text += "Pasar saat ini bergerak stabil dalam fase konsolidasi. Ini waktu yang pas untuk mencermati perkembangan berita sebelum menentukan keputusan selanjutnya."
         }
 
-        text += "\n\n*(Note: Summary synthesized from Zilliz Milvus Vector RAG, SEC Filings, and Live News feeds).*"
-
-        return (text, bias)
+        return (sanitizeFriendlyText(text), bias)
     }
 
-    // MARK: - Bias Tag Extraction
+    // MARK: - Bias Tag Extraction & Sanitization
+
+    private func sanitizeFriendlyText(_ text: String) -> String {
+        return text
+            .replacingOccurrences(of: "***", with: "")
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "### ", with: "")
+            .replacingOccurrences(of: "## ", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     private func extractBias(from text: String) -> (String, MarketBias?) {
         var bias: MarketBias? = nil
@@ -391,7 +403,6 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 bias = .neutral
             }
             cleaned.removeSubrange(range)
-            cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             let lower = text.lowercased()
             if lower.contains("cenderung bullish") || lower.contains("bias bullish") || lower.contains("positive bias") || lower.contains("bullish") {
@@ -403,6 +414,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
+        cleaned = sanitizeFriendlyText(cleaned)
         return (cleaned, bias)
     }
 
@@ -751,11 +763,11 @@ final class ChatUseCase: ChatUseCaseProtocol {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let compArray = json["comparison"] as? [[String: Any]], !compArray.isEmpty else {
-            return "### 📊 Stock Comparison: \(tickers.joined(separator: " vs "))\n\n\(result)"
+            return sanitizeFriendlyText("📊 Perbandingan Saham: \(tickers.joined(separator: " vs "))\n\n\(result)")
         }
 
-        var md = "### 📊 Valuation Multiples Comparison: \(tickers.joined(separator: " vs "))\n\n"
-        md += "| Metric | " + compArray.map { ($0["ticker"] as? String) ?? "" }.joined(separator: " | ") + " |\n"
+        var md = "📊 Perbandingan Valuasi Saham: \(tickers.joined(separator: " vs "))\n\n"
+        md += "| Rasio / Metrik | " + compArray.map { ($0["ticker"] as? String) ?? "" }.joined(separator: " | ") + " |\n"
         md += "| :--- | " + compArray.map { _ in ":---" }.joined(separator: " | ") + " |\n"
 
         let isIdx = tickers.contains { NewsRankingService.isIDX(ticker: $0) }
@@ -767,118 +779,117 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let chgStr = String(format: "%+.2f%%", chg)
             return isIdx ? "\(sym)\(Int(p)) (\(chgStr))" : "\(sym)\(String(format: "%.2f", p)) (\(chgStr))"
         }
-        md += "| **Current Price** | " + prices.joined(separator: " | ") + " |\n"
+        md += "| Harga Saham Saat Ini | " + prices.joined(separator: " | ") + " |\n"
 
         let pes = compArray.map { item -> String in
             guard let pe = item["pe_ratio"] as? Double, pe > 0 else { return "N/A" }
             return String(format: "%.2fx", pe)
         }
-        md += "| **Trailing P/E** | " + pes.joined(separator: " | ") + " |\n"
+        md += "| Trailing P/E | " + pes.joined(separator: " | ") + " |\n"
 
         let fpes = compArray.map { item -> String in
             guard let fpe = item["forward_pe"] as? Double, fpe > 0 else { return "N/A" }
             return String(format: "%.2fx", fpe)
         }
-        md += "| **Forward P/E** | " + fpes.joined(separator: " | ") + " |\n"
+        md += "| Forward P/E | " + fpes.joined(separator: " | ") + " |\n"
 
         let pbvs = compArray.map { item -> String in
             guard let pbv = item["pbv_ratio"] as? Double, pbv > 0 else { return "N/A" }
             return String(format: "%.2fx", pbv)
         }
-        md += "| **PBV Ratio** | " + pbvs.joined(separator: " | ") + " |\n"
+        md += "| Rasio PBV | " + pbvs.joined(separator: " | ") + " |\n"
 
         let roes = compArray.map { item -> String in
             guard let roe = item["roe"] as? Double, roe != 0 else { return "N/A" }
             return String(format: "%.2f%%", roe)
         }
-        md += "| **ROE** | " + roes.joined(separator: " | ") + " |\n"
+        md += "| Return on Equity (ROE) | " + roes.joined(separator: " | ") + " |\n"
 
         let divs = compArray.map { item -> String in
             guard let div = item["dividend_yield"] as? Double, div > 0 else { return "N/A" }
             return String(format: "%.2f%%", div)
         }
-        md += "| **Dividend Yield** | " + divs.joined(separator: " | ") + " |\n"
+        md += "| Dividen Yield | " + divs.joined(separator: " | ") + " |\n"
 
-        md += "\n**Key Institutional Takeaways:**\n"
+        md += "\n💡 Catatan Ringkas untuk Investor:\n"
         for item in compArray {
             let t = (item["ticker"] as? String) ?? ""
             let name = (item["name"] as? String) ?? t
             let pe = item["pe_ratio"] as? Double ?? 0
             let pbv = item["pbv_ratio"] as? Double ?? 0
             let roe = item["roe"] as? Double ?? 0
-            md += "• **\(t)** (\(name)): P/E is **\(String(format: "%.1fx", pe))** with PBV of **\(String(format: "%.2fx", pbv))** and ROE of **\(String(format: "%.1f%%", roe))**.\n"
+            md += "• \(t) (\(name)): P/E \(String(format: "%.1fx", pe)), PBV \(String(format: "%.2fx", pbv)), dan ROE \(String(format: "%.1f%%", roe)).\n"
         }
 
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatMacroRiskResponse(result: String, prompt: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "### 🌐 Macroeconomic Risk Simulation\n\n\(result)"
+            return sanitizeFriendlyText("🌐 Simulasi Risiko Makroekonomi\n\n\(result)")
         }
         let scenario = (json["event"] as? String) ?? prompt
         let exposure = (json["exposure_percent"] as? Double) ?? 0.0
         let analysis = (json["analysis"] as? String) ?? ""
         let riskLevel = (json["risk_level"] as? String) ?? "MODERATE"
 
-        var md = "### 🌐 Macro Risk Scenario: \(scenario)\n\n"
-        md += "• **Risk Level:** **\(riskLevel.uppercased())**\n"
-        md += "• **Estimated Portfolio Exposure:** **\(String(format: "%.1f%%", exposure))**\n\n"
-        md += "#### Institutional Scenario Assessment\n"
+        var md = "🌐 Simulasi Risiko Makro: \(scenario)\n\n"
+        md += "• Tingkat Risiko: \(riskLevel.uppercased())\n"
+        md += "• Estimasi Paparan Portofolio: \(String(format: "%.1f%%", exposure))\n\n"
+        md += "Penilaian Skenario Pasar:\n"
         md += "\(analysis)\n\n"
-        md += "\n[BIAS: BEARISH]"
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatSentimentImpactResponse(result: String, prompt: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "### 📰 News Sentiment & Market Impact Analysis\n\n\(result)"
+            return sanitizeFriendlyText("📰 Analisis Sentimen Berita & Dampak Pasar\n\n\(result)")
         }
         let headline = (json["topic"] as? String) ?? (json["headline"] as? String) ?? prompt
         let sentiment = (json["sentiment"] as? String) ?? "Neutral"
         let score = (json["score"] as? Double) ?? 0.0
         let impact = (json["price_impact"] as? String) ?? (json["analysis"] as? String) ?? ""
 
-        var md = "### 📰 News Sentiment Analysis\n\n"
-        md += "• **Headline / Topic:** _\"\(headline)\"_\n"
-        md += "• **Sentiment Bias:** **\(sentiment.uppercased())** (Score: \(String(format: "%.2f", score)))\n\n"
-        md += "#### Market Impact Projection\n"
+        var md = "📰 Analisis Sentimen Berita:\n\n"
+        md += "• Topik / Berita: \"\(headline)\"\n"
+        md += "• Sentimen: \(sentiment.uppercased()) (Skor: \(String(format: "%.2f", score)))\n\n"
+        md += "Proyeksi Dampak ke Pasar:\n"
         md += "\(impact)\n"
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatRAGResponse(result: String, query: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = json["results"] as? [[String: Any]] else {
-            return "### 🏛️ Regulatory Disclosures & Vector Knowledge RAG\n\n\(result)"
+            return sanitizeFriendlyText("🏛️ Keterbukaan Informasi & Riset RAG\n\n\(result)")
         }
-        var md = "### 🏛️ Verified Knowledge Search (Zilliz Cloud Milvus)\n\n"
-        md += "Search Query: _\"\(query)\"_\n\n"
+        var md = "🏛️ Pencarian Dokumen Resmi & Riset (Zilliz Milvus):\n\n"
+        md += "Topik: \"\(query)\"\n\n"
         if results.isEmpty {
-            md += "No matching SEC filings or disclosures found."
-            return md
+            md += "Tidak ditemukan laporan keterbukaan informasi yang cocok."
+            return sanitizeFriendlyText(md)
         }
         for (i, r) in results.prefix(4).enumerated() {
             let title = (r["title"] as? String) ?? "Document"
             let docType = (r["doc_type"] as? String)?.uppercased() ?? "DISCLOSURE"
             let content = (r["content"] as? String) ?? ""
             let url = (r["source_url"] as? String) ?? ""
-            md += "**\(i + 1). [\(docType)] \(title)**\n"
+            md += "\(i + 1). [\(docType)] \(title)\n"
             if !url.isEmpty {
-                md += "Source: [View Filing](\(url))\n"
+                md += "Tautan Dokumen: \(url)\n"
             }
             md += "> \(content.prefix(250))...\n\n"
         }
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatFundamentalsResponse(result: String, ticker: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "### 📈 Stock Fundamentals: \(ticker)\n\n\(result)"
+            return sanitizeFriendlyText("📈 Fundamental Saham: \(ticker)\n\n\(result)")
         }
         let name = (json["name"] as? String) ?? ticker
         let pe = (json["pe_ratio"] as? Double) ?? 0
@@ -889,37 +900,37 @@ final class ChatUseCase: ChatUseCaseProtocol {
         let div = (json["dividend_yield"] as? Double) ?? 0
         let mcap = (json["market_cap"] as? Double) ?? 0
 
-        var md = "### 📈 Key Valuation Fundamentals: \(ticker) (\(name))\n\n"
-        md += "| Metric | Value |\n"
+        var md = "📈 Ringkasan Rasio Fundamental: \(ticker) (\(name))\n\n"
+        md += "| Rasio Keuangan | Nilai |\n"
         md += "| :--- | :--- |\n"
-        md += "| **Trailing P/E** | \(pe > 0 ? String(format: "%.2fx", pe) : "N/A") |\n"
-        md += "| **Forward P/E** | \(fpe > 0 ? String(format: "%.2fx", fpe) : "N/A") |\n"
-        md += "| **PBV Ratio** | \(pbv > 0 ? String(format: "%.2fx", pbv) : "N/A") |\n"
-        md += "| **Return on Equity (ROE)** | \(roe != 0 ? String(format: "%.2f%%", roe) : "N/A") |\n"
-        md += "| **Earnings Per Share (EPS)** | \(String(format: "%.2f", eps)) |\n"
-        md += "| **Dividend Yield** | \(div > 0 ? String(format: "%.2f%%", div) : "N/A") |\n"
+        md += "| Trailing P/E | \(pe > 0 ? String(format: "%.2fx", pe) : "N/A") |\n"
+        md += "| Forward P/E | \(fpe > 0 ? String(format: "%.2fx", fpe) : "N/A") |\n"
+        md += "| Rasio PBV | \(pbv > 0 ? String(format: "%.2fx", pbv) : "N/A") |\n"
+        md += "| Return on Equity (ROE) | \(roe != 0 ? String(format: "%.2f%%", roe) : "N/A") |\n"
+        md += "| Laba per Saham (EPS) | \(String(format: "%.2f", eps)) |\n"
+        md += "| Estimasi Dividen Yield | \(div > 0 ? String(format: "%.2f%%", div) : "N/A") |\n"
         let isIdr = NewsRankingService.isIDX(ticker: ticker)
-        md += "| **Market Capitalization** | \(isIdr ? "Rp " : "$" )\(String(format: "%.0f", mcap)) |\n"
-        return md
+        md += "| Kapitalisasi Pasar | \(isIdr ? "Rp " : "$" )\(String(format: "%.0f", mcap)) |\n"
+        return sanitizeFriendlyText(md)
     }
 
     private func formatMarketLeadersResponse(result: String, isLosers: Bool) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let movers = json["movers"] as? [[String: Any]], !movers.isEmpty else {
-            return "### 🚀 Market Leaders & Movers\n\n\(result)"
+            return sanitizeFriendlyText("🚀 Penggerak Pasar Hari Ini\n\n\(result)")
         }
 
-        let title = isLosers ? "Top Market Losers" : "Top Market Gainers"
-        var md = "### 🚀 \(title) (Real-Time)\n\n"
+        let title = isLosers ? "Saham dengan Penurunan Terbesar" : "Saham dengan Kenaikan Terbesar"
+        var md = "🚀 \(title) (Real-Time)\n\n"
         if let idx = json["index"] as? [String: Any] {
             let idxName = idx["name"] as? String ?? "IHSG"
             let idxPrice = idx["price"] as? Double ?? 0
             let idxChg = idx["change_percent"] as? Double ?? 0
-            md += "**Market Index (\(idxName)):** \(String(format: "%.2f", idxPrice)) (\(String(format: "%+.2f%%", idxChg)))\n\n"
+            md += "Indeks Acuan (\(idxName)): \(String(format: "%.2f", idxPrice)) (\(String(format: "%+.2f%%", idxChg)))\n\n"
         }
 
-        md += "| Ticker | Company Name | Price | 24H Change | Volume |\n"
+        md += "| Kode | Nama Perusahaan | Harga | Perubahan 24J | Volume |\n"
         md += "| :--- | :--- | :--- | :--- | :--- |\n"
 
         for m in movers.prefix(8) {
@@ -933,16 +944,16 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let chgStr = String(format: "%+.2f%%", chg)
             let volStr = vol > 1_000_000 ? "\(String(format: "%.1fM", Double(vol)/1_000_000.0))" : "\(vol)"
 
-            md += "| **\(ticker)** | \(name) | \(priceStr) | **\(chgStr)** | \(volStr) |\n"
+            md += "| \(ticker) | \(name) | \(priceStr) | \(chgStr) | \(volStr) |\n"
         }
 
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatTechnicalsResponse(result: String, ticker: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "### 📊 Technical Analysis: \(ticker)\n\n\(result)"
+            return sanitizeFriendlyText("📊 Analisis Teknikal: \(ticker)\n\n\(result)")
         }
 
         let name = (json["name"] as? String) ?? ticker
@@ -966,36 +977,36 @@ final class ChatUseCase: ChatUseCaseProtocol {
         let resistance = levels["resistance_60d"] as? Double ?? close
         let summary = json["summary"] as? String ?? ""
 
-        var md = "### 📊 Technical Analysis: \(ticker) (\(name))\n\n"
-        md += "• **Current Price:** **\(sym)\(isIdr ? "\(Int(close))" : String(format: "%.2f", close))**\n"
-        md += "• **Overall Signal:** **\(signal.uppercased())** (\(trend))\n\n"
+        var md = "📊 Rangkuman Teknikal: \(ticker) (\(name))\n\n"
+        md += "• Harga Saat Ini: \(sym)\(isIdr ? "\(Int(close))" : String(format: "%.2f", close))\n"
+        md += "• Sinyal Keseluruhan: \(signal.uppercased()) (\(trend))\n\n"
 
-        md += "| Technical Indicator | Value | Condition / Signal |\n"
+        md += "| Indikator Teknikal | Nilai | Catatan / Kondisi |\n"
         md += "| :--- | :--- | :--- |\n"
-        md += "| **RSI (14-Day Momentum)** | **\(String(format: "%.2f", rsi))** | \(condition) |\n"
-        md += "| **Moving Average (MA20)** | \(sym)\(isIdr ? "\(Int(ma20))" : String(format: "%.2f", ma20)) | Short-Term Trend |\n"
-        md += "| **Moving Average (MA50)** | \(sym)\(isIdr ? "\(Int(ma50))" : String(format: "%.2f", ma50)) | Medium-Term Trend |\n"
-        md += "| **Golden Cross Active?** | \(isGoldenCross ? "✅ YES (Bullish Momentum)" : "❌ NO / Death Cross") | MA20 vs MA50 |\n"
-        md += "| **Dynamic Support (60D)** | **\(sym)\(isIdr ? "\(Int(support))" : String(format: "%.2f", support))** | Key Buying Floor |\n"
-        md += "| **Dynamic Resistance (60D)** | **\(sym)\(isIdr ? "\(Int(resistance))" : String(format: "%.2f", resistance))** | Overhead Supply Ceiling |\n\n"
+        md += "| RSI (Momentum 14-Hari) | \(String(format: "%.2f", rsi)) | \(condition) |\n"
+        md += "| Rata-rata Bergerak (MA20) | \(sym)\(isIdr ? "\(Int(ma20))" : String(format: "%.2f", ma20)) | Tren Jangka Pendek |\n"
+        md += "| Rata-rata Bergerak (MA50) | \(sym)\(isIdr ? "\(Int(ma50))" : String(format: "%.2f", ma50)) | Tren Jangka Menengah |\n"
+        md += "| Golden Cross Aktif? | \(isGoldenCross ? "Aktif (Momentum Bullish)" : "Tidak Aktif") | MA20 vs MA50 |\n"
+        md += "| Area Support Kunci | \(sym)\(isIdr ? "\(Int(support))" : String(format: "%.2f", support)) | Batas Bawah Pembelian |\n"
+        md += "| Area Resistance Kunci | \(sym)\(isIdr ? "\(Int(resistance))" : String(format: "%.2f", resistance)) | Batas Atas Pasokan |\n\n"
 
         if !summary.isEmpty {
-            md += "#### 💡 Technical Outlook & Summary\n"
+            md += "💡 Catatan Tren Teknikal:\n"
             md += "\(summary)\n"
         }
 
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatSearchStocksResponse(result: String, query: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let matches = json["matches"] as? [[String: Any]], !matches.isEmpty else {
-            return "### 🔍 Stock Directory Search: \"\(query)\"\n\n\(result)"
+            return sanitizeFriendlyText("🔍 Hasil Pencarian Saham: \"\(query)\"\n\n\(result)")
         }
 
-        var md = "### 🔍 Stock Directory Search: _\"\(query)\"_\n\n"
-        md += "| Ticker | Company / Asset Name | Price | 24H Change | Day Range |\n"
+        var md = "🔍 Hasil Pencarian Saham: \"\(query)\"\n\n"
+        md += "| Kode | Nama Emiten | Harga | Perubahan 24J | Rentang Hari Ini |\n"
         md += "| :--- | :--- | :--- | :--- | :--- |\n"
 
         for m in matches {
@@ -1008,15 +1019,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let priceStr = isIdr ? "Rp \(Int(price))" : "$\(String(format: "%.2f", price))"
             let chgStr = String(format: "%+.2f%%", chg)
 
-            md += "| **\(ticker)** | \(name) | \(priceStr) | **\(chgStr)** | \(range) |\n"
+            md += "| \(ticker) | \(name) | \(priceStr) | \(chgStr) | \(range) |\n"
         }
-        return md
+        return sanitizeFriendlyText(md)
     }
 
     private func formatPortfolioNewsResponse(result: String) -> String {
         guard let data = result.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "### 📰 Portfolio Holdings News\n\n\(result)"
+            return sanitizeFriendlyText("📰 Berita Terkait Portofolio\n\n\(result)")
         }
 
         var articles: [[String: Any]] = []
@@ -1027,29 +1038,29 @@ final class ChatUseCase: ChatUseCaseProtocol {
         }
 
         guard !articles.isEmpty else {
-            return "### 📰 Portfolio Holdings News\n\nNo recent news headlines found for your active portfolio holdings."
+            return sanitizeFriendlyText("📰 Berita Terkait Portofolio\n\nBelum ada berita baru terkait saham di portofolio Anda saat ini.")
         }
 
-        var md = "### 📰 Active Portfolio Holdings News\n\n"
+        var md = "📰 Berita Terbaru untuk Saham di Portofolio Anda:\n\n"
         for (i, art) in articles.prefix(5).enumerated() {
-            let title = art["title"] as? String ?? "Market Update"
-            let source = art["source"] as? String ?? "Financial News"
+            let title = art["title"] as? String ?? "Kabar Pasar"
+            let source = art["source"] as? String ?? "Media Finansial"
             let summary = art["summary"] as? String ?? ""
             let url = art["url"] as? String ?? ""
             let sentiment = art["sentiment"] as? String ?? "Neutral"
             let sentEmoji = sentiment.lowercased() == "positive" ? "🟢" : (sentiment.lowercased() == "negative" ? "🔴" : "⚪")
 
-            md += "**\(i + 1). \(sentEmoji) \(title)**\n"
-            md += "• _Source: \(source)_ • _Sentiment: \(sentiment.capitalized)_\n"
+            md += "\(i + 1). \(sentEmoji) \(title)\n"
+            md += "• Sumber: \(source) • Sentimen: \(sentiment.capitalized)\n"
             if !summary.isEmpty {
-                md += "> \(summary.prefix(200))...\n"
+                md += "\(summary.prefix(200))...\n"
             }
             if !url.isEmpty {
-                md += "[Read full article](\(url))\n"
+                md += "Tautan: \(url)\n"
             }
             md += "\n"
         }
-        return md
+        return sanitizeFriendlyText(md)
     }
 }
 
