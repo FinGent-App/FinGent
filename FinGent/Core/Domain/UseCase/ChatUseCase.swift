@@ -123,7 +123,27 @@ final class ChatUseCase: ChatUseCaseProtocol {
             // FoundationModels is NEVER bypassed. It autonomously selects between on-device tools
             // (portfolio balance, holdings, quotes) and the Cloud Analyst (Gemini + RAG + SEC).
             let rawReply = try await agent.ask(prompt)
-            let (cleanedAnswer, bias) = extractBias(from: rawReply)
+
+            let executedRecords = ToolCallTracker.shared.drainRecords()
+            let calledCloudAnalyst = executedRecords.contains { $0.name == "ConsultCloudAnalystTool" }
+            let cloudReport = SharedCitationStore.shared.drainLastCloudReport()
+
+            let effectiveReply: String
+            if calledCloudAnalyst, let report = cloudReport, !report.isEmpty {
+                // If Apple FoundationModels on-device SLM truncated the response due to token budget limits
+                // (e.g. only generating a brief header like "**FinGent Senior Wall Street Research Analyst Briefing**"),
+                // seamlessly use the complete, institutional-grade Cloud Research report.
+                let trimmed = rawReply.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.count < 350 || (!trimmed.contains("###") && report.contains("###")) {
+                    effectiveReply = report
+                } else {
+                    effectiveReply = rawReply
+                }
+            } else {
+                effectiveReply = rawReply
+            }
+
+            let (cleanedAnswer, bias) = extractBias(from: effectiveReply)
 
             var citations = SharedCitationStore.shared.drainLastCitations()
             if let targetTicker = context.tickers.first {
@@ -139,8 +159,6 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
 
             let isTargetMarketIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
-            let executedRecords = ToolCallTracker.shared.drainRecords()
-            let calledCloudAnalyst = executedRecords.contains { $0.name == "ConsultCloudAnalystTool" }
             let onDeviceRecords = executedRecords.filter { $0.name != "ConsultCloudAnalystTool" }
 
             // If ConsultCloudAnalystTool was executed, the backend cloud_agent_service already

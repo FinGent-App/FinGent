@@ -9,6 +9,7 @@ import FoundationModels
 final class SharedCitationStore {
     static let shared = SharedCitationStore()
     private(set) var lastCitations: [NewsCitation] = []
+    private(set) var lastCloudReport: String? = nil
 
     func setLastCitations(_ dtoArray: [StockApiClient.CloudConsultCitationDTO]) {
         self.lastCitations = dtoArray.map { dto in
@@ -29,6 +30,16 @@ final class SharedCitationStore {
                 badgeLabel: dto.doc_type.uppercased()
             )
         }
+    }
+
+    func setLastCloudReport(_ report: String) {
+        self.lastCloudReport = report
+    }
+
+    func drainLastCloudReport() -> String? {
+        let current = lastCloudReport
+        lastCloudReport = nil
+        return current
     }
 
     func drainLastCitations() -> [NewsCitation] {
@@ -71,6 +82,10 @@ struct ConsultCloudAnalystTool: Tool {
                 await MainActor.run {
                     SharedCitationStore.shared.setLastCitations(relevant)
                 }
+            }
+
+            await MainActor.run {
+                SharedCitationStore.shared.setLastCloudReport(response.analyst_report)
             }
 
             var formatted = "=== CLOUD RESEARCH ANALYST BRIEFING ===\n"
