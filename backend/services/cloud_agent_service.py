@@ -128,7 +128,9 @@ async def _fetch_verified_news_context(ticker: str) -> Tuple[str, List[Dict[str,
 
     try:
         try:
-            await sync_ticker_news(ticker)
+            await asyncio.wait_for(sync_ticker_news(ticker), timeout=3.5)
+        except asyncio.TimeoutError:
+            logger.info("Ticker news sync timed out after 3.5s for %s, proceeding with cached/database articles", ticker)
         except Exception as sync_err:
             logger.warning("Failed to sync ticker news for %s: %s", ticker, str(sync_err))
 

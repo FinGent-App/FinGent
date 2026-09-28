@@ -205,6 +205,7 @@ final class ChatViewModel {
             messages[index].bias = response.bias
             messages[index].confidence = response.confidence
             messages[index].sources = response.sources
+            messages[index].traceId = response.traceId
             messages[index].isGenerating = false
         }
     }

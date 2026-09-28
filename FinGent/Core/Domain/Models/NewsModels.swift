@@ -177,17 +177,20 @@ struct AIResponse: Codable, Sendable {
     let bias: MarketBias?
     let confidence: Double?
     let sources: [NewsCitation]
+    let traceId: String?
 
     init(
         answer: String,
         bias: MarketBias? = nil,
         confidence: Double? = nil,
-        sources: [NewsCitation] = []
+        sources: [NewsCitation] = [],
+        traceId: String? = nil
     ) {
         self.answer = answer
         self.bias = bias
         self.confidence = confidence
         self.sources = sources
+        self.traceId = traceId
     }
 }
 

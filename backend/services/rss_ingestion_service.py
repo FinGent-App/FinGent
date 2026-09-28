@@ -423,30 +423,26 @@ async def sync_ticker_news(ticker: str) -> int:
     if is_idx:
         logger.info("📍 [MARKET ROUTING: IDX] Fetching Indonesian financial RSS for %s", clean_ticker)
 
-        # 1. Kontan targeted RSS via Google News
         kontan_url = f"https://news.google.com/rss/search?q=site:kontan.co.id+{clean_ticker}&hl=id&gl=ID&ceid=ID:id"
-        kontan_arts = await fetch_rss_feed(kontan_url, "Kontan", dynamic_tickers={clean_ticker})
-
-        # 2. Detik Finance (Bursa dan Valas & General)
-        detik_bursa = await fetch_rss_feed(DETIK_BURSA_URL, "Detik Finance", dynamic_tickers={clean_ticker})
-        detik_gen = await fetch_rss_feed(DETIK_FINANCE_GEN_URL, "Detik Finance", dynamic_tickers={clean_ticker})
-
-        # 3. Liputan6 Bisnis
-        liputan6 = await fetch_rss_feed(LIPUTAN6_BISNIS_URL, "Liputan6 Bisnis", dynamic_tickers={clean_ticker})
-
-        # 4. Tempo Bisnis
-        tempo = await fetch_rss_feed(TEMPO_BISNIS_URL, "Tempo Bisnis", dynamic_tickers={clean_ticker})
-
-        # 5. CNN Indonesia Ekonomi
-        cnn = await fetch_rss_feed(CNN_INDONESIA_EKONOMI_URL, "CNN Indonesia Ekonomi", dynamic_tickers={clean_ticker})
-
-        # 6. Yahoo Finance Indonesia ticker feed (.JK)
         yahoo_feed = YAHOO_TICKER_FEED_URL.format(ticker=f"{clean_ticker}.JK")
-        yahoo_arts = await fetch_rss_feed(yahoo_feed, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker})
 
-        # Filter and ensure clean_ticker is tagged in relevant articles
+        raw_results = await asyncio.gather(
+            fetch_rss_feed(kontan_url, "Kontan", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(DETIK_BURSA_URL, "Detik Finance", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(DETIK_FINANCE_GEN_URL, "Detik Finance", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(LIPUTAN6_BISNIS_URL, "Liputan6 Bisnis", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(TEMPO_BISNIS_URL, "Tempo Bisnis", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(CNN_INDONESIA_EKONOMI_URL, "CNN Indonesia Ekonomi", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(yahoo_feed, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker}),
+            return_exceptions=True
+        )
+
+        raw_candidates: List[Dict[str, Any]] = []
+        for r in raw_results:
+            if isinstance(r, list):
+                raw_candidates.extend(r)
+
         company_aliases = [kw.lower() for kw in INDONESIAN_COMPANY_ALIASES.get(clean_ticker, [])]
-        raw_candidates = kontan_arts + detik_bursa + detik_gen + liputan6 + tempo + cnn + yahoo_arts
 
         for art in raw_candidates:
             title_lower = art["title"].lower()
@@ -467,32 +463,26 @@ async def sync_ticker_news(ticker: str) -> int:
     else:
         logger.info("📍 [MARKET ROUTING: US/GLOBAL] Fetching US/Global financial RSS for %s", clean_ticker)
 
-        # 1. Yahoo Finance US Ticker Feed with resilient fallback
         yahoo_feed = YAHOO_TICKER_FEED_URL.format(ticker=clean_ticker)
-        yahoo_arts = await fetch_rss_feed(yahoo_feed, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker})
-        if not yahoo_arts:
-            yahoo_fallback_url = f"https://news.google.com/rss/search?q=site:finance.yahoo.com+{clean_ticker}&hl=en-US&gl=US&ceid=US:en"
-            yahoo_arts = await fetch_rss_feed(yahoo_fallback_url, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker})
-
-        # 2. Nasdaq Stocks Feed
-        nasdaq_arts = await fetch_rss_feed(NASDAQ_STOCKS_URL, "Nasdaq", dynamic_tickers={clean_ticker})
-
-        # 3. Investing.com Stocks News
-        investing_arts = await fetch_rss_feed(INVESTING_STOCKS_URL, "Investing.com", dynamic_tickers={clean_ticker})
-
-        # 4. GlobeNewswire (Targeted Ticker Search + Financials)
         gnw_ticker_url = f"https://news.google.com/rss/search?q=site:globenewswire.com+{clean_ticker}&hl=en-US&gl=US&ceid=US:en"
-        globenewswire_arts = await fetch_rss_feed(gnw_ticker_url, "GlobeNewswire", dynamic_tickers={clean_ticker})
-
-        # 5. PR Newswire
-        prnewswire_arts = await fetch_rss_feed(PRNEWSWIRE_FINANCE_URL, "PR Newswire", dynamic_tickers={clean_ticker})
-
-        # 6. Business Wire (Targeted Ticker Search + Financials)
         bw_ticker_url = f"https://news.google.com/rss/search?q=site:businesswire.com+{clean_ticker}&hl=en-US&gl=US&ceid=US:en"
-        businesswire_arts = await fetch_rss_feed(bw_ticker_url, "Business Wire", dynamic_tickers={clean_ticker})
+
+        raw_results = await asyncio.gather(
+            fetch_rss_feed(yahoo_feed, f"Yahoo Finance ({clean_ticker})", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(NASDAQ_STOCKS_URL, "Nasdaq", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(INVESTING_STOCKS_URL, "Investing.com", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(gnw_ticker_url, "GlobeNewswire", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(PRNEWSWIRE_FINANCE_URL, "PR Newswire", dynamic_tickers={clean_ticker}),
+            fetch_rss_feed(bw_ticker_url, "Business Wire", dynamic_tickers={clean_ticker}),
+            return_exceptions=True
+        )
+
+        raw_candidates: List[Dict[str, Any]] = []
+        for r in raw_results:
+            if isinstance(r, list):
+                raw_candidates.extend(r)
 
         company_aliases = [kw.lower() for kw in GLOBAL_COMPANY_ALIASES.get(clean_ticker, [])]
-        raw_candidates = yahoo_arts + nasdaq_arts + investing_arts + globenewswire_arts + prnewswire_arts + businesswire_arts
 
         for art in raw_candidates:
             title_lower = art["title"].lower()

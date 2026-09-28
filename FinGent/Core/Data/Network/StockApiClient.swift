@@ -647,6 +647,7 @@ final class StockApiClient: Sendable {
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
+        req.timeoutInterval = 20.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
@@ -680,13 +681,16 @@ final class StockApiClient: Sendable {
         guard let url = URL(string: "\(baseURL)/api/v1/admin/trace") else { return nil }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
+        req.timeoutInterval = 10.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let sanitizedArgs = toolArguments.mapValues { "\($0)" }
 
         let payload: [String: Any] = [
             "user_id": "ios_device_user",
             "prompt": prompt,
             "selected_tools": selectedTools,
-            "tool_arguments": toolArguments,
+            "tool_arguments": sanitizedArgs,
             "tool_output": toolOutput ?? "",
             "final_answer": finalAnswer ?? "",
             "market_type": marketType,

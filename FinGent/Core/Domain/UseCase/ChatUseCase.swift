@@ -159,37 +159,31 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
 
             let isTargetMarketIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
-            let onDeviceRecords = executedRecords.filter { $0.name != "ConsultCloudAnalystTool" }
-
-            // If ConsultCloudAnalystTool was executed, the backend cloud_agent_service already
-            // recorded the complete trace (with exact query, ticker, citations, and 12s latency).
-            // We only record an iOS trace if purely on-device tools or direct SLM synthesis occurred.
-            if !calledCloudAnalyst {
-                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                let onDeviceTools = onDeviceRecords.map { $0.name }
-                var mergedArgs: [String: Any] = [:]
-                for r in onDeviceRecords {
-                    for (k, v) in r.arguments {
-                        mergedArgs[k] = v
-                    }
-                }
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: onDeviceTools,
-                        toolArguments: mergedArgs,
-                        finalAnswer: cleanedAnswer,
-                        marketType: isTargetMarketIDX ? "IDX" : "US",
-                        latencyMs: latencyMs
-                    )
+            let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+            let onDeviceTools = executedRecords.map { $0.name }
+            var mergedArgs: [String: Any] = [:]
+            for r in executedRecords {
+                for (k, v) in r.arguments {
+                    mergedArgs[k] = v
                 }
             }
+
+            let traceId = await StockApiClient.shared.recordAgentTrace(
+                prompt: prompt,
+                selectedTools: onDeviceTools.isEmpty ? ["Apple FoundationModels (Direct SLM)"] : onDeviceTools,
+                toolArguments: mergedArgs,
+                toolOutput: calledCloudAnalyst ? "Cloud Analyst research report synthesized" : "Executed on-device financial tools",
+                finalAnswer: cleanedAnswer,
+                marketType: isTargetMarketIDX ? "IDX" : "US",
+                latencyMs: latencyMs
+            )
 
             return AIResponse(
                 answer: cleanedAnswer,
                 bias: bias,
                 confidence: bias != nil ? 0.82 : nil,
-                sources: citations
+                sources: citations,
+                traceId: traceId
             )
         } catch {
             // Intelligent fallback: When executed on environments without Apple Intelligence neural engine
@@ -441,21 +435,20 @@ final class ChatUseCase: ChatUseCaseProtocol {
                     )
                     let formatted = formatStockComparisonResponse(result: result, tickers: compareTickers)
                     let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                    Task {
-                        await StockApiClient.shared.recordAgentTrace(
-                            prompt: prompt,
-                            selectedTools: ["compare_stocks_side_by_side"],
-                            toolArguments: ["tickers": compareTickers.joined(separator: ", ")],
-                            finalAnswer: formatted,
-                            marketType: compareTickers.contains(where: { NewsRankingService.isIDX(ticker: $0) }) ? "IDX" : "US",
-                            latencyMs: latencyMs
-                        )
-                    }
+                    let traceId = await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["compare_stocks_side_by_side"],
+                        toolArguments: ["tickers": compareTickers.joined(separator: ", ")],
+                        finalAnswer: formatted,
+                        marketType: compareTickers.contains(where: { NewsRankingService.isIDX(ticker: $0) }) ? "IDX" : "US",
+                        latencyMs: latencyMs
+                    )
                     return AIResponse(
                         answer: formatted,
                         bias: .neutral,
                         confidence: 0.90,
-                        sources: []
+                        sources: [],
+                        traceId: traceId
                     )
                 } catch {
                     // Fallback further if network error
@@ -473,17 +466,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatMacroRiskResponse(result: result, prompt: prompt)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["simulate_macro_portfolio_risk"],
-                        toolArguments: ["event": prompt],
-                        finalAnswer: formatted,
-                        marketType: "US",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .bearish, confidence: 0.85, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["simulate_macro_portfolio_risk"],
+                    toolArguments: ["event": prompt],
+                    finalAnswer: formatted,
+                    marketType: "US",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .bearish, confidence: 0.85, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -499,17 +490,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatSentimentImpactResponse(result: result, prompt: prompt)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["analyze_news_sentiment_impact"],
-                        toolArguments: ["headline": prompt],
-                        finalAnswer: formatted,
-                        marketType: "US",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["analyze_news_sentiment_impact"],
+                    toolArguments: ["headline": prompt],
+                    finalAnswer: formatted,
+                    marketType: "US",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -525,17 +514,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatRAGResponse(result: result, query: prompt)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["search_financial_knowledge_rag"],
-                        toolArguments: ["query": prompt],
-                        finalAnswer: formatted,
-                        marketType: "US",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["search_financial_knowledge_rag"],
+                    toolArguments: ["query": prompt],
+                    finalAnswer: formatted,
+                    marketType: "US",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -553,17 +540,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatMarketLeadersResponse(result: result, isLosers: isLosers)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["get_market_leaders"],
-                        toolArguments: ["mover_type": moverType],
-                        finalAnswer: formatted,
-                        marketType: lowered.contains("wall street") || lowered.contains("us") ? "US" : "IDX",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: isLosers ? .bearish : .bullish, confidence: 0.90, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["get_market_leaders"],
+                    toolArguments: ["mover_type": moverType],
+                    finalAnswer: formatted,
+                    marketType: lowered.contains("wall street") || lowered.contains("us") ? "US" : "IDX",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: isLosers ? .bearish : .bullish, confidence: 0.90, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -579,17 +564,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatPortfolioNewsResponse(result: result)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["get_user_portfolio_news"],
-                        toolArguments: ["user_id": "default_user"],
-                        finalAnswer: formatted,
-                        marketType: "IDX",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["get_user_portfolio_news"],
+                    toolArguments: ["user_id": "default_user"],
+                    finalAnswer: formatted,
+                    marketType: "IDX",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -613,17 +596,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatSearchStocksResponse(result: result, query: searchQuery)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["search_stocks_directory"],
-                        toolArguments: ["query": searchQuery, "limit": "5"],
-                        finalAnswer: formatted,
-                        marketType: "IDX",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.92, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["search_stocks_directory"],
+                    toolArguments: ["query": searchQuery, "limit": "5"],
+                    finalAnswer: formatted,
+                    marketType: "IDX",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.92, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -650,17 +631,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatTechnicalsResponse(result: result, ticker: ticker)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["analyze_stock_market_technicals"],
-                        toolArguments: ["ticker": ticker, "timeframe": "3M"],
-                        finalAnswer: formatted,
-                        marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["analyze_stock_market_technicals"],
+                    toolArguments: ["ticker": ticker, "timeframe": "3M"],
+                    finalAnswer: formatted,
+                    marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -676,17 +655,15 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
                 let formatted = formatFundamentalsResponse(result: result, ticker: ticker)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-                Task {
-                    await StockApiClient.shared.recordAgentTrace(
-                        prompt: prompt,
-                        selectedTools: ["get_stock_valuation_fundamentals"],
-                        toolArguments: ["ticker": ticker],
-                        finalAnswer: formatted,
-                        marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
-                        latencyMs: latencyMs
-                    )
-                }
-                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.88, sources: [])
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["get_stock_valuation_fundamentals"],
+                    toolArguments: ["ticker": ticker],
+                    finalAnswer: formatted,
+                    marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.88, sources: [], traceId: traceId)
             } catch {
                 // Fallback further
             }
@@ -721,11 +698,23 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
 
             let (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
+            let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+            let isTargetMarketIDX = cloudTicker.map { NewsRankingService.isIDX(ticker: $0) } ?? false
+            let traceId = await StockApiClient.shared.recordAgentTrace(
+                prompt: prompt,
+                selectedTools: ["consultCloudAnalyst"],
+                toolArguments: ["ticker": cloudTicker ?? "", "query": prompt],
+                toolOutput: "Cloud Analyst Research (\(citations.count) citations)",
+                finalAnswer: cleanedAnswer,
+                marketType: isTargetMarketIDX ? "IDX" : "US",
+                latencyMs: latencyMs
+            )
             return AIResponse(
                 answer: cleanedAnswer,
                 bias: bias ?? .neutral,
                 confidence: 0.80,
-                sources: citations
+                sources: citations,
+                traceId: traceId
             )
         }
 
@@ -737,11 +726,24 @@ final class ChatUseCase: ChatUseCaseProtocol {
             cloudGrounding: nil
         )
 
+        let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+        let isTargetMarketIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
+        let traceId = await StockApiClient.shared.recordAgentTrace(
+            prompt: prompt,
+            selectedTools: ["Direct SLM Synthesis / Fallback Analyst"],
+            toolArguments: ["tickers": context.tickers.joined(separator: ", ")],
+            toolOutput: "Synthesized direct response using on-device context and \(articles.count) news articles",
+            finalAnswer: fallback.answer,
+            marketType: isTargetMarketIDX ? "IDX" : "US",
+            latencyMs: latencyMs
+        )
+
         return AIResponse(
             answer: fallback.answer,
             bias: fallback.bias,
             confidence: 0.75,
-            sources: articles.prefix(3).map { NewsCitation(from: $0) }
+            sources: articles.prefix(3).map { NewsCitation(from: $0) },
+            traceId: traceId
         )
     }
 
