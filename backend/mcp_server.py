@@ -134,7 +134,7 @@ async def get_user_portfolio_news(user_id: str = "default_user", ticker: Optiona
     """
     try:
         news = await get_portfolio_news(user_id=user_id, ticker=ticker)
-        return json.dumps({"user_id": user_id, "count": len(news), "news": news}, indent=2, ensure_ascii=False)
+        return json.dumps({"user_id": user_id, "count": len(news), "news": news}, indent=2, ensure_ascii=False, default=str)
     except Exception as e:
         return json.dumps({"error": f"Failed to fetch portfolio news: {str(e)}"})
 

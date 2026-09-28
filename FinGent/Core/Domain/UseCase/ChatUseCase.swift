@@ -569,6 +569,66 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
+        // 6. Check for User Portfolio Holdings News (e.g. 'What are the most relevant news headlines for my portfolio today?')
+        let isPortfolioNews = (lowered.contains("news") || lowered.contains("berita") || lowered.contains("headline")) && (lowered.contains("portfolio") || lowered.contains("portofolio") || lowered.contains("my holding") || lowered.contains("active holding"))
+        if isPortfolioNews {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "get_user_portfolio_news",
+                    arguments: ["user_id": "default_user"]
+                )
+                let formatted = formatPortfolioNewsResponse(result: result)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["get_user_portfolio_news"],
+                        toolArguments: ["user_id": "default_user"],
+                        finalAnswer: formatted,
+                        marketType: "IDX",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 7. Check for Stock Directory Search (e.g. 'Search ticker symbol for Bank Central Asia', 'Find ticker for Micron')
+        let isStockSearch = lowered.contains("search ticker") || lowered.contains("find ticker") || lowered.contains("search directory") || lowered.contains("search stock") || lowered.contains("cari saham") || lowered.contains("kode saham") || lowered.contains("lookup ticker")
+        if isStockSearch {
+            var searchQuery = prompt
+            if let forRange = lowered.range(of: " for ") {
+                searchQuery = String(prompt[forRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if let sahamRange = lowered.range(of: "saham ") {
+                searchQuery = String(prompt[sahamRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if searchQuery.isEmpty { searchQuery = prompt }
+
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "search_stocks_directory",
+                    arguments: ["query": searchQuery, "limit": 5]
+                )
+                let formatted = formatSearchStocksResponse(result: result, query: searchQuery)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["search_stocks_directory"],
+                        toolArguments: ["query": searchQuery, "limit": "5"],
+                        finalAnswer: formatted,
+                        marketType: "IDX",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.92, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
         // Resolve targetTicker reliably
         var targetTicker = context.tickers.first
         if targetTicker == nil {
@@ -924,4 +984,70 @@ final class ChatUseCase: ChatUseCaseProtocol {
 
         return md
     }
+
+    private func formatSearchStocksResponse(result: String, query: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let matches = json["matches"] as? [[String: Any]], !matches.isEmpty else {
+            return "### 🔍 Stock Directory Search: \"\(query)\"\n\n\(result)"
+        }
+
+        var md = "### 🔍 Stock Directory Search: _\"\(query)\"_\n\n"
+        md += "| Ticker | Company / Asset Name | Price | 24H Change | Day Range |\n"
+        md += "| :--- | :--- | :--- | :--- | :--- |\n"
+
+        for m in matches {
+            let ticker = m["ticker"] as? String ?? ""
+            let name = m["name"] as? String ?? ticker
+            let price = m["price"] as? Double ?? 0
+            let chg = m["change_percent"] as? Double ?? 0
+            let range = m["day_range"] as? String ?? "-"
+            let isIdr = (m["currency"] as? String) == "IDR" || ticker.count == 4
+            let priceStr = isIdr ? "Rp \(Int(price))" : "$\(String(format: "%.2f", price))"
+            let chgStr = String(format: "%+.2f%%", chg)
+
+            md += "| **\(ticker)** | \(name) | \(priceStr) | **\(chgStr)** | \(range) |\n"
+        }
+        return md
+    }
+
+    private func formatPortfolioNewsResponse(result: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "### 📰 Portfolio Holdings News\n\n\(result)"
+        }
+
+        var articles: [[String: Any]] = []
+        if let newsObj = json["news"] as? [String: Any], let arts = newsObj["articles"] as? [[String: Any]] {
+            articles = arts
+        } else if let newsList = json["news"] as? [[String: Any]] {
+            articles = newsList
+        }
+
+        guard !articles.isEmpty else {
+            return "### 📰 Portfolio Holdings News\n\nNo recent news headlines found for your active portfolio holdings."
+        }
+
+        var md = "### 📰 Active Portfolio Holdings News\n\n"
+        for (i, art) in articles.prefix(5).enumerated() {
+            let title = art["title"] as? String ?? "Market Update"
+            let source = art["source"] as? String ?? "Financial News"
+            let summary = art["summary"] as? String ?? ""
+            let url = art["url"] as? String ?? ""
+            let sentiment = art["sentiment"] as? String ?? "Neutral"
+            let sentEmoji = sentiment.lowercased() == "positive" ? "🟢" : (sentiment.lowercased() == "negative" ? "🔴" : "⚪")
+
+            md += "**\(i + 1). \(sentEmoji) \(title)**\n"
+            md += "• _Source: \(source)_ • _Sentiment: \(sentiment.capitalized)_\n"
+            if !summary.isEmpty {
+                md += "> \(summary.prefix(200))...\n"
+            }
+            if !url.isEmpty {
+                md += "[Read full article](\(url))\n"
+            }
+            md += "\n"
+        }
+        return md
+    }
 }
+

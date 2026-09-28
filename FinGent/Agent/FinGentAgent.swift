@@ -39,8 +39,12 @@ final class FinGentAgent {
        - Do NOT call getPortfolioMovers unless the user explicitly asks about their OWN portfolio holdings.
     9. When the user asks for quantitative technical analysis, support/resistance levels, RSI momentum, moving averages (MA20/50/200), or breakout signals (e.g. 'Check support, resistance levels, and RSI for TLKM', 'What is the technical analysis trend for BBCA right now?', 'Is NVDA forming a Golden Cross breakout signal?'):
        - You MUST call analyzeStockMarketTechnicals(ticker: <ticker>).
-    10. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
-    11. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    10. When the user asks to search a stock ticker by company name, brand alias, or directory lookup (e.g. 'Search ticker symbol for Bank Central Asia', 'Find ticker for Micron', 'Search directory for Indofood'):
+       - You MUST call searchStocksDirectory(query: <query>).
+    11. When the user asks for news specifically related to their portfolio holdings (e.g. 'What are the most relevant news headlines for my portfolio today?', 'Check recent news for my active holdings'):
+       - You MUST call getUserPortfolioNews().
+    12. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
+    13. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings concisely, accurately, and actionably in English.
     """
 
@@ -72,7 +76,10 @@ final class FinGentAgent {
             MCPCompareStocksTool(),
             MCPGetStockFundamentalsTool(),
             MCPGetMarketLeadersTool(),
-            MCPAnalyzeMarketTechnicalsTool()
+            MCPAnalyzeMarketTechnicalsTool(),
+            MCPSearchStocksDirectoryTool(),
+            MCPGetUserPortfolioNewsTool(),
+            MCPGetStockQuoteTool()
         ]
     }
 

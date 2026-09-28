@@ -194,5 +194,84 @@ struct MCPAnalyzeMarketTechnicalsTool: Tool {
     }
 }
 
+// MARK: - 8. Stock Directory Search Tool
 
+struct MCPSearchStocksDirectoryTool: Tool {
+    let name = "searchStocksDirectory"
+    let description = "Searches stocks by company name, brand alias, or ticker symbol (e.g. 'Search ticker symbol for Bank Central Asia', 'Find ticker for Micron', 'Search directory for Indofood') via the MCP Server."
 
+    @Generable struct Arguments {
+        @Guide(description: "Company name, brand keyword, or ticker query to search, e.g. 'Bank Central Asia', 'Micron', 'Indofood'.")
+        var query: String
+        @Guide(description: "Maximum number of search results to return (default: 5).")
+        var limit: Int?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let maxLimit = arguments.limit ?? 5
+        ToolCallTracker.shared.record(toolName: "search_stocks_directory", arguments: ["query": arguments.query, "limit": "\(maxLimit)"])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "search_stocks_directory",
+                arguments: ["query": arguments.query, "limit": maxLimit]
+            )
+            return result
+        } catch {
+            return "Failed to search stocks directory via MCP: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - 9. User Portfolio News Tool
+
+struct MCPGetUserPortfolioNewsTool: Tool {
+    let name = "getUserPortfolioNews"
+    let description = "Retrieves recent financial news articles specifically related to stocks in the user's active portfolio holdings (e.g. 'What are the most relevant news headlines for my portfolio today?', 'Check recent news for my active holdings') via the MCP Server."
+
+    @Generable struct Arguments {
+        @Guide(description: "Optional specific ticker to filter portfolio news for, e.g. 'BBCA'. Leave empty for all portfolio holdings.")
+        var ticker: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        var args: [String: Any] = ["user_id": "default_user"]
+        if let ticker = arguments.ticker, !ticker.isEmpty {
+            args["ticker"] = ticker
+        }
+        ToolCallTracker.shared.record(toolName: "get_user_portfolio_news", arguments: ["user_id": "default_user", "ticker": arguments.ticker ?? "ALL"])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "get_user_portfolio_news",
+                arguments: args
+            )
+            return result
+        } catch {
+            return "Failed to fetch portfolio news via MCP: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - 10. Remote Stock Quote Tool (MCP Server Fallback)
+
+struct MCPGetStockQuoteTool: Tool {
+    let name = "getStockQuoteRemoteMCP"
+    let description = "Retrieves real-time or latest available quote (price, 24h change, day range, volume) for a stock ticker (e.g. 'BBCA', 'MU', 'AAPL') or company name via the MCP Server."
+
+    @Generable struct Arguments {
+        @Guide(description: "Stock ticker symbol or company name, e.g. 'BBCA', 'MU', 'AAPL'.")
+        var tickerOrName: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "get_stock_quote", arguments: ["ticker_or_name": arguments.tickerOrName])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "get_stock_quote",
+                arguments: ["ticker_or_name": arguments.tickerOrName]
+            )
+            return result
+        } catch {
+            return "Failed to fetch stock quote via MCP: \(error.localizedDescription)"
+        }
+    }
+}
