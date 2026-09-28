@@ -115,3 +115,29 @@ struct MCPCompareStocksTool: Tool {
         }
     }
 }
+
+// MARK: - 5. Stock Valuation Fundamentals Tool
+
+struct MCPGetStockFundamentalsTool: Tool {
+    let name = "getStockValuationFundamentals"
+    let description = "Retrieves key financial valuation multiples and fundamental metrics for a stock (e.g. 'What is the P/E ratio and PBV of BBCA?', 'Check key financial fundamental ratios for TLKM'): Trailing P/E, Forward P/E, PBV, ROE, EPS, Free Cash Flow, Dividend Yield, and Market Cap via the MCP Server."
+
+    @Generable struct Arguments {
+        @Guide(description: "Stock ticker symbol or company name, e.g. 'BBCA', 'TLKM', 'AAPL'.")
+        var ticker: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "get_stock_valuation_fundamentals", arguments: ["ticker": arguments.ticker])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "get_stock_valuation_fundamentals",
+                arguments: ["ticker_or_name": arguments.ticker]
+            )
+            return result
+        } catch {
+            return "Failed to fetch fundamentals via MCP: \(error.localizedDescription)"
+        }
+    }
+}
+

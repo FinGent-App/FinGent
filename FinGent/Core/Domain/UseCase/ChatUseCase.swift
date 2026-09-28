@@ -192,57 +192,13 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 sources: citations
             )
         } catch {
-            // Fallback path: When executed on environments without Apple Intelligence neural engine
-            // assets (e.g. standard simulator), consult Cloud Analyst or perform synthesis.
-            if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: context.tickers.first) {
-                let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
-                    // If target ticker is specified, filter out portfolio citations of other stocks
-                    if let targetTicker = context.tickers.first, dto.doc_type.lowercased() == "portfolio" {
-                        if !dto.title.uppercased().contains(targetTicker.uppercased()) {
-                            return nil
-                        }
-                    }
-
-                    let source: NewsSourceType
-                    if dto.doc_type.lowercased() == "sec" {
-                        source = .sec
-                    } else if dto.doc_type.lowercased() == "portfolio" {
-                        source = .portfolio
-                    } else {
-                        source = NewsSourceType.from(rawString: dto.title)
-                    }
-                    return NewsCitation(
-                        id: UUID().uuidString,
-                        title: dto.title,
-                        source: source,
-                        url: URL(string: dto.source_url ?? "https://www.sec.gov") ?? URL(string: "about:blank")!,
-                        publishedAt: Date(),
-                        badgeLabel: dto.doc_type.uppercased()
-                    )
-                }
-
-                let (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
-                return AIResponse(
-                    answer: cleanedAnswer,
-                    bias: bias ?? .neutral,
-                    confidence: 0.80,
-                    sources: citations
-                )
-            }
-
-            let fallback = synthesizeFallbackResponse(
-                userPrompt: prompt,
+            // Intelligent fallback: When executed on environments without Apple Intelligence neural engine
+            // assets (e.g. standard simulator), dynamically route to MCP tools or Cloud Analyst.
+            return await executeFallbackToolOrCloud(
+                prompt: prompt,
                 context: context,
                 articles: articles,
-                ragCitations: [],
-                cloudGrounding: nil
-            )
-
-            return AIResponse(
-                answer: fallback.answer,
-                bias: fallback.bias,
-                confidence: 0.75,
-                sources: articles.prefix(3).map { NewsCitation(from: $0) }
+                startTime: startTime
             )
         }
     }
@@ -454,5 +410,367 @@ final class ChatUseCase: ChatUseCaseProtocol {
         }
 
         return (cleaned, bias)
+    }
+
+    // MARK: - Intelligent Tool Routing Fallback (for Simulator / Fallback environments)
+
+    private func executeFallbackToolOrCloud(
+        prompt: String,
+        context: NewsQueryContext,
+        articles: [NewsArticle],
+        startTime: Date
+    ) async -> AIResponse {
+        let lowered = prompt.lowercased()
+        let tickers = context.tickers
+
+        // 1. Check for Stock Comparison (2 or more tickers OR "compare" / "vs")
+        let isComparison = lowered.contains("compare") || lowered.contains("vs") || tickers.count >= 2
+        if isComparison {
+            var compareTickers = tickers
+            if compareTickers.count < 2 {
+                let words = prompt.components(separatedBy: CharacterSet.alphanumerics.inverted)
+                let known = ["BBCA", "BMRI", "BBRI", "TLKM", "ASII", "BBNI", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AMD", "INTC", "MU"]
+                let found = words.map { $0.uppercased() }.filter { known.contains($0) }
+                compareTickers = Array(Set(found)).sorted()
+            }
+            if compareTickers.count >= 2 {
+                do {
+                    let result = try await MCPClient.shared.callTool(
+                        name: "compare_stocks_side_by_side",
+                        arguments: ["tickers": compareTickers]
+                    )
+                    let formatted = formatStockComparisonResponse(result: result, tickers: compareTickers)
+                    let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                    Task {
+                        await StockApiClient.shared.recordAgentTrace(
+                            prompt: prompt,
+                            selectedTools: ["compare_stocks_side_by_side"],
+                            toolArguments: ["tickers": compareTickers.joined(separator: ", ")],
+                            finalAnswer: formatted,
+                            marketType: compareTickers.contains(where: { NewsRankingService.isIDX(ticker: $0) }) ? "IDX" : "US",
+                            latencyMs: latencyMs
+                        )
+                    }
+                    return AIResponse(
+                        answer: formatted,
+                        bias: .neutral,
+                        confidence: 0.90,
+                        sources: []
+                    )
+                } catch {
+                    // Fallback further if network error
+                }
+            }
+        }
+
+        // 2. Check for Macro Risk simulation
+        let isMacro = lowered.contains("simulate") || lowered.contains("fed") || lowered.contains("rate hike") || lowered.contains("inflation") || lowered.contains("recession") || lowered.contains("bunga") || lowered.contains("resesi")
+        if isMacro {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "simulate_macro_portfolio_risk",
+                    arguments: ["event": prompt, "user_id": "default_user"]
+                )
+                let formatted = formatMacroRiskResponse(result: result, prompt: prompt)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["simulate_macro_portfolio_risk"],
+                        toolArguments: ["event": prompt],
+                        finalAnswer: formatted,
+                        marketType: "US",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .bearish, confidence: 0.85, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 3. Check for News Sentiment impact
+        let isSentiment = lowered.contains("sentiment") || lowered.contains("sentimen") || lowered.contains("headline")
+        if isSentiment {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "analyze_news_sentiment_impact",
+                    arguments: ["topic_or_headline": prompt]
+                )
+                let formatted = formatSentimentImpactResponse(result: result, prompt: prompt)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["analyze_news_sentiment_impact"],
+                        toolArguments: ["headline": prompt],
+                        finalAnswer: formatted,
+                        marketType: "US",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 4. Check for Knowledge / SEC disclosures search
+        let isKnowledge = lowered.contains("sec") || lowered.contains("filing") || lowered.contains("disclosure") || lowered.contains("knowledge") || lowered.contains("rag")
+        if isKnowledge {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "search_financial_knowledge_rag",
+                    arguments: ["query": prompt, "limit": 5]
+                )
+                let formatted = formatRAGResponse(result: result, query: prompt)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["search_financial_knowledge_rag"],
+                        toolArguments: ["query": prompt],
+                        finalAnswer: formatted,
+                        marketType: "US",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.85, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 5. Check for Stock Fundamentals (P/E, PBV, ROE, Dividend)
+        let isFundamentals = lowered.contains("p/e") || lowered.contains("pe ratio") || lowered.contains("pbv") || lowered.contains("dividend") || lowered.contains("valuation multiple") || lowered.contains("fundamental")
+        if isFundamentals, let targetTicker = context.tickers.first {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "get_stock_valuation_fundamentals",
+                    arguments: ["ticker_or_name": targetTicker]
+                )
+                let formatted = formatFundamentalsResponse(result: result, ticker: targetTicker)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["get_stock_valuation_fundamentals"],
+                        toolArguments: ["ticker": targetTicker],
+                        finalAnswer: formatted,
+                        marketType: NewsRankingService.isIDX(ticker: targetTicker) ? "IDX" : "US",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.88, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 6. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
+        if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: context.tickers.first) {
+            let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
+                if let targetTicker = context.tickers.first, dto.doc_type.lowercased() == "portfolio" {
+                    if !dto.title.uppercased().contains(targetTicker.uppercased()) {
+                        return nil
+                    }
+                }
+
+                let source: NewsSourceType
+                if dto.doc_type.lowercased() == "sec" {
+                    source = .sec
+                } else if dto.doc_type.lowercased() == "portfolio" {
+                    source = .portfolio
+                } else {
+                    source = NewsSourceType.from(rawString: dto.title)
+                }
+                return NewsCitation(
+                    id: UUID().uuidString,
+                    title: dto.title,
+                    source: source,
+                    url: URL(string: dto.source_url ?? "https://www.sec.gov") ?? URL(string: "about:blank")!,
+                    publishedAt: Date(),
+                    badgeLabel: dto.doc_type.uppercased()
+                )
+            }
+
+            let (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
+            return AIResponse(
+                answer: cleanedAnswer,
+                bias: bias ?? .neutral,
+                confidence: 0.80,
+                sources: citations
+            )
+        }
+
+        let fallback = synthesizeFallbackResponse(
+            userPrompt: prompt,
+            context: context,
+            articles: articles,
+            ragCitations: [],
+            cloudGrounding: nil
+        )
+
+        return AIResponse(
+            answer: fallback.answer,
+            bias: fallback.bias,
+            confidence: 0.75,
+            sources: articles.prefix(3).map { NewsCitation(from: $0) }
+        )
+    }
+
+    private func formatStockComparisonResponse(result: String, tickers: [String]) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let compArray = json["comparison"] as? [[String: Any]], !compArray.isEmpty else {
+            return "### 📊 Stock Comparison: \(tickers.joined(separator: " vs "))\n\n\(result)"
+        }
+
+        var md = "### 📊 Valuation Multiples Comparison: \(tickers.joined(separator: " vs "))\n\n"
+        md += "| Metric | " + compArray.map { ($0["ticker"] as? String) ?? "" }.joined(separator: " | ") + " |\n"
+        md += "| :--- | " + compArray.map { _ in ":---" }.joined(separator: " | ") + " |\n"
+
+        let isIdx = tickers.contains { NewsRankingService.isIDX(ticker: $0) }
+        let sym = isIdx ? "Rp " : "$"
+
+        let prices = compArray.map { item -> String in
+            let p = (item["price"] as? Double) ?? 0
+            let chg = (item["change_percent"] as? Double) ?? 0
+            let chgStr = String(format: "%+.2f%%", chg)
+            return isIdx ? "\(sym)\(Int(p)) (\(chgStr))" : "\(sym)\(String(format: "%.2f", p)) (\(chgStr))"
+        }
+        md += "| **Current Price** | " + prices.joined(separator: " | ") + " |\n"
+
+        let pes = compArray.map { item -> String in
+            guard let pe = item["pe_ratio"] as? Double, pe > 0 else { return "N/A" }
+            return String(format: "%.2fx", pe)
+        }
+        md += "| **Trailing P/E** | " + pes.joined(separator: " | ") + " |\n"
+
+        let fpes = compArray.map { item -> String in
+            guard let fpe = item["forward_pe"] as? Double, fpe > 0 else { return "N/A" }
+            return String(format: "%.2fx", fpe)
+        }
+        md += "| **Forward P/E** | " + fpes.joined(separator: " | ") + " |\n"
+
+        let pbvs = compArray.map { item -> String in
+            guard let pbv = item["pbv_ratio"] as? Double, pbv > 0 else { return "N/A" }
+            return String(format: "%.2fx", pbv)
+        }
+        md += "| **PBV Ratio** | " + pbvs.joined(separator: " | ") + " |\n"
+
+        let roes = compArray.map { item -> String in
+            guard let roe = item["roe"] as? Double, roe != 0 else { return "N/A" }
+            return String(format: "%.2f%%", roe)
+        }
+        md += "| **ROE** | " + roes.joined(separator: " | ") + " |\n"
+
+        let divs = compArray.map { item -> String in
+            guard let div = item["dividend_yield"] as? Double, div > 0 else { return "N/A" }
+            return String(format: "%.2f%%", div)
+        }
+        md += "| **Dividend Yield** | " + divs.joined(separator: " | ") + " |\n"
+
+        md += "\n**Key Institutional Takeaways:**\n"
+        for item in compArray {
+            let t = (item["ticker"] as? String) ?? ""
+            let name = (item["name"] as? String) ?? t
+            let pe = item["pe_ratio"] as? Double ?? 0
+            let pbv = item["pbv_ratio"] as? Double ?? 0
+            let roe = item["roe"] as? Double ?? 0
+            md += "• **\(t)** (\(name)): P/E is **\(String(format: "%.1fx", pe))** with PBV of **\(String(format: "%.2fx", pbv))** and ROE of **\(String(format: "%.1f%%", roe))**.\n"
+        }
+
+        return md
+    }
+
+    private func formatMacroRiskResponse(result: String, prompt: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "### 🌐 Macroeconomic Risk Simulation\n\n\(result)"
+        }
+        let scenario = (json["event"] as? String) ?? prompt
+        let exposure = (json["exposure_percent"] as? Double) ?? 0.0
+        let analysis = (json["analysis"] as? String) ?? ""
+        let riskLevel = (json["risk_level"] as? String) ?? "MODERATE"
+
+        var md = "### 🌐 Macro Risk Scenario: \(scenario)\n\n"
+        md += "• **Risk Level:** **\(riskLevel.uppercased())**\n"
+        md += "• **Estimated Portfolio Exposure:** **\(String(format: "%.1f%%", exposure))**\n\n"
+        md += "#### Institutional Scenario Assessment\n"
+        md += "\(analysis)\n\n"
+        md += "\n[BIAS: BEARISH]"
+        return md
+    }
+
+    private func formatSentimentImpactResponse(result: String, prompt: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "### 📰 News Sentiment & Market Impact Analysis\n\n\(result)"
+        }
+        let headline = (json["topic"] as? String) ?? (json["headline"] as? String) ?? prompt
+        let sentiment = (json["sentiment"] as? String) ?? "Neutral"
+        let score = (json["score"] as? Double) ?? 0.0
+        let impact = (json["price_impact"] as? String) ?? (json["analysis"] as? String) ?? ""
+
+        var md = "### 📰 News Sentiment Analysis\n\n"
+        md += "• **Headline / Topic:** _\"\(headline)\"_\n"
+        md += "• **Sentiment Bias:** **\(sentiment.uppercased())** (Score: \(String(format: "%.2f", score)))\n\n"
+        md += "#### Market Impact Projection\n"
+        md += "\(impact)\n"
+        return md
+    }
+
+    private func formatRAGResponse(result: String, query: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = json["results"] as? [[String: Any]] else {
+            return "### 🏛️ Regulatory Disclosures & Vector Knowledge RAG\n\n\(result)"
+        }
+        var md = "### 🏛️ Verified Knowledge Search (Zilliz Cloud Milvus)\n\n"
+        md += "Search Query: _\"\(query)\"_\n\n"
+        if results.isEmpty {
+            md += "No matching SEC filings or disclosures found."
+            return md
+        }
+        for (i, r) in results.prefix(4).enumerated() {
+            let title = (r["title"] as? String) ?? "Document"
+            let docType = (r["doc_type"] as? String)?.uppercased() ?? "DISCLOSURE"
+            let content = (r["content"] as? String) ?? ""
+            let url = (r["source_url"] as? String) ?? ""
+            md += "**\(i + 1). [\(docType)] \(title)**\n"
+            if !url.isEmpty {
+                md += "Source: [View Filing](\(url))\n"
+            }
+            md += "> \(content.prefix(250))...\n\n"
+        }
+        return md
+    }
+
+    private func formatFundamentalsResponse(result: String, ticker: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "### 📈 Stock Fundamentals: \(ticker)\n\n\(result)"
+        }
+        let name = (json["name"] as? String) ?? ticker
+        let pe = (json["pe_ratio"] as? Double) ?? 0
+        let fpe = (json["forward_pe"] as? Double) ?? 0
+        let pbv = (json["pbv_ratio"] as? Double) ?? 0
+        let roe = (json["roe"] as? Double) ?? 0
+        let eps = (json["eps"] as? Double) ?? 0
+        let div = (json["dividend_yield"] as? Double) ?? 0
+        let mcap = (json["market_cap"] as? Double) ?? 0
+
+        var md = "### 📈 Key Valuation Fundamentals: \(ticker) (\(name))\n\n"
+        md += "| Metric | Value |\n"
+        md += "| :--- | :--- |\n"
+        md += "| **Trailing P/E** | \(pe > 0 ? String(format: "%.2fx", pe) : "N/A") |\n"
+        md += "| **Forward P/E** | \(fpe > 0 ? String(format: "%.2fx", fpe) : "N/A") |\n"
+        md += "| **PBV Ratio** | \(pbv > 0 ? String(format: "%.2fx", pbv) : "N/A") |\n"
+        md += "| **Return on Equity (ROE)** | \(roe != 0 ? String(format: "%.2f%%", roe) : "N/A") |\n"
+        md += "| **Earnings Per Share (EPS)** | \(String(format: "%.2f", eps)) |\n"
+        md += "| **Dividend Yield** | \(div > 0 ? String(format: "%.2f%%", div) : "N/A") |\n"
+        md += "| **Market Capitalization** | $\(String(format: "%.0f", mcap)) |\n"
+        return md
     }
 }

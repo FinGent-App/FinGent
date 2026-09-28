@@ -26,12 +26,16 @@ final class FinGentAgent {
        - Do NOT call getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers, or getHolding(ticker: 'ALL').
        - If you check user's holding, ONLY call getHolding(ticker: <specific ticker>) for that specific stock.
        - NEVER mention or read other unrelated portfolio holdings (such as AAPL or BBCA when asked about MU).
-    4. When the user asks about MACROECONOMIC scenarios or simulated risks (e.g. 'What if the Fed raises interest rates?', 'Impact of recession on my portfolio'):
+    4. When the user asks about MACROECONOMIC scenarios or simulated risks (e.g. 'What if the Fed raises interest rates?', 'Impact of recession on my portfolio', 'Simulate portfolio impact if Federal Reserve hikes interest rates 50 bps'):
        - You MUST call simulateMacroPortfolioRisk(event: <event>).
-    5. When the user asks to analyze sentiment or price impact of a specific news headline:
+    5. When the user asks to analyze sentiment or price impact of a specific news headline (e.g. 'Analyze market sentiment on semiconductor export restrictions'):
        - You MUST call analyzeNewsSentimentImpact(headline: <headline>).
-    6. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
-    7. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    6. When the user asks to search knowledge, regulatory filings, or SEC disclosures (e.g. 'Search SEC filings for Apple Vision Pro supplier disclosures', 'Find analyst commentary on NVIDIA Blackwell'):
+       - You MUST call searchFinancialKnowledgeRAG(query: <query>).
+    7. When the user asks for financial valuation multiples or fundamentals of a stock (e.g. 'What is the P/E ratio and PBV of BBCA?', 'Check key financial fundamental ratios for TLKM'):
+       - You MUST call getStockValuationFundamentals(ticker: <ticker>).
+    8. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
+    9. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings concisely, accurately, and actionably in English.
     """
 
@@ -60,7 +64,8 @@ final class FinGentAgent {
             MCPSearchFinancialRAGTool(),
             MCPSimulateMacroPortfolioRiskTool(),
             MCPAnalyzeNewsSentimentTool(),
-            MCPCompareStocksTool()
+            MCPCompareStocksTool(),
+            MCPGetStockFundamentalsTool()
         ]
     }
 
