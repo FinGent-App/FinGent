@@ -90,6 +90,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         _ prompt: String,
         onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)? = nil
     ) async throws -> AIResponse {
+        let startTime = Date()
         // Step 1: News Retrieval & Sources
         let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
         let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
@@ -117,6 +118,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         onProgress?(.generatingResults)
 
         do {
+            ToolCallTracker.shared.reset()
             // Master Orchestrator: Apple FoundationModels on iOS evaluates the user prompt.
             // FoundationModels is NEVER bypassed. It autonomously selects between on-device tools
             // (portfolio balance, holdings, quotes) and the Cloud Analyst (Gemini + RAG + SEC).
@@ -137,13 +139,32 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
 
             let isTargetMarketIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
-            Task {
-                await StockApiClient.shared.recordAgentTrace(
-                    prompt: prompt,
-                    selectedTools: ["AppleFoundationModels"],
-                    finalAnswer: cleanedAnswer,
-                    marketType: isTargetMarketIDX ? "IDX" : "US"
-                )
+            let executedRecords = ToolCallTracker.shared.drainRecords()
+            let calledCloudAnalyst = executedRecords.contains { $0.name == "ConsultCloudAnalystTool" }
+            let onDeviceRecords = executedRecords.filter { $0.name != "ConsultCloudAnalystTool" }
+
+            // If ConsultCloudAnalystTool was executed, the backend cloud_agent_service already
+            // recorded the complete trace (with exact query, ticker, citations, and 12s latency).
+            // We only record an iOS trace if purely on-device tools or direct SLM synthesis occurred.
+            if !calledCloudAnalyst {
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                let onDeviceTools = onDeviceRecords.map { $0.name }
+                var mergedArgs: [String: Any] = [:]
+                for r in onDeviceRecords {
+                    for (k, v) in r.arguments {
+                        mergedArgs[k] = v
+                    }
+                }
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: onDeviceTools,
+                        toolArguments: mergedArgs,
+                        finalAnswer: cleanedAnswer,
+                        marketType: isTargetMarketIDX ? "IDX" : "US",
+                        latencyMs: latencyMs
+                    )
+                }
             }
 
             return AIResponse(

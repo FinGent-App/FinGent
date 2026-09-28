@@ -15,6 +15,7 @@ struct GetStockQuoteTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetStockQuoteTool", arguments: ["ticker": arguments.ticker])
         var resolvedQuote = MarketDataRepository.shared.getQuote(for: arguments.ticker)
         if resolvedQuote == nil {
             if let searchResults = try? await StockApiClient.shared.searchStocks(query: arguments.ticker), let first = searchResults.first {
@@ -59,6 +60,7 @@ struct GetStockPerformanceTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetStockPerformanceTool", arguments: ["ticker": arguments.ticker, "period": arguments.period])
         guard let perf = MarketDataRepository.shared.getPerformance(for: arguments.ticker) else {
             return "No performance data found for ticker '\(arguments.ticker)'."
         }

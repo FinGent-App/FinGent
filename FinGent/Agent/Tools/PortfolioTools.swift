@@ -12,6 +12,7 @@ struct GetPortfolioSummaryTool: Tool {
     @Generable struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetPortfolioSummaryTool")
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else {
             return "Your portfolio is currently empty (0 stocks). Please add stocks first."
@@ -45,6 +46,7 @@ struct GetHoldingTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetHoldingTool", arguments: ["ticker": arguments.ticker])
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else {
             return "Your portfolio currently has no stocks."
@@ -96,6 +98,7 @@ struct GetPortfolioPerformanceTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetPortfolioPerformanceTool", arguments: ["period": arguments.period])
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
 
@@ -142,6 +145,7 @@ struct GetPortfolioAllocationTool: Tool {
     @Generable struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetPortfolioAllocationTool")
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
         let resolved = resolveHoldings(holdings)
@@ -175,6 +179,7 @@ struct GetPortfolioMoversTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetPortfolioMoversTool", arguments: ["direction": arguments.direction])
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
 
@@ -215,6 +220,7 @@ struct GetUnrealizedGainTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "GetUnrealizedGainTool", arguments: ["ticker": arguments.ticker])
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
         let resolved = resolveHoldings(holdings)

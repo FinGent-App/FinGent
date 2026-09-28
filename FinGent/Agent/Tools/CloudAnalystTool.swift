@@ -42,7 +42,7 @@ final class SharedCitationStore {
 
 struct ConsultCloudAnalystTool: Tool {
     let name = "consultCloudAnalyst"
-    let description = "Consults the specialized FinGent Cloud Research Agent (powered by Google Gemini with Vector RAG, SEC 10-K/8-K regulatory filings, live market fundamentals, and macroeconomic scenario simulation) for deep financial analysis, valuation assessments, SEC regulatory insights, or complex market research."
+    let description = "MANDATORY tool to answer why a stock rose or fell (e.g. 'why micron goes up yesterday', price surges, drops), recent news catalysts, SEC regulatory filings (10-K/8-K), and deep Wall Street research via Google Gemini and Milvus RAG."
 
     @Generable struct Arguments {
         @Guide(description: "The specific financial query, research topic, or complex question to analyze deeply.")
@@ -53,6 +53,7 @@ struct ConsultCloudAnalystTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "ConsultCloudAnalystTool")
         let resolvedTicker = arguments.ticker ?? StockTickerExtractor().extractTickers(from: arguments.query).first
         do {
             let response = try await StockApiClient.shared.consultCloudAnalyst(

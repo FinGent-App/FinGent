@@ -19,6 +19,7 @@ struct MCPSearchFinancialRAGTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "MCPSearchFinancialRAGTool", arguments: ["query": arguments.query])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "search_financial_knowledge_rag",
@@ -43,6 +44,7 @@ struct MCPSimulateMacroPortfolioRiskTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "MCPSimulateMacroPortfolioRiskTool", arguments: ["event": arguments.event])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "simulate_macro_portfolio_risk",
@@ -67,6 +69,7 @@ struct MCPAnalyzeNewsSentimentTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "MCPAnalyzeNewsSentimentTool", arguments: ["headline": arguments.headline])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "analyze_news_sentiment_impact",
@@ -91,6 +94,7 @@ struct MCPCompareStocksTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "MCPCompareStocksTool", arguments: ["tickers": arguments.tickers])
         let tickerList = arguments.tickers
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
