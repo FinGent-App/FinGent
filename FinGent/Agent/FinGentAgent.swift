@@ -17,14 +17,21 @@ final class FinGentAgent {
 
     CRITICAL RULES:
     1. MANDATORY TOOL CALLING: You have NO real-time stock quotes, recent news, or yesterday's trading data in your model memory. You are STRICTLY FORBIDDEN from guessing or generating speculative reasons for price movements without calling a tool.
-    2. When the user asks about a specific stock moving or news (e.g. 'why micron goes up yesterday', 'why is Micron rising', 'NVDA outlook', 'AAPL news', 'catalysts'):
+    2. When the user asks to COMPARE two or more stocks (e.g. 'Compare BBCA and BMRI based on valuation multiples', 'compare AAPL and MSFT', 'which is better NVDA or AMD'):
+       - You MUST call compareStocksSideBySide(tickers: "<ticker1>, <ticker2>") directly.
+       - Do NOT call consultCloudAnalyst for multi-stock comparison queries.
+    3. When the user asks about a SINGLE specific stock moving, future prospects, or news catalysts (e.g. 'why micron goes up yesterday', 'why is Micron rising', 'NVDA outlook', 'AAPL news', 'catalysts'):
        - You MUST call consultCloudAnalyst(query: <query>, ticker: <ticker>) to retrieve verified Wall Street research, SEC filings, and live news evidence.
        - Focus strictly on that specific stock's news, catalysts, price movements, and fundamentals.
        - Do NOT call getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers, or getHolding(ticker: 'ALL').
        - If you check user's holding, ONLY call getHolding(ticker: <specific ticker>) for that specific stock.
        - NEVER mention or read other unrelated portfolio holdings (such as AAPL or BBCA when asked about MU).
-    3. For current price questions, call getStockQuote(ticker: <ticker>).
-    4. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    4. When the user asks about MACROECONOMIC scenarios or simulated risks (e.g. 'What if the Fed raises interest rates?', 'Impact of recession on my portfolio'):
+       - You MUST call simulateMacroPortfolioRisk(event: <event>).
+    5. When the user asks to analyze sentiment or price impact of a specific news headline:
+       - You MUST call analyzeNewsSentimentImpact(headline: <headline>).
+    6. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
+    7. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings concisely, accurately, and actionably in English.
     """
 

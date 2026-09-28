@@ -19,7 +19,7 @@ struct MCPSearchFinancialRAGTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        ToolCallTracker.shared.record(toolName: "MCPSearchFinancialRAGTool", arguments: ["query": arguments.query])
+        ToolCallTracker.shared.record(toolName: "search_financial_knowledge_rag", arguments: ["query": arguments.query])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "search_financial_knowledge_rag",
@@ -44,7 +44,7 @@ struct MCPSimulateMacroPortfolioRiskTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        ToolCallTracker.shared.record(toolName: "MCPSimulateMacroPortfolioRiskTool", arguments: ["event": arguments.event])
+        ToolCallTracker.shared.record(toolName: "simulate_macro_portfolio_risk", arguments: ["event": arguments.event])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "simulate_macro_portfolio_risk",
@@ -69,7 +69,7 @@ struct MCPAnalyzeNewsSentimentTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        ToolCallTracker.shared.record(toolName: "MCPAnalyzeNewsSentimentTool", arguments: ["headline": arguments.headline])
+        ToolCallTracker.shared.record(toolName: "analyze_news_sentiment_impact", arguments: ["headline": arguments.headline])
         do {
             let result = try await MCPClient.shared.callTool(
                 name: "analyze_news_sentiment_impact",
@@ -86,7 +86,7 @@ struct MCPAnalyzeNewsSentimentTool: Tool {
 
 struct MCPCompareStocksTool: Tool {
     let name = "compareStocksSideBySide"
-    let description = "Compares two or more stock tickers side-by-side on price, P/E, PBV, ROE, dividend yield, and valuation metrics via the MCP Server."
+    let description = "MANDATORY tool whenever comparing two or more stocks side-by-side (e.g. 'Compare BBCA and BMRI based on valuation multiples', 'compare AAPL and MSFT', 'which is better NVDA or AMD'). Compares real-time prices, P/E ratios, Forward P/E, PBV, ROE, EPS, dividend yields, and market caps side-by-side via the MCP Server."
 
     @Generable struct Arguments {
         @Guide(description: "Comma-separated stock tickers to compare, e.g. 'BBCA, BMRI' or 'AAPL, MSFT, NVDA'.")
@@ -94,7 +94,7 @@ struct MCPCompareStocksTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        ToolCallTracker.shared.record(toolName: "MCPCompareStocksTool", arguments: ["tickers": arguments.tickers])
+        ToolCallTracker.shared.record(toolName: "compare_stocks_side_by_side", arguments: ["tickers": arguments.tickers])
         let tickerList = arguments.tickers
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }

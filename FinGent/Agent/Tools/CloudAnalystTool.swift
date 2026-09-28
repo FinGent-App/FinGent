@@ -53,7 +53,7 @@ final class SharedCitationStore {
 
 struct ConsultCloudAnalystTool: Tool {
     let name = "consultCloudAnalyst"
-    let description = "MANDATORY tool to answer why a stock rose or fell (e.g. 'why micron goes up yesterday', price surges, drops), recent news catalysts, SEC regulatory filings (10-K/8-K), and deep Wall Street research via Google Gemini and Milvus RAG."
+    let description = "In-depth research on a SINGLE stock's price movements, reasons for surging/dropping (e.g. 'why micron goes up yesterday'), catalysts, SEC regulatory filings (10-K/8-K), and deep Wall Street research via Google Gemini. Strictly for SINGLE stock research. Do NOT use for comparing two or more stocks."
 
     @Generable struct Arguments {
         @Guide(description: "The specific financial query, research topic, or complex question to analyze deeply.")

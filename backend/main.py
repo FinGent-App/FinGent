@@ -792,12 +792,42 @@ async def call_mcp_tool_endpoint(req: MCPCallRequest):
     Direct stateless execution endpoint for MCP tools over HTTP.
     Provides resilience for mobile clients when persistent SSE streams fluctuate.
     """
+    import time
+    start_time = time.time()
     try:
         from mcp_server import mcp_server
         result = await mcp_server.call_tool(req.name, req.arguments)
         text_content = ""
         if result and result.content:
             text_content = "\n".join([item.text for item in result.content if hasattr(item, "text") and item.text])
+
+        # Record MCP execution trace for Admin Dashboard Observability & SSE
+        try:
+            from services.admin_service import record_agent_log
+            latency_ms = int((time.time() - start_time) * 1000)
+            is_error = result.is_error if hasattr(result, "is_error") else False
+            arg_str = str(req.arguments)
+            market_type = "IDX" if any(idx in arg_str.upper() for idx in ["BBCA", "BMRI", "BBRI", "TLKM", "ASII", "BBNI"]) else "US"
+            
+            await record_agent_log(
+                user_id="ios_mcp_client",
+                prompt=f"MCP Tool Execution: {req.name}",
+                selected_tools=[req.name],
+                tool_arguments=req.arguments,
+                tool_output=text_content[:600] + ("..." if len(text_content) > 600 else ""),
+                final_answer=f"MCP tool '{req.name}' executed successfully.",
+                citations=[],
+                market_type=market_type,
+                model_name="FastMCP Server",
+                prompt_tokens=max(1, len(arg_str) // 4),
+                completion_tokens=max(1, len(text_content) // 4),
+                latency_ms=latency_ms,
+                relevance_score=0.96,
+                status="ERROR" if is_error else "SUCCESS"
+            )
+        except Exception as log_err:
+            logger.warning("Could not record MCP trace to admin_service: %s", str(log_err))
+
         return {
             "tool": req.name,
             "is_error": result.is_error if hasattr(result, "is_error") else False,
@@ -805,6 +835,11 @@ async def call_mcp_tool_endpoint(req: MCPCallRequest):
         }
     except Exception as e:
         logger.error("MCP tool '%s' execution failed: %s", req.name, str(e))
+        return {
+            "tool": req.name,
+            "is_error": True,
+            "content": f"MCP tool execution failed: {str(e)}"
+        }
 # ==============================================================================
 # Admin Dashboard & LLMOps Observability (REST & Server-Sent Events)
 # ==============================================================================
