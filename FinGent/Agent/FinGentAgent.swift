@@ -37,8 +37,10 @@ final class FinGentAgent {
     8. When the user asks about overall market gainers, market losers, or top moving stocks (e.g. 'Show top market gainers today', 'Show top gainers in the IDX market today', 'What are the biggest losers on Wall Street right now?', 'market leaders'):
        - You MUST call getMarketLeaders(moverType: <'gainers' or 'losers'>).
        - Do NOT call getPortfolioMovers unless the user explicitly asks about their OWN portfolio holdings.
-    9. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
-    10. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    9. When the user asks for quantitative technical analysis, support/resistance levels, RSI momentum, moving averages (MA20/50/200), or breakout signals (e.g. 'Check support, resistance levels, and RSI for TLKM', 'What is the technical analysis trend for BBCA right now?', 'Is NVDA forming a Golden Cross breakout signal?'):
+       - You MUST call analyzeStockMarketTechnicals(ticker: <ticker>).
+    10. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
+    11. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings concisely, accurately, and actionably in English.
     """
 
@@ -69,7 +71,8 @@ final class FinGentAgent {
             MCPAnalyzeNewsSentimentTool(),
             MCPCompareStocksTool(),
             MCPGetStockFundamentalsTool(),
-            MCPGetMarketLeadersTool()
+            MCPGetMarketLeadersTool(),
+            MCPAnalyzeMarketTechnicalsTool()
         ]
     }
 

@@ -569,8 +569,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // 6. Check for Stock Fundamentals (P/E, PBV, ROE, Dividend)
-        let isFundamentals = lowered.contains("p/e") || lowered.contains("pe ratio") || lowered.contains("pbv") || lowered.contains("dividend") || lowered.contains("valuation multiple") || lowered.contains("fundamental")
+        // Resolve targetTicker reliably
         var targetTicker = context.tickers.first
         if targetTicker == nil {
             targetTicker = StockTickerExtractor().extractTickers(from: prompt).first
@@ -581,6 +580,34 @@ final class ChatUseCase: ChatUseCaseProtocol {
             targetTicker = words.first(where: { known.contains($0.uppercased()) })?.uppercased()
         }
 
+        // 6. Check for Technical Analysis (RSI, Support & Resistance, Moving Averages, Golden Cross)
+        let isTechnicals = lowered.contains("rsi") || lowered.contains("support") || lowered.contains("resistance") || lowered.contains("moving average") || lowered.contains("ma20") || lowered.contains("ma50") || lowered.contains("golden cross") || lowered.contains("death cross") || lowered.contains("technical") || lowered.contains("teknikal")
+        if isTechnicals, let ticker = targetTicker {
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "analyze_stock_market_technicals",
+                    arguments: ["ticker": ticker, "timeframe": "3M"]
+                )
+                let formatted = formatTechnicalsResponse(result: result, ticker: ticker)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["analyze_stock_market_technicals"],
+                        toolArguments: ["ticker": ticker, "timeframe": "3M"],
+                        finalAnswer: formatted,
+                        marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: .neutral, confidence: 0.90, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 7. Check for Stock Fundamentals (P/E, PBV, ROE, Dividend)
+        let isFundamentals = lowered.contains("p/e") || lowered.contains("pe ratio") || lowered.contains("pbv") || lowered.contains("dividend") || lowered.contains("valuation multiple") || lowered.contains("fundamental")
         if isFundamentals, let ticker = targetTicker {
             do {
                 let result = try await MCPClient.shared.callTool(
@@ -605,7 +632,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // 7. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
+        // 8. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
         let cloudTicker = targetTicker ?? context.tickers.first
         if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: cloudTicker) {
             let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
@@ -845,6 +872,54 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let volStr = vol > 1_000_000 ? "\(String(format: "%.1fM", Double(vol)/1_000_000.0))" : "\(vol)"
 
             md += "| **\(ticker)** | \(name) | \(priceStr) | **\(chgStr)** | \(volStr) |\n"
+        }
+
+        return md
+    }
+
+    private func formatTechnicalsResponse(result: String, ticker: String) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "### 📊 Technical Analysis: \(ticker)\n\n\(result)"
+        }
+
+        let name = (json["name"] as? String) ?? ticker
+        let close = (json["close"] as? Double) ?? 0
+        let signal = (json["signal"] as? String) ?? "NEUTRAL"
+        let trend = (json["trend_bias"] as? String) ?? "CONSOLIDATION"
+        let isIdr = NewsRankingService.isIDX(ticker: ticker)
+        let sym = isIdr ? "Rp " : "$"
+
+        let ma = json["moving_averages"] as? [String: Any] ?? [:]
+        let ma20 = ma["ma_20"] as? Double ?? close
+        let ma50 = ma["ma_50"] as? Double ?? close
+        let isGoldenCross = ma["golden_cross_active"] as? Bool ?? false
+
+        let rsiObj = json["momentum_rsi"] as? [String: Any] ?? [:]
+        let rsi = rsiObj["rsi_14"] as? Double ?? 50.0
+        let condition = rsiObj["condition"] as? String ?? "Neutral"
+
+        let levels = json["price_levels"] as? [String: Any] ?? [:]
+        let support = levels["support_60d"] as? Double ?? close
+        let resistance = levels["resistance_60d"] as? Double ?? close
+        let summary = json["summary"] as? String ?? ""
+
+        var md = "### 📊 Technical Analysis: \(ticker) (\(name))\n\n"
+        md += "• **Current Price:** **\(sym)\(isIdr ? "\(Int(close))" : String(format: "%.2f", close))**\n"
+        md += "• **Overall Signal:** **\(signal.uppercased())** (\(trend))\n\n"
+
+        md += "| Technical Indicator | Value | Condition / Signal |\n"
+        md += "| :--- | :--- | :--- |\n"
+        md += "| **RSI (14-Day Momentum)** | **\(String(format: "%.2f", rsi))** | \(condition) |\n"
+        md += "| **Moving Average (MA20)** | \(sym)\(isIdr ? "\(Int(ma20))" : String(format: "%.2f", ma20)) | Short-Term Trend |\n"
+        md += "| **Moving Average (MA50)** | \(sym)\(isIdr ? "\(Int(ma50))" : String(format: "%.2f", ma50)) | Medium-Term Trend |\n"
+        md += "| **Golden Cross Active?** | \(isGoldenCross ? "✅ YES (Bullish Momentum)" : "❌ NO / Death Cross") | MA20 vs MA50 |\n"
+        md += "| **Dynamic Support (60D)** | **\(sym)\(isIdr ? "\(Int(support))" : String(format: "%.2f", support))** | Key Buying Floor |\n"
+        md += "| **Dynamic Resistance (60D)** | **\(sym)\(isIdr ? "\(Int(resistance))" : String(format: "%.2f", resistance))** | Overhead Supply Ceiling |\n\n"
+
+        if !summary.isEmpty {
+            md += "#### 💡 Technical Outlook & Summary\n"
+            md += "\(summary)\n"
         }
 
         return md

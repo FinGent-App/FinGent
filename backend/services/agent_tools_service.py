@@ -330,14 +330,85 @@ def analyze_market_technicals_tool(ticker: str, timeframe: str = "3M") -> Dict[s
     Calculates moving averages (MA20, MA50, MA200), Golden Cross vs Death Cross signals,
     momentum indicators (RSI 14), dynamic support & resistance levels, and volume breakout ratios.
     """
+    clean_ticker = ticker.strip().upper()
     try:
         from pipeline.warehouse.bigquery_client import get_technical_analysis
-        return get_technical_analysis(ticker)
+        result = get_technical_analysis(clean_ticker)
+        if result and result.get("status") != "NO_DATA":
+            return result
     except Exception as e:
-        logger.error("Failed to execute technical analysis tool for %s: %s", ticker, str(e))
+        logger.warning("Pipeline warehouse client unavailable, computing technicals via live engine: %s", str(e))
+
+    # Resilient on-demand fallback calculation using yfinance
+    try:
+        import yfinance as yf
+        import pandas as pd
+        is_idx = clean_ticker in [
+            "BBCA", "BBRI", "BMRI", "TLKM", "ASII", "BBNI", "GOTO", "ICBP", "UNVR",
+            "AMMN", "INDF", "ADRO", "CPIN", "AMRT", "KLBF", "MDKA"
+        ]
+        symbol = f"{clean_ticker}.JK" if is_idx else clean_ticker
+        hist = yf.download(symbol, period="6mo", interval="1d", progress=False)
+        if hist.empty:
+            return {
+                "ticker": clean_ticker,
+                "status": "NO_DATA",
+                "message": f"Historical data for '{clean_ticker}' not found."
+            }
+
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = [col[0] for col in hist.columns]
+
+        close = hist["Close"]
+        latest_close = float(close.iloc[-1])
+        ma20 = float(close.rolling(window=20).mean().iloc[-1]) if len(close) >= 20 else latest_close
+        ma50 = float(close.rolling(window=50).mean().iloc[-1]) if len(close) >= 50 else latest_close
+        ma200 = float(close.rolling(window=200).mean().iloc[-1]) if len(close) >= 200 else None
+
+        delta = close.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi_series = 100 - (100 / (1 + rs))
+        latest_rsi = float(rsi_series.iloc[-1]) if not pd.isna(rsi_series.iloc[-1]) else 50.0
+
+        recent_60 = hist.tail(60)
+        support_60d = float(recent_60["Low"].min())
+        resistance_60d = float(recent_60["High"].max())
+
+        golden_cross = ma20 > ma50
+        signal = "BULLISH" if golden_cross and latest_rsi < 70 else ("BEARISH" if not golden_cross and latest_rsi < 40 else "NEUTRAL")
+        condition = "Overbought" if latest_rsi > 70 else ("Oversold" if latest_rsi < 30 else "Neutral Momentum")
+
+        sym = "Rp " if is_idx else "$"
         return {
-            "ticker": ticker.upper(),
+            "ticker": clean_ticker,
+            "name": clean_ticker,
+            "status": "SUCCESS",
+            "close": round(latest_close, 2),
+            "signal": signal,
+            "trend_bias": "BULLISH MOMENTUM" if golden_cross else "BEARISH CONSOLIDATION",
+            "moving_averages": {
+                "ma_20": round(ma20, 2),
+                "ma_50": round(ma50, 2),
+                "ma_200": round(ma200, 2) if ma200 else None,
+                "golden_cross_active": golden_cross
+            },
+            "momentum_rsi": {
+                "rsi_14": round(latest_rsi, 2),
+                "condition": condition
+            },
+            "price_levels": {
+                "support_60d": round(support_60d, 2),
+                "resistance_60d": round(resistance_60d, 2)
+            },
+            "summary": f"{clean_ticker} is trading at {sym}{latest_close:,.2f}. MA20 ({ma20:,.2f}) is {'above' if golden_cross else 'below'} MA50 ({ma50:,.2f}). RSI 14 is {latest_rsi:.1f} ({condition}). Support is {sym}{support_60d:,.2f} and Resistance is {sym}{resistance_60d:,.2f}."
+        }
+    except Exception as e:
+        logger.error("Failed to execute technical analysis fallback for %s: %s", clean_ticker, str(e))
+        return {
+            "ticker": clean_ticker,
             "status": "ERROR",
-            "message": f"Gagal menghitung analisa teknikal untuk '{ticker}': {str(e)}"
+            "message": f"Gagal menghitung analisa teknikal untuk '{clean_ticker}': {str(e)}"
         }
 

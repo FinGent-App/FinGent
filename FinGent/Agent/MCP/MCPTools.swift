@@ -167,4 +167,32 @@ struct MCPGetMarketLeadersTool: Tool {
     }
 }
 
+// MARK: - 7. Stock Market Technical Analysis Tool
+
+struct MCPAnalyzeMarketTechnicalsTool: Tool {
+    let name = "analyzeStockMarketTechnicals"
+    let description = "MANDATORY tool to calculate quantitative technical analysis indicators for a stock (e.g. 'Check support, resistance levels, and RSI for TLKM', 'What is the technical analysis trend for BBCA right now?', 'Is NVDA forming a Golden Cross breakout signal?'). Computes MA20, MA50, MA200, Golden/Death Cross, RSI 14 momentum, and 60-day Support & Resistance levels via the MCP Server."
+
+    @Generable struct Arguments {
+        @Guide(description: "Stock ticker symbol, e.g. 'TLKM', 'BBCA', 'NVDA', 'MU'.")
+        var ticker: String
+        @Guide(description: "Technical analysis timeframe period (default: '3M').")
+        var timeframe: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "analyze_stock_market_technicals", arguments: ["ticker": arguments.ticker])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "analyze_stock_market_technicals",
+                arguments: ["ticker": arguments.ticker, "timeframe": arguments.timeframe ?? "3M"]
+            )
+            return result
+        } catch {
+            return "Failed to calculate technicals via MCP: \(error.localizedDescription)"
+        }
+    }
+}
+
+
 
