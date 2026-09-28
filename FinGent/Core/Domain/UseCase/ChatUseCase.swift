@@ -541,23 +541,61 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // 5. Check for Stock Fundamentals (P/E, PBV, ROE, Dividend)
+        // 5. Check for Market Movers / Leaders (e.g. 'Show top market gainers today')
+        let isMovers = (lowered.contains("gainer") || lowered.contains("loser") || lowered.contains("mover") || lowered.contains("top market") || lowered.contains("market leader") || lowered.contains("most active") || lowered.contains("terbanyak")) && !lowered.contains("my portfolio") && !lowered.contains("portofolio saya")
+        if isMovers {
+            let isLosers = lowered.contains("loser") || lowered.contains("turun terbanyak")
+            let moverType = isLosers ? "losers" : "gainers"
+            do {
+                let result = try await MCPClient.shared.callTool(
+                    name: "get_market_leaders",
+                    arguments: ["mover_type": moverType]
+                )
+                let formatted = formatMarketLeadersResponse(result: result, isLosers: isLosers)
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                Task {
+                    await StockApiClient.shared.recordAgentTrace(
+                        prompt: prompt,
+                        selectedTools: ["get_market_leaders"],
+                        toolArguments: ["mover_type": moverType],
+                        finalAnswer: formatted,
+                        marketType: lowered.contains("wall street") || lowered.contains("us") ? "US" : "IDX",
+                        latencyMs: latencyMs
+                    )
+                }
+                return AIResponse(answer: formatted, bias: isLosers ? .bearish : .bullish, confidence: 0.90, sources: [])
+            } catch {
+                // Fallback further
+            }
+        }
+
+        // 6. Check for Stock Fundamentals (P/E, PBV, ROE, Dividend)
         let isFundamentals = lowered.contains("p/e") || lowered.contains("pe ratio") || lowered.contains("pbv") || lowered.contains("dividend") || lowered.contains("valuation multiple") || lowered.contains("fundamental")
-        if isFundamentals, let targetTicker = context.tickers.first {
+        var targetTicker = context.tickers.first
+        if targetTicker == nil {
+            targetTicker = StockTickerExtractor().extractTickers(from: prompt).first
+        }
+        if targetTicker == nil {
+            let words = prompt.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            let known = ["BBCA", "BMRI", "BBRI", "TLKM", "ASII", "BBNI", "GOTO", "ICBP", "UNVR", "AMMN", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AMD", "INTC", "MU"]
+            targetTicker = words.first(where: { known.contains($0.uppercased()) })?.uppercased()
+        }
+
+        if isFundamentals, let ticker = targetTicker {
             do {
                 let result = try await MCPClient.shared.callTool(
                     name: "get_stock_valuation_fundamentals",
-                    arguments: ["ticker_or_name": targetTicker]
+                    arguments: ["ticker_or_name": ticker]
                 )
-                let formatted = formatFundamentalsResponse(result: result, ticker: targetTicker)
+                let formatted = formatFundamentalsResponse(result: result, ticker: ticker)
                 let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
                 Task {
                     await StockApiClient.shared.recordAgentTrace(
                         prompt: prompt,
                         selectedTools: ["get_stock_valuation_fundamentals"],
-                        toolArguments: ["ticker": targetTicker],
+                        toolArguments: ["ticker": ticker],
                         finalAnswer: formatted,
-                        marketType: NewsRankingService.isIDX(ticker: targetTicker) ? "IDX" : "US",
+                        marketType: NewsRankingService.isIDX(ticker: ticker) ? "IDX" : "US",
                         latencyMs: latencyMs
                     )
                 }
@@ -567,8 +605,9 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // 6. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
-        if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: context.tickers.first) {
+        // 7. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
+        let cloudTicker = targetTicker ?? context.tickers.first
+        if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: cloudTicker) {
             let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
                 if let targetTicker = context.tickers.first, dto.doc_type.lowercased() == "portfolio" {
                     if !dto.title.uppercased().contains(targetTicker.uppercased()) {
@@ -770,7 +809,44 @@ final class ChatUseCase: ChatUseCaseProtocol {
         md += "| **Return on Equity (ROE)** | \(roe != 0 ? String(format: "%.2f%%", roe) : "N/A") |\n"
         md += "| **Earnings Per Share (EPS)** | \(String(format: "%.2f", eps)) |\n"
         md += "| **Dividend Yield** | \(div > 0 ? String(format: "%.2f%%", div) : "N/A") |\n"
-        md += "| **Market Capitalization** | $\(String(format: "%.0f", mcap)) |\n"
+        let isIdr = NewsRankingService.isIDX(ticker: ticker)
+        md += "| **Market Capitalization** | \(isIdr ? "Rp " : "$" )\(String(format: "%.0f", mcap)) |\n"
+        return md
+    }
+
+    private func formatMarketLeadersResponse(result: String, isLosers: Bool) -> String {
+        guard let data = result.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let movers = json["movers"] as? [[String: Any]], !movers.isEmpty else {
+            return "### 🚀 Market Leaders & Movers\n\n\(result)"
+        }
+
+        let title = isLosers ? "Top Market Losers" : "Top Market Gainers"
+        var md = "### 🚀 \(title) (Real-Time)\n\n"
+        if let idx = json["index"] as? [String: Any] {
+            let idxName = idx["name"] as? String ?? "IHSG"
+            let idxPrice = idx["price"] as? Double ?? 0
+            let idxChg = idx["change_percent"] as? Double ?? 0
+            md += "**Market Index (\(idxName)):** \(String(format: "%.2f", idxPrice)) (\(String(format: "%+.2f%%", idxChg)))\n\n"
+        }
+
+        md += "| Ticker | Company Name | Price | 24H Change | Volume |\n"
+        md += "| :--- | :--- | :--- | :--- | :--- |\n"
+
+        for m in movers.prefix(8) {
+            let ticker = m["ticker"] as? String ?? ""
+            let name = m["name"] as? String ?? ticker
+            let price = m["price"] as? Double ?? 0
+            let chg = m["change_percent"] as? Double ?? 0
+            let vol = m["volume"] as? Int ?? 0
+            let isIdr = (m["currency"] as? String) == "IDR" || ticker.count == 4
+            let priceStr = isIdr ? "Rp \(Int(price))" : "$\(String(format: "%.2f", price))"
+            let chgStr = String(format: "%+.2f%%", chg)
+            let volStr = vol > 1_000_000 ? "\(String(format: "%.1fM", Double(vol)/1_000_000.0))" : "\(vol)"
+
+            md += "| **\(ticker)** | \(name) | \(priceStr) | **\(chgStr)** | \(volStr) |\n"
+        }
+
         return md
     }
 }

@@ -48,7 +48,37 @@ final class StockTickerExtractor: TickerExtractor {
         "oracle": "ORCL",
         "salesforce": "CRM",
         "uber": "UBER",
-        "alibaba": "BABA"
+        "alibaba": "BABA",
+
+        // IDX Blue Chips & Financial Leaders
+        "bbca": "BBCA",
+        "bca": "BBCA",
+        "bank central asia": "BBCA",
+        "bmri": "BMRI",
+        "mandiri": "BMRI",
+        "bank mandiri": "BMRI",
+        "bbri": "BBRI",
+        "bri": "BBRI",
+        "bank bri": "BBRI",
+        "tlkm": "TLKM",
+        "telkom": "TLKM",
+        "telkom indonesia": "TLKM",
+        "asii": "ASII",
+        "astra": "ASII",
+        "astra international": "ASII",
+        "bbni": "BBNI",
+        "bni": "BBNI",
+        "bank bni": "BBNI",
+        "goto": "GOTO",
+        "gojek": "GOTO",
+        "icbp": "ICBP",
+        "unvr": "UNVR",
+        "unilever": "UNVR",
+        "ammn": "AMMN",
+        "amman": "AMMN",
+        "indf": "INDF",
+        "adro": "ADRO",
+        "adaro": "ADRO"
     ]
 
     // MARK: - Known Tickers Set
@@ -67,9 +97,13 @@ final class StockTickerExtractor: TickerExtractor {
 
     nonisolated init(additionalTickers: Set<String> = []) {
         var base: Set<String> = [
+            // US
             "NVDA", "MU", "AMD", "AVGO", "TSM", "AAPL", "MSFT", "GOOGL", "GOOG",
             "AMZN", "META", "TSLA", "INTC", "QCOM", "ARM", "SMCI", "PLTR", "NFLX",
-            "COIN", "ORCL", "CRM", "UBER", "BABA"
+            "COIN", "ORCL", "CRM", "UBER", "BABA",
+            // IDX
+            "BBCA", "BMRI", "BBRI", "TLKM", "ASII", "BBNI", "GOTO", "ICBP", "UNVR",
+            "AMMN", "INDF", "ADRO", "CPIN", "AMRT", "KLBF", "MDKA"
         ]
         base.formUnion(additionalTickers.map { $0.uppercased() })
         self.knownTickers = base

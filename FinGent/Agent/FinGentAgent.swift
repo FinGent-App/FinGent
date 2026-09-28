@@ -34,8 +34,11 @@ final class FinGentAgent {
        - You MUST call searchFinancialKnowledgeRAG(query: <query>).
     7. When the user asks for financial valuation multiples or fundamentals of a stock (e.g. 'What is the P/E ratio and PBV of BBCA?', 'Check key financial fundamental ratios for TLKM'):
        - You MUST call getStockValuationFundamentals(ticker: <ticker>).
-    8. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
-    9. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    8. When the user asks about overall market gainers, market losers, or top moving stocks (e.g. 'Show top market gainers today', 'Show top gainers in the IDX market today', 'What are the biggest losers on Wall Street right now?', 'market leaders'):
+       - You MUST call getMarketLeaders(moverType: <'gainers' or 'losers'>).
+       - Do NOT call getPortfolioMovers unless the user explicitly asks about their OWN portfolio holdings.
+    9. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
+    10. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings concisely, accurately, and actionably in English.
     """
 
@@ -65,7 +68,8 @@ final class FinGentAgent {
             MCPSimulateMacroPortfolioRiskTool(),
             MCPAnalyzeNewsSentimentTool(),
             MCPCompareStocksTool(),
-            MCPGetStockFundamentalsTool()
+            MCPGetStockFundamentalsTool(),
+            MCPGetMarketLeadersTool()
         ]
     }
 

@@ -141,3 +141,30 @@ struct MCPGetStockFundamentalsTool: Tool {
     }
 }
 
+// MARK: - 6. Market Movers & Leaders Tool
+
+struct MCPGetMarketLeadersTool: Tool {
+    let name = "getMarketLeaders"
+    let description = "Retrieves top market gainers, market losers, and active stocks for the overall market (e.g. 'Show top market gainers today', 'Show top gainers in the IDX market today', 'What are the biggest losers on Wall Street right now?') via the MCP Server."
+
+    @Generable struct Arguments {
+        @Guide(description: "Type of market movers: 'gainers' or 'losers'. Default is 'gainers'.")
+        var moverType: String?
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let type = (arguments.moverType?.lowercased().contains("loser") == true) ? "losers" : "gainers"
+        ToolCallTracker.shared.record(toolName: "get_market_leaders", arguments: ["mover_type": type])
+        do {
+            let result = try await MCPClient.shared.callTool(
+                name: "get_market_leaders",
+                arguments: ["mover_type": type]
+            )
+            return result
+        } catch {
+            return "Failed to fetch market movers via MCP: \(error.localizedDescription)"
+        }
+    }
+}
+
+
