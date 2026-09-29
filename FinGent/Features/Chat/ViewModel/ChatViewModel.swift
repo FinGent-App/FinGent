@@ -106,7 +106,7 @@ final class ChatViewModel {
 
         let assistantMessageId = UUID()
         let userMsg = ChatMessage(role: .user, content: prompt)
-        let initialPhase = ChatResearchPhase.readingNews(sources: "Financial news")
+        let initialPhase = ChatResearchPhase.evaluatingRequest
         let assistantMsg = ChatMessage(
             id: assistantMessageId,
             role: .assistant,
@@ -171,6 +171,20 @@ final class ChatViewModel {
     private func updateResearchStep(for id: UUID, phase: ChatResearchPhase) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         var steps = messages[index].researchSteps
+
+        // If the only step is the temporary "evaluatingRequest" placeholder, replace it with the first concrete step
+        if steps.count == 1 && steps[0].id == ChatResearchPhase.evaluatingRequest.id {
+            steps = [
+                ResearchStepItem(
+                    id: phase.id,
+                    title: phase.title,
+                    iconName: phase.iconName,
+                    status: .inProgress
+                )
+            ]
+            messages[index].researchSteps = steps
+            return
+        }
 
         // Mark all previous steps as completed
         for i in 0..<steps.count {

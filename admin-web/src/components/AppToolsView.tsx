@@ -106,6 +106,24 @@ export const AppToolsView: React.FC = () => {
     }
   };
 
+  const formatToolLatency = (latencyStr: string): string => {
+    if (!latencyStr) return '0 s';
+    if (latencyStr.includes(' s') && !latencyStr.includes('ms')) return latencyStr;
+    return latencyStr
+      .replace(/(\d[\d,.]*)\s*-\s*(\d[\d,.]*)\s*ms/gi, (_, p1, p2) => {
+        const n1 = parseFloat(p1.replace(/,/g, '')) / 1000;
+        const n2 = parseFloat(p2.replace(/,/g, '')) / 1000;
+        const s1 = n1.toString().replace('.', ',');
+        const s2 = n2.toString().replace('.', ',');
+        return `${s1} - ${s2} s`;
+      })
+      .replace(/(\d[\d,.]*)\s*ms/gi, (_, p1) => {
+        const n = parseFloat(p1.replace(/,/g, '')) / 1000;
+        const s = n.toString().replace('.', ',');
+        return `${s} s`;
+      });
+  };
+
   return (
     <div id="app-tools-view" className="tools-container" style={{ animation: 'fadeIn 0.3s ease-out' }}>
       {/* 1. Header Banner */}
@@ -128,7 +146,7 @@ export const AppToolsView: React.FC = () => {
             <span className="metric-num" style={{ color: 'var(--accent-cyan)' }}>{tierCounts.total}</span>
           </div>
           <div className="tool-metric-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-            <span className="metric-label">On-Device (0ms)</span>
+            <span className="metric-label">On-Device (0 s)</span>
             <span className="metric-num" style={{ color: 'var(--accent-emerald)' }}>{tierCounts.on_device}</span>
           </div>
           <div className="tool-metric-card" style={{ borderColor: 'rgba(168, 85, 247, 0.3)' }}>
@@ -255,6 +273,11 @@ export const AppToolsView: React.FC = () => {
                       <div className="tool-func-name font-mono">
                         {tool.name.endsWith('()') ? tool.name : `${tool.name}()`}
                       </div>
+                      {tool.display_name && (
+                        <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '-0.2rem' }}>
+                          {tool.display_name}
+                        </div>
+                      )}
                       <div 
                         className="tier-badge"
                         style={{
@@ -278,7 +301,7 @@ export const AppToolsView: React.FC = () => {
                   </span>
                   <span className="meta-tag latency-tag">
                     <Clock size={11} />
-                    {tool.latency}
+                    {formatToolLatency(tool.latency)}
                   </span>
                   <span className="meta-tag privacy-tag">
                     <ShieldCheck size={11} />

@@ -647,7 +647,7 @@ final class StockApiClient: Sendable {
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.timeoutInterval = 20.0
+        req.timeoutInterval = 60.0
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(userId, forHTTPHeaderField: "X-User-Id")
 

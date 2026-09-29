@@ -14,14 +14,19 @@ final class ToolCallTracker: @unchecked Sendable {
 
     private let lock = NSLock()
     private var executedRecords: [ToolRecord] = []
+    var onToolCall: (@Sendable (ToolRecord) -> Void)? = nil
 
     private init() {}
 
     /// Records the name of a tool that was executed by the agent session
     func record(toolName: String, arguments: [String: String] = [:]) {
+        let record = ToolRecord(name: toolName, arguments: arguments)
+        let callback: (@Sendable (ToolRecord) -> Void)?
         lock.lock()
-        defer { lock.unlock() }
-        executedRecords.append(ToolRecord(name: toolName, arguments: arguments))
+        executedRecords.append(record)
+        callback = onToolCall
+        lock.unlock()
+        callback?(record)
     }
 
     /// Drains and clears the list of executed tool records for reporting trace
@@ -45,10 +50,11 @@ final class ToolCallTracker: @unchecked Sendable {
         return uniqueNames
     }
 
-    /// Clears any lingering tool records
+    /// Clears any lingering tool records and resets callback
     func reset() {
         lock.lock()
         defer { lock.unlock() }
         executedRecords = []
+        onToolCall = nil
     }
 }

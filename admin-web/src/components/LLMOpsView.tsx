@@ -32,6 +32,11 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
     ? Object.values(analytics.tools_distribution).reduce((a, b) => a + b, 0)
     : 1;
 
+  const formatLatencySec = (ms: number): string => {
+    const sec = (ms || 0) / 1000;
+    return `${sec.toFixed(2).replace('.', ',')} s`;
+  };
+
   return (
     <div id="llmops-view">
       {/* 1. Top Metrics Row */}
@@ -70,7 +75,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
             <span className="stat-title">Average Latency</span>
             <Clock className="stat-icon" size={18} />
           </div>
-          <div className="stat-value">{(analytics?.avg_latency_ms || 0) > 1000 ? `${((analytics?.avg_latency_ms || 0) / 1000).toFixed(2)}s` : `${analytics?.avg_latency_ms || 0}ms`}</div>
+          <div className="stat-value">{formatLatencySec(analytics?.avg_latency_ms || 0)}</div>
           <div className="stat-subtext">E2E Reasoning & Grounding time</div>
         </div>
 
@@ -219,7 +224,7 @@ export const LLMOpsView: React.FC<LLMOpsViewProps> = ({ analytics, logs }) => {
                         <span className="badge badge-tool">🧠 Direct LLM Synthesis</span>
                       )}
                       <span className="badge badge-tokens">
-                        {log.total_tokens || (log.prompt_tokens + log.completion_tokens)} Tok ({log.latency_ms}ms)
+                        {log.total_tokens || (log.prompt_tokens + log.completion_tokens)} Tok ({formatLatencySec(log.latency_ms)})
                       </span>
                     </div>
 

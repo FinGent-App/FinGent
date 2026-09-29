@@ -580,7 +580,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets the overall portfolio summary. Use ONLY when user explicitly asks about overall portfolio summary or total net worth, NOT for specific stock questions.",
         "parameters": [],
@@ -598,7 +598,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets details of a specific stock holding by ticker symbol (e.g. 'MU', 'BBCA'). Only use 'ALL' when the user explicitly asks to view all portfolio holdings.",
         "parameters": [
@@ -617,13 +617,38 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "data_sources": ["PortfolioRepository (Local Swift)", "StockTickerExtractor"]
     },
     {
+        "id": "tool-local-ai-explanation",
+        "name": "localAIExplanation",
+        "display_name": "Local AI Explanation",
+        "tier": "on_device",
+        "category": "Portfolio",
+        "execution_engine": "Apple FoundationModels (On-Device SLM)",
+        "latency": "0 s (Instant)",
+        "privacy": "100% On-Device (Data stays on phone)",
+        "description": "Synthesizes factual on-device portfolio holdings data into natural, empathetic mentor guidance and diversification analysis using local Apple Intelligence (LocalAIExplanation).",
+        "parameters": [
+            {
+                "name": "focus",
+                "type": "string",
+                "required": True,
+                "description": "Focus of analysis: 'portfolio_breakdown', 'risk_assessment', or 'sector_diversification'."
+            }
+        ],
+        "example_queries": [
+            "Explain all stock positions in my portfolio",
+            "Give me mentor feedback on my holdings",
+            "Break down my portfolio risk and allocation"
+        ],
+        "data_sources": ["PortfolioRepository (Local Swift)", "Apple FoundationModels"]
+    },
+    {
         "id": "tool-get-portfolio-performance",
         "name": "getPortfolioPerformance",
         "display_name": "Portfolio Performance",
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets portfolio performance (return percentage) for a given time period. Valid periods: daily, weekly, monthly, ytd, yearly.",
         "parameters": [
@@ -648,7 +673,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets the portfolio allocation breakdown by sector and stock. Use ONLY when user explicitly asks about overall portfolio allocation.",
         "parameters": [],
@@ -666,7 +691,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets the top movers (gainers and losers) in the portfolio. Use ONLY when user explicitly asks about portfolio movers.",
         "parameters": [
@@ -691,7 +716,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Portfolio",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Instant)",
+        "latency": "0 s (Instant)",
         "privacy": "100% On-Device (Data stays on phone)",
         "description": "Gets the unrealized gain or loss for a specific stock ticker symbol (e.g. 'MU') or the entire portfolio ('ALL').",
         "parameters": [
@@ -716,7 +741,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Market Data",
         "execution_engine": "Apple FoundationModels + Backend Yahoo API",
-        "latency": "50 - 150 ms",
+        "latency": "0,05 - 0,15 s",
         "privacy": "Anonymized Ticker Request",
         "description": "Gets the current stock quote including price, change, volume, and intraday range for a given ticker symbol.",
         "parameters": [
@@ -741,7 +766,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "on_device",
         "category": "Market Data",
         "execution_engine": "Apple FoundationModels (Swift Native)",
-        "latency": "0 ms (Cached) / 100 ms",
+        "latency": "0 s (Cached) / 0,1 s",
         "privacy": "Anonymized Ticker Request",
         "description": "Gets the performance (return percentage) of a stock over different time periods: daily, weekly, monthly, ytd, yearly.",
         "parameters": [
@@ -774,7 +799,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "cloud_agent",
         "category": "Deep Research",
         "execution_engine": "Google Gemini 1.5/3.6 Flash + Zilliz Milvus Vector RAG",
-        "latency": "800 - 1,500 ms",
+        "latency": "0,8 - 1,5 s",
         "privacy": "Multi-Modal Synthesized & Grounded (Zero Hallucination)",
         "description": "Consults the specialized FinGent Cloud Research Agent (powered by Google Gemini with Vector RAG, SEC 10-K/8-K regulatory filings, live market fundamentals, and macroeconomic scenario simulation) for deep financial analysis, valuation assessments, SEC regulatory insights, or complex market research.",
         "parameters": [
@@ -807,7 +832,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Deep Research",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "200 - 400 ms",
+        "latency": "0,2 - 0,4 s",
         "privacy": "Dense Semantic Embeddings RAG",
         "description": "Performs dense vector semantic search across news articles, market disclosures, and SEC filings (Form 10-K, 10-Q, 8-K) stored in Zilliz Cloud Milvus.",
         "parameters": [
@@ -838,7 +863,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Risk & Scenario",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "300 - 500 ms",
+        "latency": "0,3 - 0,5 s",
         "privacy": "Portfolio Exposure Simulation Engine",
         "description": "Calculates estimated risk level and projected return impact of macroeconomic events (e.g., Fed interest rate hikes, inflation, currency devaluation, recession) against the user's specific stock portfolio holdings.",
         "parameters": [
@@ -869,7 +894,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "News & Sentiment",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "250 - 450 ms",
+        "latency": "0,25 - 0,45 s",
         "privacy": "Catalyst & Sentiment Analysis",
         "description": "Analyzes sentiment score, bullish/bearish bias, and potential price impact of news headlines or market topics.",
         "parameters": [
@@ -894,7 +919,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Market Data",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "300 - 600 ms",
+        "latency": "0,3 - 0,6 s",
         "privacy": "Market Fundamentals Aggregation",
         "description": "Compares two or more stocks side-by-side on price, valuation ratios, returns, and fundamentals.",
         "parameters": [
@@ -919,7 +944,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Market Data",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "150 - 300 ms",
+        "latency": "0,15 - 0,3 s",
         "privacy": "Market Fundamentals Aggregation",
         "description": "Retrieves key financial multiples and fundamental metrics: Trailing P/E, Forward P/E, PBV, ROE, EPS, Free Cash Flow, Dividend Yield, and Market Cap.",
         "parameters": [
@@ -944,7 +969,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Market Data",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "100 - 200 ms",
+        "latency": "0,1 - 0,2 s",
         "privacy": "Public Equities Search",
         "description": "Searches stocks by company name, brand alias, or ticker symbol (e.g. 'micron', 'apple', 'bca'). Returns full quote information for top matching stocks.",
         "parameters": [
@@ -975,7 +1000,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Market Data",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "150 - 300 ms",
+        "latency": "0,15 - 0,3 s",
         "privacy": "Bursa Composite Market Data",
         "description": "Retrieves top market gainers, losers, and benchmark index performance (IHSG).",
         "parameters": [
@@ -1000,7 +1025,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "News & Sentiment",
         "execution_engine": "FastMCP Server (JSON-RPC 2.0 / SSE)",
-        "latency": "200 - 400 ms",
+        "latency": "0,2 - 0,4 s",
         "privacy": "Personalized to User Portfolio",
         "description": "Retrieves recent financial news articles specifically related to stocks in the user's active portfolio holdings.",
         "parameters": [
@@ -1030,7 +1055,7 @@ APP_TOOLS_REGISTRY: List[Dict[str, Any]] = [
         "tier": "mcp_server",
         "category": "Market Data",
         "execution_engine": "Enterprise Data Warehouse (BigQuery / Lakehouse)",
-        "latency": "100 - 300 ms",
+        "latency": "0,1 - 0,3 s",
         "privacy": "Columnar Historical Analytics Engine",
         "description": "Performs quantitative technical analysis and trend assessment for a stock ticker. Calculates moving averages (MA20, MA50, MA200), Golden Cross vs Death Cross breakout signals, RSI 14 momentum, and dynamic support & resistance levels from historical warehouse data.",
         "parameters": [

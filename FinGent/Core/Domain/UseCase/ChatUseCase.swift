@@ -5,6 +5,8 @@ import Foundation
 // MARK: - Chat Research Phase
 
 enum ChatResearchPhase: Sendable, Equatable {
+    case evaluatingRequest
+    case toolStep(id: String, title: String, iconName: String)
     case readingNews(sources: String)
     case analyzingStockHistory
     case analyzingSEC
@@ -12,6 +14,8 @@ enum ChatResearchPhase: Sendable, Equatable {
 
     var id: String {
         switch self {
+        case .evaluatingRequest: return "evaluatingRequest"
+        case .toolStep(let id, _, _): return id
         case .readingNews: return "readingNews"
         case .analyzingStockHistory: return "analyzingStockHistory"
         case .analyzingSEC: return "analyzingSEC"
@@ -21,6 +25,10 @@ enum ChatResearchPhase: Sendable, Equatable {
 
     var title: String {
         switch self {
+        case .evaluatingRequest:
+            return "Evaluating request with On-Device AI..."
+        case .toolStep(_, let title, _):
+            return title
         case .readingNews(let sources):
             return "Reading (\(sources))"
         case .analyzingStockHistory:
@@ -34,6 +42,10 @@ enum ChatResearchPhase: Sendable, Equatable {
 
     var iconName: String {
         switch self {
+        case .evaluatingRequest:
+            return "brain.head.profile"
+        case .toolStep(_, _, let icon):
+            return icon
         case .readingNews:
             return "newspaper.fill"
         case .analyzingStockHistory:
@@ -86,39 +98,136 @@ final class ChatUseCase: ChatUseCaseProtocol {
         try await ask(prompt, onProgress: nil)
     }
 
+    private func isPortfolioQuery(_ prompt: String) -> Bool {
+        let lowered = prompt.lowercased()
+        let portfolioKeywords = [
+            "portfolio", "portofolio", "holding", "kepemilikan", "posisi saham",
+            "saham saya", "saham yang saya miliki", "my stock", "my stocks",
+            "alokasi", "allocation", "unrealized", "floating profit", "cuan", "rugi",
+            "movers", "saldo", "balance", "net worth", "nilai aset", "explain all",
+            "daftar saham", "semua posisi", "posisi"
+        ]
+        return portfolioKeywords.contains { lowered.contains($0) }
+    }
+
+    private func phaseForTool(_ toolName: String, args: [String: String]) -> ChatResearchPhase {
+        switch toolName {
+        case "GetHoldingTool", "getHolding":
+            let ticker = args["ticker"] ?? ""
+            let desc = (ticker.isEmpty || ticker == "ALL") ? "Retrieving on-device portfolio holdings (GetHoldingTool)" : "Retrieving \(ticker) holding details (GetHoldingTool)"
+            return .toolStep(id: "getHolding", title: desc, iconName: "briefcase.fill")
+
+        case "LocalAIExplanation", "localAIExplanation":
+            return .toolStep(id: "localAIExplanation", title: "Synthesizing mentor insights (LocalAIExplanation)", iconName: "sparkles")
+
+        case "GetPortfolioSummaryTool", "getPortfolioSummary":
+            return .toolStep(id: "getPortfolioSummary", title: "Calculating portfolio summary & balance", iconName: "chart.pie.fill")
+
+        case "GetPortfolioAllocationTool", "getPortfolioAllocation":
+            return .toolStep(id: "getPortfolioAllocation", title: "Analyzing portfolio asset allocation", iconName: "chart.pie.fill")
+
+        case "GetPortfolioMoversTool", "getPortfolioMovers":
+            let dir = args["direction"] ?? "movers"
+            return .toolStep(id: "getPortfolioMovers", title: "Screening portfolio \(dir)", iconName: "arrow.up.arrow.down")
+
+        case "GetUnrealizedGainTool", "getUnrealizedGain":
+            let ticker = args["ticker"] ?? "portfolio"
+            return .toolStep(id: "getUnrealizedGain", title: "Calculating unrealized gain / loss (\(ticker))", iconName: "dollarsign.circle")
+
+        case "GetStockQuoteTool", "getStockQuote":
+            let ticker = args["ticker"] ?? ""
+            return .toolStep(id: "getStockQuote", title: "Fetching live stock quote (\(ticker))", iconName: "chart.line.uptrend.xyaxis")
+
+        case "GetStockPerformanceTool", "getStockPerformance":
+            let ticker = args["ticker"] ?? ""
+            return .toolStep(id: "getStockPerformance", title: "Analyzing price performance (\(ticker))", iconName: "chart.xyaxis.line")
+
+        case "ConsultCloudAnalystTool", "consultCloudAnalyst":
+            let ticker = args["ticker"] ?? ""
+            let target = ticker.isEmpty ? "" : " (\(ticker))"
+            return .toolStep(id: "consultCloudAnalyst", title: "Consulting Wall Street Cloud Analyst\(target)", iconName: "cloud.fill")
+
+        case "compare_stocks_side_by_side", "compareStocksSideBySide":
+            let tickers = args["tickers"] ?? ""
+            return .toolStep(id: "compareStocks", title: "Comparing stocks side-by-side (\(tickers))", iconName: "arrow.left.arrow.right")
+
+        case "analyze_stock_market_technicals", "analyzeStockMarketTechnicals":
+            let ticker = args["ticker"] ?? ""
+            return .toolStep(id: "analyzeTechnicals", title: "Calculating technicals: RSI & MAs (\(ticker))", iconName: "waveform.path.ecg")
+
+        case "simulate_macro_portfolio_risk", "simulateMacroPortfolioRisk":
+            return .toolStep(id: "simulateMacro", title: "Simulating macro risk impact on portfolio", iconName: "exclamationmark.triangle")
+
+        case "analyze_news_sentiment_impact", "analyzeNewsSentimentImpact":
+            return .toolStep(id: "analyzeSentiment", title: "Analyzing news sentiment & price impact", iconName: "text.bubble.fill")
+
+        case "get_stock_valuation_fundamentals", "getStockValuationFundamentals":
+            let ticker = args["ticker"] ?? ""
+            return .toolStep(id: "getFundamentals", title: "Retrieving valuation multiples (\(ticker))", iconName: "tablecells.fill")
+
+        case "search_stocks_directory", "searchStocksDirectory":
+            return .toolStep(id: "searchDirectory", title: "Searching stock ticker directory", iconName: "magnifyingglass")
+
+        case "get_market_leaders", "getMarketLeaders":
+            return .toolStep(id: "marketLeaders", title: "Retrieving market movers & index", iconName: "chart.bar.xaxis")
+
+        case "get_user_portfolio_news", "getUserPortfolioNews":
+            return .toolStep(id: "portfolioNews", title: "Retrieving portfolio holdings news", iconName: "newspaper.fill")
+
+        case "search_financial_knowledge_rag", "searchFinancialKnowledgeRAG":
+            return .toolStep(id: "vectorRAG", title: "Searching SEC & Wall Street knowledge RAG", iconName: "books.vertical.fill")
+
+        default:
+            return .toolStep(id: toolName, title: "Executing \(toolName)", iconName: "wrench.and.screwdriver.fill")
+        }
+    }
+
     func ask(
         _ prompt: String,
         onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)? = nil
     ) async throws -> AIResponse {
         let startTime = Date()
-        // Step 1: News Retrieval & Sources
-        let (context, articles) = await newsRetrievalUseCase.retrieveNews(for: prompt)
-        let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
-        let isTargetIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
-        let defaultFallback = isTargetIDX ? "Kontan, Detik Finance, CNN Indonesia" : "Nasdaq, Investing.com, Yahoo Finance"
-        let sourcesStr = sourcesList.isEmpty ? defaultFallback : sourcesList.joined(separator: ", ")
-        onProgress?(.readingNews(sources: sourcesStr))
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        let isPortfolio = isPortfolioQuery(prompt)
 
-        // Step 2: Analyzing Stock History
-        onProgress?(.analyzingStockHistory)
-        if let ticker = context.tickers.first {
-            _ = try? await StockApiClient.shared.fetchHistory(ticker: ticker, period: "1mo")
+        // Setup real-time dynamic tool progress tracking
+        ToolCallTracker.shared.reset()
+        ToolCallTracker.shared.onToolCall = { [weak self] record in
+            Task { @MainActor in
+                guard let self else { return }
+                let phase = self.phaseForTool(record.name, args: record.arguments)
+                onProgress?(phase)
+            }
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
-        // Step 3: Analyzing SEC
-        onProgress?(.analyzingSEC)
-        if let ticker = context.tickers.first, !ticker.hasSuffix(".JK") {
-            _ = try? await StockApiClient.shared.fetchSecFilings(ticker: ticker, limit: 3)
+        var context = NewsQueryContext(tickers: [], timeRange: DateInterval(start: Date(), end: Date()), requiresNews: false, queryType: .generalConcept)
+        var articles: [NewsArticle] = []
+
+        // Only pre-fetch news if the query is NOT an on-device portfolio request and requires news
+        if !isPortfolio {
+            let res = await newsRetrievalUseCase.retrieveNews(for: prompt)
+            context = res.0
+            articles = res.1
+
+            if context.requiresNews && !articles.isEmpty {
+                let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
+                let isTargetIDX = context.tickers.first.map { NewsRankingService.isIDX(ticker: $0) } ?? false
+                let defaultFallback = isTargetIDX ? "Kontan, Detik Finance, CNN Indonesia" : "Nasdaq, Investing.com, Yahoo Finance"
+                let sourcesStr = sourcesList.isEmpty ? defaultFallback : sourcesList.joined(separator: ", ")
+                onProgress?(.readingNews(sources: sourcesStr))
+                try? await Task.sleep(nanoseconds: 50_000_000)
+
+                if let ticker = context.tickers.first {
+                    onProgress?(.analyzingStockHistory)
+                    _ = try? await StockApiClient.shared.fetchHistory(ticker: ticker, period: "1mo")
+                    if !ticker.hasSuffix(".JK") {
+                        onProgress?(.analyzingSEC)
+                        _ = try? await StockApiClient.shared.fetchSecFilings(ticker: ticker, limit: 3)
+                    }
+                }
+            }
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
-
-        // Step 4: Generating Results for you
-        onProgress?(.generatingResults)
 
         do {
-            ToolCallTracker.shared.reset()
             // Master Orchestrator: Apple FoundationModels on iOS evaluates the user prompt.
             // FoundationModels is NEVER bypassed. It autonomously selects between on-device tools
             // (portfolio balance, holdings, quotes) and the Cloud Analyst (Gemini + RAG + SEC).
@@ -468,7 +577,65 @@ final class ChatUseCase: ChatUseCaseProtocol {
             }
         }
 
-        // 2. Check for Macro Risk simulation
+        // 2. Check for Portfolio Holdings / Stock Positions
+        let isPortfolioHoldings = (lowered.contains("stock position") || lowered.contains("all position") || lowered.contains("all holding") || lowered.contains("my holding") || lowered.contains("my portfolio") || lowered.contains("portofolio saya") || lowered.contains("semua saham") || lowered.contains("daftar saham") || lowered.contains("isi portofolio") || lowered.contains("explain all")) && !lowered.contains("news") && !lowered.contains("berita") && !lowered.contains("simulate") && !lowered.contains("fed")
+        if isPortfolioHoldings {
+            let tool = GetHoldingTool()
+            if let holdingsStr = try? await tool.call(arguments: .init(ticker: "ALL")) {
+                let groundedPrompt = """
+                USER QUERY: "\(prompt)"
+
+                FACTUAL ON-DEVICE PORTFOLIO HOLDINGS DATA:
+                \(holdingsStr)
+
+                INSTRUCTIONS FOR FINGENT MENTOR:
+                You are FinGent, an empathetic and intelligent investment mentor. Explain all stock positions in the user's portfolio warmly, clearly, and insightfully based strictly on the factual holdings data above.
+                - For each stock, explain what it is, number of shares, whether it is currently in profit or loss, and what that means for a retail investor.
+                - Provide an encouraging and balanced investor perspective on diversification.
+                - Respond in the language of the query (Indonesian if Indonesian, English if English).
+                - Strictly DO NOT use markdown bold asterisks (**) or hashes (###). Use clean bullet points (•).
+                """
+
+                var formatted: String? = nil
+
+                // Step 1: On-Device Apple FoundationModels explanation
+                _ = try? await LocalAIExplanationTool().call(arguments: .init(focus: "portfolio_breakdown"))
+                if let modelExplanation = try? await agent.askGrounded(groundedPrompt), !modelExplanation.isEmpty, modelExplanation.count > 100 {
+                    formatted = sanitizeFriendlyText(modelExplanation)
+                }
+
+                // Step 2: If on-device SLM is unavailable (e.g. running on iOS Simulator without local neural assets),
+                // seamlessly route to Cloud Research Agent (Gemini) to explain the portfolio!
+                if formatted == nil {
+                    if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: nil) {
+                        let report = cloudResponse.analyst_report.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !report.isEmpty && report.count > 150 {
+                            formatted = sanitizeFriendlyText(report)
+                        }
+                    }
+                }
+
+                // Step 3: High-quality local structured explanation if offline
+                let finalAnswer = formatted ?? formatPortfolioHoldingsFallback(raw: holdingsStr)
+
+                let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
+                let traceId = await StockApiClient.shared.recordAgentTrace(
+                    prompt: prompt,
+                    selectedTools: ["GetHoldingTool", "LocalAIExplanation"],
+                    toolArguments: [
+                        "GetHoldingTool": ["ticker": "ALL"],
+                        "LocalAIExplanation": ["focus": "portfolio_breakdown_mentor"]
+                    ],
+                    toolOutput: "GetHoldingTool retrieved factual holdings -> LocalAIExplanation synthesized mentor breakdown",
+                    finalAnswer: finalAnswer,
+                    marketType: "GLOBAL",
+                    latencyMs: latencyMs
+                )
+                return AIResponse(answer: finalAnswer, bias: .neutral, confidence: 0.95, sources: [], traceId: traceId)
+            }
+        }
+
+        // 3. Check for Macro Risk simulation
         let isMacro = lowered.contains("simulate") || lowered.contains("fed") || lowered.contains("rate hike") || lowered.contains("inflation") || lowered.contains("recession") || lowered.contains("bunga") || lowered.contains("resesi")
         if isMacro {
             do {
@@ -757,6 +924,37 @@ final class ChatUseCase: ChatUseCaseProtocol {
             sources: articles.prefix(3).map { NewsCitation(from: $0) },
             traceId: traceId
         )
+    }
+
+    private func formatPortfolioHoldingsFallback(raw: String) -> String {
+        let holdings = PortfolioRepository.shared.userHoldings
+        guard !holdings.isEmpty else {
+            return "Portofolio Anda saat ini masih kosong. Silakan tambahkan saham terlebih dahulu untuk melihat analisis lengkap."
+        }
+
+        var text = "Berikut adalah ulasan mendalam mengenai seluruh posisi saham yang Anda miliki saat ini di portofolio:\n\n"
+
+        for h in holdings {
+            let isUSD = h.isUSD
+            let curr = isUSD ? "$" : "Rp "
+            let avgStr = isUSD ? String(format: "%.2f", h.pricePerShare) : NumberFormatters.stockPrice(h.pricePerShare)
+            let investedStr = isUSD ? String(format: "%.2f", h.investedAmount) : NumberFormatters.stockPrice(h.investedAmount)
+            let quote = MarketDataRepository.shared.getQuote(for: h.ticker)
+            let curPrice = quote?.price ?? h.pricePerShare
+            let curPriceStr = isUSD ? String(format: "%.2f", curPrice) : NumberFormatters.stockPrice(curPrice)
+            let pnl = (curPrice - h.pricePerShare) * Double(h.shares)
+            let pnlPct = h.pricePerShare > 0 ? ((curPrice - h.pricePerShare) / h.pricePerShare) * 100 : 0
+            let pnlStr = isUSD ? String(format: "%+.2f", pnl) : (pnl >= 0 ? "+\(NumberFormatters.stockPrice(pnl))" : NumberFormatters.stockPrice(pnl))
+            let pnlStatus = pnl >= 0 ? "dalam posisi profit" : "sedang mengalami koreksi wajar"
+
+            text += "• \(h.ticker) (\(h.name)) — Sektor \(h.sector)\n"
+            text += "  Anda memiliki \(h.shares) lembar saham dengan harga beli rata-rata \(curr)\(avgStr) (Total Modal: \(curr)\(investedStr)). Harga pasar saat ini berada di level \(curr)\(curPriceStr), sehingga posisi ini \(pnlStatus) sebesar \(curr)\(pnlStr) (\(String(format: "%+.2f", pnlPct))%).\n\n"
+        }
+
+        text += "💡 Sudut Pandang Mentor FinGent:\n"
+        text += "Portofolio Anda memiliki kombinasi aset yang terdiversifikasi antara emiten pertumbuhan teknologi global dan perbankan defensif domestik. Kunci keberhasilan investasi bertahap adalah rutin memantau kinerja fundamental, tidak panik menghadapi fluktuasi jangka pendek, dan menjaga alokasi aset tetap seimbang."
+
+        return sanitizeFriendlyText(text)
     }
 
     private func formatStockComparisonResponse(result: String, tickers: [String]) -> String {

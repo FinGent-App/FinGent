@@ -110,18 +110,67 @@ export function connectSSE(
   };
 }
 
-import type { AppToolsResponse } from './types';
-import { FALLBACK_APP_TOOLS_RESPONSE } from './toolsData';
+import type { AppToolsResponse, AppTool } from './types';
+import { FALLBACK_APP_TOOLS_RESPONSE, FALLBACK_APP_TOOLS } from './toolsData';
 
 export async function fetchAppTools(): Promise<AppToolsResponse> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/admin/tools`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data;
+
+    const remoteTools: AppTool[] = data.tools || [];
+    const remoteToolMap = new Map<string, AppTool>();
+    remoteTools.forEach(t => {
+      if (t.name) remoteToolMap.set(t.name.toLowerCase(), t);
+      if (t.id) remoteToolMap.set(t.id.toLowerCase(), t);
+    });
+
+    const mergedTools: AppTool[] = [];
+    const seen = new Set<string>();
+
+    // Baseline order from FALLBACK_APP_TOOLS (preserves on-device group order, including localAIExplanation)
+    for (const fb of FALLBACK_APP_TOOLS) {
+      const match = remoteToolMap.get(fb.name.toLowerCase()) || (fb.id ? remoteToolMap.get(fb.id.toLowerCase()) : undefined);
+      if (match) {
+        mergedTools.push({
+          ...fb,
+          ...match,
+          display_name: match.display_name || fb.display_name,
+        });
+        seen.add(fb.name.toLowerCase());
+        if (match.name) seen.add(match.name.toLowerCase());
+      } else {
+        mergedTools.push(fb);
+        seen.add(fb.name.toLowerCase());
+      }
+    }
+
+    // Add any additional tools returned by remote that weren't in FALLBACK_APP_TOOLS
+    for (const rt of remoteTools) {
+      if (rt.name && !seen.has(rt.name.toLowerCase())) {
+        mergedTools.push(rt);
+        seen.add(rt.name.toLowerCase());
+      }
+    }
+
+    const onDeviceCount = mergedTools.filter(t => t.tier === 'on_device').length;
+    const cloudAgentCount = mergedTools.filter(t => t.tier === 'cloud_agent').length;
+    const mcpServerCount = mergedTools.filter(t => t.tier === 'mcp_server').length;
+
+    return {
+      count: mergedTools.length,
+      tier_breakdown: {
+        on_device: onDeviceCount,
+        cloud_agent: cloudAgentCount,
+        mcp_server: mcpServerCount,
+      },
+      tools: mergedTools,
+    };
   } catch (err) {
     console.warn('Falling back to built-in tools catalog:', err);
     return FALLBACK_APP_TOOLS_RESPONSE;
   }
 }
+
 

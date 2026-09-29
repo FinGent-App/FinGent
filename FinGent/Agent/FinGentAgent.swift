@@ -44,7 +44,11 @@ final class FinGentAgent {
     11. When the user asks for news specifically related to their portfolio holdings (e.g. 'What are the most relevant news headlines for my portfolio today?', 'Check recent news for my active holdings'):
        - You MUST call getUserPortfolioNews().
     12. For simple current price questions of a single stock, call getStockQuote(ticker: <ticker>).
-    13. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
+    13. When the user asks to explain, view, or list ALL stock positions or holdings in their portfolio (e.g. 'Explain all stock positions in my portfolio', 'Show all holdings', 'What stocks do I own in my portfolio?', 'Daftar semua saham di portofolio saya'):
+       - You MUST call getHolding(ticker: "ALL") first to fetch factual holdings data.
+       - Then call localAIExplanation(focus: "portfolio_breakdown") to synthesize comprehensive mentor insights.
+       - Do NOT call consultCloudAnalyst for viewing portfolio holdings.
+    14. Only call general portfolio tools (getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers) when the user explicitly asks about their overall portfolio, total balance, or net worth.
     Always synthesize findings warmly, clearly, and insightfully in the user's language (Indonesian or English).
     DO NOT use markdown bold asterisks (**) or triple asterisks (***). Keep paragraphs flowing and comfortable to read for beginner investors.
     """
@@ -67,6 +71,7 @@ final class FinGentAgent {
             GetUnrealizedGainTool(),
             GetStockQuoteTool(),
             GetStockPerformanceTool(),
+            LocalAIExplanationTool(),
 
             // 2. Cloud Research Analyst Tool:
             ConsultCloudAnalystTool(),

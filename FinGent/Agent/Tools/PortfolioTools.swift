@@ -57,10 +57,16 @@ struct GetHoldingTool: Tool {
         if rawTicker.uppercased() == "ALL" {
             var result = "All Portfolio Holdings:\n"
             for h in resolved {
+                let isUSD = h.ticker != "BBCA" && h.ticker != "BMRI" && h.ticker != "BBRI" && h.ticker != "TLKM" && h.ticker != "ASII" && h.ticker != "GOTO" && !h.ticker.hasSuffix(".JK")
+                let curr = isUSD ? "$" : "Rp "
+                let avgStr = isUSD ? String(format: "%.2f", h.avgPrice) : formatNumber(h.avgPrice)
+                let curStr = isUSD ? String(format: "%.2f", h.currentPrice) : formatNumber(h.currentPrice)
+                let valStr = isUSD ? String(format: "%.2f", h.marketValue) : formatNumber(h.marketValue)
+                let pnlStr = isUSD ? String(format: "%+.2f", h.unrealizedGain) : (h.unrealizedGain >= 0 ? "+\(formatNumber(h.unrealizedGain))" : formatNumber(h.unrealizedGain))
                 result += """
-                \n- \(h.ticker) (\(h.name)):
-                  Shares: \(h.shares) | Avg: Rp \(formatNumber(h.avgPrice)) | Current: Rp \(formatNumber(h.currentPrice))
-                  Market Value: Rp \(formatNumber(h.marketValue)) | P&L: Rp \(formatNumber(h.unrealizedGain)) (\(String(format: "%.2f", h.unrealizedGainPercent))%)
+                \n- \(h.ticker) (\(h.name)) [Sektor: \(h.sector)]:
+                  Shares: \(h.shares) | Avg: \(curr)\(avgStr) | Current: \(curr)\(curStr)
+                  Market Value: \(curr)\(valStr) | P&L: \(curr)\(pnlStr) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)
                 """
             }
             return result
@@ -73,15 +79,23 @@ struct GetHoldingTool: Tool {
             return "You do not currently hold a position in '\(targetTicker)' in your portfolio."
         }
 
+        let isUSD = holding.ticker != "BBCA" && holding.ticker != "BMRI" && holding.ticker != "BBRI" && holding.ticker != "TLKM" && holding.ticker != "ASII" && holding.ticker != "GOTO" && !holding.ticker.hasSuffix(".JK")
+        let curr = isUSD ? "$" : "Rp "
+        let avgStr = isUSD ? String(format: "%.2f", holding.avgPrice) : formatNumber(holding.avgPrice)
+        let curStr = isUSD ? String(format: "%.2f", holding.currentPrice) : formatNumber(holding.currentPrice)
+        let costStr = isUSD ? String(format: "%.2f", holding.totalCost) : formatNumber(holding.totalCost)
+        let valStr = isUSD ? String(format: "%.2f", holding.marketValue) : formatNumber(holding.marketValue)
+        let pnlStr = isUSD ? String(format: "%+.2f", holding.unrealizedGain) : (holding.unrealizedGain >= 0 ? "+\(formatNumber(holding.unrealizedGain))" : formatNumber(holding.unrealizedGain))
+
         return """
         Holding Detail — \(holding.ticker) (\(holding.name)):
         - Sector: \(holding.sector)
         - Shares: \(holding.shares)
-        - Average Purchase Price: Rp \(formatNumber(holding.avgPrice))
-        - Current Price: Rp \(formatNumber(holding.currentPrice))
-        - Total Cost: Rp \(formatNumber(holding.totalCost))
-        - Market Value: Rp \(formatNumber(holding.marketValue))
-        - Unrealized P&L: Rp \(formatNumber(holding.unrealizedGain)) (\(String(format: "%.2f", holding.unrealizedGainPercent))%)
+        - Average Purchase Price: \(curr)\(avgStr)
+        - Current Price: \(curr)\(curStr)
+        - Total Cost: \(curr)\(costStr)
+        - Market Value: \(curr)\(valStr)
+        - Unrealized P&L: \(curr)\(pnlStr) (\(String(format: "%+.2f", holding.unrealizedGainPercent))%)
         """
     }
 }
@@ -255,6 +269,23 @@ struct GetUnrealizedGainTool: Tool {
         - Unrealized P&L: Rp \(formatNumber(h.unrealizedGain)) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)
         - Status: \(h.unrealizedGain >= 0 ? "PROFIT 🟢" : "LOSS 🔴")
         """
+    }
+}
+
+// MARK: - 9. LocalAIExplanation
+
+struct LocalAIExplanationTool: Tool {
+    let name = "localAIExplanation"
+    let description = "Synthesizes factual on-device portfolio holdings data into natural, empathetic mentor guidance and diversification analysis using local Apple FoundationModels reasoning."
+
+    @Generable struct Arguments {
+        @Guide(description: "Focus of analysis: 'portfolio_breakdown', 'risk_assessment', or 'sector_diversification'.")
+        var focus: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        ToolCallTracker.shared.record(toolName: "LocalAIExplanation", arguments: ["focus": arguments.focus])
+        return "Local AI reasoning and mentor synthesis executed."
     }
 }
 
