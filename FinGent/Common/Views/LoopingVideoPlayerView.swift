@@ -28,8 +28,6 @@ final class LoopingPlayerUIView: UIView {
         playerLayer.videoGravity = videoGravity
         layer.addSublayer(playerLayer)
 
-        try? AVAudioSession.sharedInstance().setCategory(.ambient, options: .mixWithOthers)
-
         if let url = Bundle.main.url(forResource: videoName, withExtension: videoExtension) {
             let asset = AVURLAsset(url: url)
             let item = AVPlayerItem(asset: asset)

@@ -6,6 +6,8 @@ struct ChatView: View {
     @State private var viewModel = AppContainer.shared.makeChatViewModel()
     @FocusState private var isInputFocused: Bool
     @State private var selectedSafariURL: IdentifiableURL? = nil
+    @State private var isMicPulsing: Bool = false
+    @State private var isChatInputVisible: Bool = false
 
     var body: some View {
         ZStack {
@@ -17,10 +19,21 @@ struct ChatView: View {
 
                     HStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        headerText(isChatting: false)
+                        if !viewModel.speechTranscript.isEmpty {
+                            Text(viewModel.speechTranscript)
+                                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color(hex: "0066FF"))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                                .padding(.horizontal, 24)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        } else {
+                            headerText(isChatting: false)
+                        }
                         Spacer(minLength: 0)
                     }
-                    .padding(.bottom, 24)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: viewModel.speechTranscript.isEmpty)
+                    .padding(.bottom, 32)
                 }
 
                 if isChatting {
@@ -35,9 +48,83 @@ struct ChatView: View {
                         )
                 }
 
-                inputBar
+                if isChatInputVisible {
+                    inputBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else {
+                    ZStack {
+                        // Lingkaran Liquid Video dengan Gelombang Border
+                        let circleSize: CGFloat = isChatting ? 76 : 88
+                        ZStack(alignment: .center) {
+                            CircleBorderWaveView(
+                                diameter: circleSize,
+                                isListening: viewModel.isListening,
+                                audioLevel: viewModel.audioLevel
+                            )
+
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: circleSize, height: circleSize)
+                                .shadow(
+                                    color: Color.black.opacity(0.18),
+                                    radius: 12,
+                                    x: 0,
+                                    y: 6
+                                )
+
+                            LoopingVideoPlayerView(
+                                videoName: "liquid-circle",
+                                videoExtension: "mp4"
+                            )
+                            .frame(width: circleSize, height: circleSize)
+                            .scaleEffect(1.2, anchor: .center)
+                            .clipShape(Circle())
+                        }
+                        .frame(width: circleSize, height: circleSize)
+                        .scaleEffect(viewModel.isProcessing ? 0.5 : 1.0, anchor: .center)
+                        .opacity(viewModel.isProcessing ? 0.5 : 1.0)
+                        .animation(.spring(response: 0.55, dampingFraction: 0.82), value: viewModel.isProcessing)
+                        .onTapGesture {
+                            guard !viewModel.isProcessing else { return }
+                            if !viewModel.speechTranscript.isEmpty {
+                                viewModel.send(viewModel.speechTranscript)
+                            } else {
+                                viewModel.toggleListening()
+                            }
+                        }
+
+                        // Floating keyboard di kanan bawah
+                        HStack {
+                            Spacer()
+                            floatingKeyboardButton
+                        }
+                    }
+                    .padding(.bottom, isChatting ? 12 : 48)
+                }
+
+                if !isChatting {
+                    Spacer(minLength: 0)
+                }
             }
             .animation(.spring(response: 0.85, dampingFraction: 0.88), value: viewModel.messages.isEmpty)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isInputFocused {
+                isInputFocused = false
+                if viewModel.inputText.isEmpty {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                        isChatInputVisible = false
+                    }
+                }
+            }
+        }
+        .onAppear {
+            viewModel.startListening()
+            isMicPulsing = true
+        }
+        .onDisappear {
+            viewModel.stopListening()
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -124,10 +211,25 @@ struct ChatView: View {
                         )
                         .id(msg.id)
                     }
+
+                    if !viewModel.speechTranscript.isEmpty {
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 40)
+
+                            Text(viewModel.speechTranscript)
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .lineSpacing(4)
+                                .foregroundStyle(Color(hex: "0066FF"))
+                                .multilineTextAlignment(.trailing)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 4)
+                        }
+                        .transition(.opacity)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 148)
-                .padding(.bottom, 16)
+                .padding(.bottom, 96)
             }
             .onChange(of: viewModel.messages.count) { _, _ in
                 if let last = viewModel.messages.last {
@@ -151,12 +253,34 @@ struct ChatView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
+            Button {
+                viewModel.toggleListening()
+            } label: {
+                ZStack {
+                    if viewModel.isListening {
+                        Circle()
+                            .fill(Color(hex: "0066FF").opacity(0.18))
+                            .frame(width: 32, height: 32)
+                            .scaleEffect(isMicPulsing ? 1.25 : 0.95)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isMicPulsing)
+                    }
+
+                    Image(systemName: viewModel.isListening ? "waveform.and.mic" : "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(viewModel.isListening ? Color(hex: "0066FF") : Color.black.opacity(0.5))
+                        .frame(width: 32, height: 32)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 6)
+            .accessibilityLabel(viewModel.isListening ? "Hentikan mikrofon" : "Mulai bicara")
+
             TextField("Ask about stocks, e.g., Will MU go up?", text: $viewModel.inputText)
                 .font(.system(size: 15))
                 .foregroundStyle(.primary)
                 .focused($isInputFocused)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 11)
                 .onSubmit {
                     guard !isSendDisabled else { return }
@@ -186,6 +310,28 @@ struct ChatView: View {
 
     private var isSendDisabled: Bool {
         viewModel.inputText.trimmingCharacters(in: .whitespaces).isEmpty || viewModel.isProcessing
+    }
+
+    private var floatingKeyboardButton: some View {
+        Button {
+            viewModel.stopListening()
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                isChatInputVisible = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                isInputFocused = true
+            }
+        } label: {
+            Image(systemName: "keyboard")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.black.opacity(0.8))
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        }
+        .padding(.trailing, 20)
+        .padding(.bottom, 24)
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }
 

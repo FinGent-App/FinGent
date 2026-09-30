@@ -84,25 +84,101 @@ final class ChatViewModel {
     private(set) var isProcessing: Bool = false
     var inputText: String = ""
 
+    // MARK: - Speech Recognition State
+
+    let speechService: SpeechRecognizerService
+
+    var isListening: Bool {
+        speechService.isListening
+    }
+
+    var latestWord: String {
+        speechService.latestWord
+    }
+
+    var recognizedWords: [String] {
+        speechService.recognizedWords
+    }
+
+    var speechTranscript: String {
+        speechService.transcript
+    }
+
+    var speechErrorMessage: String? {
+        speechService.errorMessage
+    }
+
+    var audioLevel: CGFloat {
+        speechService.audioLevel
+    }
+
+    var isSpeaking: Bool {
+        speechService.isSpeaking
+    }
+
+    var speechLocale: SpeechRecognizerService.SpeechLocale {
+        speechService.selectedLocale
+    }
+
     // MARK: - Dependencies
 
     private let chatUseCase: ChatUseCaseProtocol
 
     // MARK: - Init
 
-    init(chatUseCase: ChatUseCaseProtocol) {
+    init(
+        chatUseCase: ChatUseCaseProtocol,
+        speechService: SpeechRecognizerService
+    ) {
         self.chatUseCase = chatUseCase
+        self.speechService = speechService
+        self.speechService.onSilenceDetected = { [weak self] fullText in
+            guard let self = self else { return }
+            let prompt = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !prompt.isEmpty, !self.isProcessing else { return }
+            self.send(prompt)
+        }
+    }
+
+    convenience init(chatUseCase: ChatUseCaseProtocol) {
+        self.init(chatUseCase: chatUseCase, speechService: SpeechRecognizerService())
     }
 
     convenience init() {
         self.init(chatUseCase: ChatUseCase())
     }
 
+    // MARK: - Speech Actions
+
+    func startListening() {
+        speechService.startListening()
+    }
+
+    func stopListening() {
+        speechService.stopListening()
+    }
+
+    func toggleListening() {
+        if isListening {
+            stopListening()
+        } else {
+            startListening()
+        }
+    }
+
+    func toggleSpeechLocale() {
+        speechService.selectedLocale = (speechService.selectedLocale == .indonesian) ? .english : .indonesian
+    }
+
     // MARK: - Actions
 
     func send(_ text: String) {
+        stopListening()
+        speechService.reset()
         let prompt = text.trimmingCharacters(in: .whitespaces)
         guard !prompt.isEmpty, !isProcessing else { return }
+
+        isProcessing = true
 
         let assistantMessageId = UUID()
         let userMsg = ChatMessage(role: .user, content: prompt)
@@ -125,11 +201,19 @@ final class ChatViewModel {
         inputText = ""
         messages.append(contentsOf: [userMsg, assistantMsg])
 
-        Task {
-            isProcessing = true
-            defer { isProcessing = false }
+        Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.isProcessing = false
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if self.inputText.isEmpty {
+                        self.startListening()
+                    }
+                }
+            }
             do {
-                let response = try await chatUseCase.ask(prompt) { [weak self] phase in
+                let response = try await self.chatUseCase.ask(prompt) { [weak self] phase in
                     guard let self else { return }
                     self.updateResearchStep(for: assistantMessageId, phase: phase)
                 }
@@ -158,6 +242,8 @@ final class ChatViewModel {
     }
 
     func resetSession() {
+        stopListening()
+        speechService.reset()
         chatUseCase.resetSession()
         messages = []
     }

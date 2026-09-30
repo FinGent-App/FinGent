@@ -7,6 +7,7 @@ struct FinGentChatSheetView: View {
     @State private var viewModel = AppContainer.shared.makeChatViewModel()
     @FocusState private var isInputFocused: Bool
     @State private var selectedSafariURL: IdentifiableURL? = nil
+    @State private var isMicPulsing: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -52,6 +53,13 @@ struct FinGentChatSheetView: View {
             .sheet(item: $selectedSafariURL) { item in
                 SafariView(url: item.url)
             }
+        }
+        .onAppear {
+            viewModel.startListening()
+            isMicPulsing = true
+        }
+        .onDisappear {
+            viewModel.stopListening()
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
@@ -113,7 +121,28 @@ struct FinGentChatSheetView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
+            Button {
+                viewModel.toggleListening()
+            } label: {
+                ZStack {
+                    if viewModel.isListening {
+                        Circle()
+                            .fill(Color.cyan.opacity(0.2))
+                            .frame(width: 32, height: 32)
+                            .scaleEffect(isMicPulsing ? 1.25 : 0.95)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isMicPulsing)
+                    }
+
+                    Image(systemName: viewModel.isListening ? "waveform.and.mic" : "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(viewModel.isListening ? Color.cyan : Color.white.opacity(0.6))
+                        .frame(width: 32, height: 32)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(viewModel.isListening ? "Hentikan mikrofon" : "Mulai bicara")
+
             TextField("Ask about stocks or your portfolio...", text: $viewModel.inputText)
                 .font(.system(size: 14))
                 .foregroundStyle(.white)

@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var isChatInputVisible = false
     @State private var chatVM = AppContainer.shared.makeChatViewModel()
     @FocusState private var isChatInputFocused: Bool
+    @State private var isChatMicPulsing = false
     @State private var selectedSafariURL: IdentifiableURL? = nil
     @State private var safeAreaTop: CGFloat = 59
 
@@ -92,20 +93,35 @@ struct HomeView: View {
                             .zIndex(5)
                     }
 
-                    // 5. Lingkaran Liquid Video Tunggal yang Meluncur Halus
-                    liquidCircleButton
-                        .frame(
-                            width: isChatActive ? chatCircleDiameter : circleDiameter,
-                            height: isChatActive ? chatCircleDiameter : circleDiameter
-                        )
-                        .position(
-                            x: screenW / 2,
-                            y: isChatActive ? chatCircleY : homeCircleY
-                        )
-                        .opacity(isCircleVisible ? 1.0 : 0.0)
-                        .scaleEffect(isCircleVisible ? 1.0 : 0.82)
-                        .animation(.spring(response: 0.38, dampingFraction: 0.82), value: isCircleVisible)
-                        .zIndex(10)
+                    // 5. Lingkaran Liquid Video Tunggal yang Meluncur Halus dengan Gelombang Border
+                    let currentDiameter = currentCircleDiameter
+                    let currentCircleY: CGFloat = !isChatActive ? homeCircleY : (chatVM.messages.isEmpty ? chatCircleY : (homeCircleY - 10))
+
+                    ZStack(alignment: .center) {
+                        if isChatActive && isCircleVisible {
+                            CircleBorderWaveView(
+                                diameter: currentDiameter,
+                                isListening: chatVM.isListening,
+                                audioLevel: chatVM.audioLevel
+                            )
+                        }
+
+                        liquidCircleButton
+                    }
+                    .frame(
+                        width: currentDiameter,
+                        height: currentDiameter
+                    )
+                    .scaleEffect(isCircleVisible ? (chatVM.isProcessing ? 0.5 : 1.0) : 0.82, anchor: .center)
+                    .opacity(isCircleVisible ? (chatVM.isProcessing ? 0.5 : 1.0) : 0.0)
+                    .animation(.spring(response: 0.55, dampingFraction: 0.82), value: chatVM.isProcessing)
+                    .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isCircleVisible)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.82), value: chatVM.messages.isEmpty)
+                    .position(
+                        x: screenW / 2,
+                        y: currentCircleY
+                    )
+                    .zIndex(10)
                 }
                 .onAppear {
                     if geo.safeAreaInsets.top > 0 {
@@ -232,7 +248,11 @@ struct HomeView: View {
                     await portfolioRepo.syncWithBackend()
                     await favoritesRepo.syncWithBackend()
                     await MarketDataRepository.shared.refreshFromBackend()
+                    await chatVM.speechService.requestPermissions()
                 }
+            }
+            .onDisappear {
+                chatVM.stopListening()
             }
             .onChange(of: portfolioRepo.userHoldings) { _, _ in
                 viewModel.refresh()
@@ -467,13 +487,19 @@ struct HomeView: View {
     private let videoOffsetY: CGFloat = 0            // Geser vertikal video (Y)
     private let homeVideoOpacity: Double = 0.55      // Opacity video di HomeView (sedikit pudar, di ChatView otomatis 1.0 solid)
 
+    private var currentCircleDiameter: CGFloat {
+        if !isChatActive { return circleDiameter }
+        return chatVM.messages.isEmpty ? chatCircleDiameter : 76
+    }
+
     private var isCircleVisible: Bool {
         if !isChatActive { return true }
-        return chatVM.messages.isEmpty && !isChatInputVisible
+        return !isChatInputVisible
     }
 
     private func openChat() {
         isChatInputVisible = false
+        isChatMicPulsing = true
         withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
             isChatActive = true
         }
@@ -482,9 +508,11 @@ struct HomeView: View {
                 showHeaderText = true
             }
         }
+        chatVM.startListening()
     }
 
     private func closeChat() {
+        chatVM.stopListening()
         isChatInputFocused = false
         withAnimation(.easeOut(duration: 0.16)) {
             showHeaderText = false
@@ -529,24 +557,31 @@ struct HomeView: View {
 
     private var liquidCircleButton: some View {
         Button {
+            guard !chatVM.isProcessing else { return }
             if !isChatActive {
                 openChat()
+            } else if !chatVM.speechTranscript.isEmpty {
+                chatVM.send(chatVM.speechTranscript)
+            } else {
+                chatVM.toggleListening()
             }
         } label: {
-            ZStack {
+            ZStack(alignment: .center) {
                 Circle()
                     .fill(Color.white)
+                    .frame(width: currentCircleDiameter, height: currentCircleDiameter)
 
                 LoopingVideoPlayerView(
                     videoName: "liquid-circle",
                     videoExtension: "mp4"
                 )
-                .frame(width: videoWidth, height: videoHeight)
-                .scaleEffect(isChatActive ? (videoScale * (chatCircleDiameter / circleDiameter)) : videoScale)
+                .frame(width: currentCircleDiameter, height: currentCircleDiameter)
+                .scaleEffect(videoScale, anchor: .center)
                 .offset(x: videoOffsetX, y: videoOffsetY)
                 .opacity(isChatActive ? 1.0 : homeVideoOpacity)
                 .saturation(isChatActive ? 1.25 : 0.7)
             }
+            .frame(width: currentCircleDiameter, height: currentCircleDiameter)
             .clipShape(Circle())
             .shadow(
                 color: Color.black.opacity(isChatActive ? 0.22 : 0.15),
@@ -556,7 +591,7 @@ struct HomeView: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(isChatActive)
+        .disabled(chatVM.isProcessing)
     }
 
     @ViewBuilder
@@ -566,15 +601,27 @@ struct HomeView: View {
 
         ZStack(alignment: .top) {
             if chatVM.messages.isEmpty {
-                // Teks "What financial insights\ncan i give you today?" muncul smooth dari atas circle
+                // Teks "What financial insights\ncan i give you today?" atau teks bicara biru besar
                 VStack(spacing: 6) {
-                    Text("What financial insights\ncan i give you today?")
-                        .font(.system(size: 26, weight: .semibold, design: .rounded))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(Color.black.opacity(0.85))
-                        .lineSpacing(4)
-                        .padding(.horizontal, 20)
+                    if !chatVM.speechTranscript.isEmpty {
+                        Text(chatVM.speechTranscript)
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Color(hex: "0066FF"))
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .padding(.horizontal, 24)
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    } else {
+                        Text("What financial insights\ncan i give you today?")
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(Color.black.opacity(0.85))
+                            .lineSpacing(4)
+                            .padding(.horizontal, 20)
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: chatVM.speechTranscript.isEmpty)
                 .opacity(showHeaderText ? 1 : 0)
                 .offset(y: showHeaderText ? 0 : -16)
                 .position(
@@ -584,14 +631,14 @@ struct HomeView: View {
             } else {
                 // Daftar pesan chat jika percakapan aktif
                 chatMessageList(safeAreaTop: safeAreaTop)
-                    .padding(.bottom, 65)
+                    .padding(.bottom, 78)
             }
 
             // Bagian Bawah: Tombol Keyboard di kanan bawah atau Input Bar saat aktif
             VStack {
                 Spacer()
 
-                if isChatInputVisible || !chatVM.messages.isEmpty {
+                if isChatInputVisible {
                     chatInputBar
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
@@ -608,7 +655,7 @@ struct HomeView: View {
         .onTapGesture {
             if isChatInputFocused {
                 isChatInputFocused = false
-                if chatVM.messages.isEmpty && chatVM.inputText.isEmpty {
+                if chatVM.inputText.isEmpty {
                     withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                         isChatInputVisible = false
                     }
@@ -619,6 +666,7 @@ struct HomeView: View {
 
     private var floatingKeyboardButton: some View {
         Button {
+            chatVM.stopListening()
             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                 isChatInputVisible = true
             }
@@ -654,10 +702,25 @@ struct HomeView: View {
                         )
                         .id(msg.id)
                     }
+
+                    if !chatVM.speechTranscript.isEmpty {
+                        HStack(spacing: 0) {
+                            Spacer(minLength: 40)
+
+                            Text(chatVM.speechTranscript)
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                .lineSpacing(4)
+                                .foregroundStyle(Color(hex: "0066FF"))
+                                .multilineTextAlignment(.trailing)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 4)
+                        }
+                        .transition(.opacity)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, (safeAreaTop * 2) + 40)
-                .padding(.bottom, 16)
+                .padding(.bottom, 96)
             }
             .offset(y: -safeAreaTop)
             .padding(.bottom, -safeAreaTop)
@@ -679,12 +742,34 @@ struct HomeView: View {
     }
 
     private var chatInputBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
+            Button {
+                chatVM.toggleListening()
+            } label: {
+                ZStack {
+                    if chatVM.isListening {
+                        Circle()
+                            .fill(Color(hex: "0066FF").opacity(0.18))
+                            .frame(width: 32, height: 32)
+                            .scaleEffect(isChatMicPulsing ? 1.25 : 0.95)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isChatMicPulsing)
+                    }
+
+                    Image(systemName: chatVM.isListening ? "waveform.and.mic" : "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(chatVM.isListening ? Color(hex: "0066FF") : Color.black.opacity(0.5))
+                        .frame(width: 32, height: 32)
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 6)
+            .accessibilityLabel(chatVM.isListening ? "Hentikan mikrofon" : "Mulai bicara")
+
             TextField("Ask about stocks, e.g., Will MU go up?", text: $chatVM.inputText)
                 .font(.system(size: 15))
                 .foregroundStyle(.primary)
                 .focused($isChatInputFocused)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 8)
                 .padding(.vertical, 11)
                 .onSubmit {
                     guard !isChatSendDisabled else { return }
