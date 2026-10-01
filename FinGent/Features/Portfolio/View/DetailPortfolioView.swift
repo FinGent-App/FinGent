@@ -321,7 +321,7 @@ struct DetailPortfolioView: View {
         formatter.locale = Locale(identifier: "id_ID")
         formatter.timeZone = TimeZone(identifier: "Asia/Jakarta")!
         if chartVM.selectedRange.isIntraday {
-            formatter.dateFormat = "d MMM 'pukul' HH:mm"
+            formatter.dateFormat = "d MMM HH:mm"
         } else {
             formatter.dateFormat = "d MMMM yyyy"
         }

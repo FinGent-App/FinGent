@@ -3,8 +3,12 @@ import os
 import re
 import time
 import logging
+import urllib.parse
+import xml.etree.ElementTree as ET
+import html
 from typing import Dict, Any, Optional, List, Tuple
 from cachetools import TTLCache
+import httpx
 import google.generativeai as genai
 from services.milvus_service import search_knowledge_hybrid
 from services.yahoo_service import get_stock_fundamentals, get_single_quote
@@ -72,6 +76,8 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-3.5-flash-lite")
 _bigquery_tech_cache: TTLCache = TTLCache(maxsize=100, ttl=1800)
 # Live Market Data & Fundamentals: 5 minutes TTL
 _market_data_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
+# Deep Web Search Grounding: 5 minutes TTL
+_web_search_cache: TTLCache = TTLCache(maxsize=100, ttl=300)
 
 # Configure Google Generative AI client using REST transport for low latency & reliability
 if GEMINI_API_KEY:
@@ -222,19 +228,112 @@ async def _fetch_verified_news_context(ticker: str) -> Tuple[str, List[Dict[str,
     return "", []
 
 
+async def _deep_web_search_grounding(query: str, ticker: Optional[str] = None) -> Tuple[str, List[Dict[str, Any]]]:
+    """
+    Executes live deep web search grounding via Google Search engine indexing.
+    Retrieves real-time catalysts, news, rumors, and commentary across all global
+    and national media beyond the curated RSS list.
+    """
+    clean_ticker = ticker.strip().upper() if ticker else None
+    stop_words = {
+        'will', 'what', 'how', 'the', 'and', 'for', 'are', 'is', 'kan', 'nya',
+        'ini', 'itu', 'atau', 'saham', 'stock', 'tentang', 'apakah', 'kenapa',
+        'mengapa', 'today', 'yesterday', 'besok', 'kemarin', 'kira', 'menurut',
+        'analisis', 'prediksi'
+    }
+    clean_query = re.sub(r'[^\w\s]', ' ', query)
+    tokens = [w for w in clean_query.split() if len(w) > 2 and w.lower() not in stop_words]
+
+    if clean_ticker and clean_ticker not in [t.upper() for t in tokens]:
+        search_tokens = [clean_ticker] + tokens[:4]
+    else:
+        search_tokens = tokens[:5]
+
+    search_query = ' '.join(search_tokens).strip()
+    if not search_query and clean_ticker:
+        search_query = f"{clean_ticker} stock news"
+
+    cache_key = f"{clean_ticker or 'GLOBAL'}:{search_query.lower()}"
+    if cache_key in _web_search_cache:
+        logger.info("⚡ [CACHE HIT] Deep Web Search Grounding for '%s' retrieved from cache", cache_key)
+        return _web_search_cache[cache_key]
+
+    is_idx = (clean_ticker and is_idx_ticker(clean_ticker)) or any(
+        w in query.lower() for w in ['bagaimana', 'apa', 'saham', 'prospek', 'naik', 'turun', 'akuisisi', 'ihsg', 'laba', 'kinerja', 'investasi']
+    )
+    lang_param = 'hl=id&gl=ID&ceid=ID:id' if is_idx else 'hl=en-US&gl=US&ceid=US:en'
+
+    async def _fetch_from_google(q_str: str) -> List[Any]:
+        encoded = urllib.parse.quote(q_str)
+        url = f"https://news.google.com/rss/search?q={encoded}&{lang_param}"
+        try:
+            async with httpx.AsyncClient(timeout=3.5) as client:
+                r = await client.get(url, follow_redirects=True)
+                if r.status_code == 200:
+                    root = ET.fromstring(r.text)
+                    return root.findall('.//item')
+        except Exception as err:
+            logger.warning("Google search fetch failed for '%s': %s", q_str, str(err))
+        return []
+
+    try:
+        items = await _fetch_from_google(search_query)
+        # If slang or specific phrasing returned no hits and ticker is known, fallback to general ticker news
+        if not items and clean_ticker:
+            fallback_query = f"{clean_ticker} saham" if is_idx else f"{clean_ticker} stock"
+            items = await _fetch_from_google(fallback_query)
+
+        citations = []
+        grounding_lines = []
+        for it in items[:5]:
+            title_node = it.find('title')
+            link_node = it.find('link')
+            title = html.unescape(title_node.text or '') if title_node is not None else ''
+            link = link_node.text or '' if link_node is not None else ''
+            source_name = 'Web'
+            if ' - ' in title:
+                parts = title.rsplit(' - ', 1)
+                title = parts[0].strip()
+                source_name = parts[1].strip()
+
+            grounding_lines.append(f"• [{source_name}] {title}")
+            citations.append({
+                "id": f"web_{int(time.time()*1000)}_{len(citations)}",
+                "title": title,
+                "doc_type": "web",
+                "badge_label": f"{source_name} (Google Search)",
+                "source_url": link,
+                "score": 0.95,
+                "ticker": clean_ticker or "GLOBAL"
+            })
+
+        context_str = (
+            f"🌐 LIVE DEEP WEB SEARCH GROUNDING (Google Live Search Engine):\n" + "\n".join(grounding_lines)
+            if grounding_lines else ""
+        )
+        result = (context_str, citations)
+        if citations:
+            _web_search_cache[cache_key] = result
+        return result
+    except Exception as e:
+        logger.warning("Failed deep web search grounding for '%s': %s", query, str(e))
+        return "", []
+
+
 async def consult_cloud_analyst(
     query: str,
     ticker: Optional[str] = None,
     user_id: str = "default_user"
 ) -> Dict[str, Any]:
     """
-    Executes deep cloud financial research with parallelized I/O:
+    Executes hybrid cloud financial research with parallelized I/O:
     1. Vector Semantic RAG across SEC filings, financial news, and portfolio records (Zilliz Milvus).
     2. Live market valuation and fundamental ratios (Yahoo Finance - Cached).
-    3. Verified RSS news headlines.
-    4. Quantitative technical indicators (BigQuery Gold Layer - Cached).
-    5. Portfolio exposure calculation (Supabase PostgreSQL).
-    6. Multi-modal synthesis via Google Gemini 1.5/3.6 Flash (Fast Token Generation).
+    3. Verified RSS news headlines (Curated 12 Financial Portals - Supabase PostgreSQL).
+    4. Deep Web Search Grounding via Google Search Engine Indexing (Real-Time Web).
+    5. Quantitative technical indicators (BigQuery Gold Layer - Cached).
+    6. Portfolio exposure calculation (Supabase PostgreSQL).
+    7. Multi-modal synthesis via Google Gemini 3.5 Flash-Lite (Fast Token Generation).
     """
     start_time = time.time()
     clean_ticker = ticker.strip().upper() if ticker else None
@@ -252,12 +351,13 @@ async def consult_cloud_analyst(
     rag_task = asyncio.to_thread(search_knowledge_hybrid, query_text=query, ticker=target_ticker, user_id=user_id, limit=5)
     market_task = asyncio.to_thread(_get_cached_market_data, target_ticker) if target_ticker else None
     news_task = _fetch_verified_news_context(target_ticker) if target_ticker else None
+    web_task = _deep_web_search_grounding(query, target_ticker)
     gold_task = asyncio.to_thread(_get_cached_gold_technicals, target_ticker) if target_ticker else None
     holdings_task = get_user_holdings(user_id)
     macro_task = analyze_portfolio_impact(user_id=user_id, event=query) if is_macro else None
 
-    # Execute all independent network and database queries concurrently
-    tasks = [rag_task, holdings_task]
+    # Execute all independent network, search engine, and database queries concurrently
+    tasks = [rag_task, holdings_task, web_task]
     if market_task:
         tasks.append(market_task)
     if news_task:
@@ -273,6 +373,7 @@ async def consult_cloud_analyst(
     idx = 0
     raw_rag = gathered_results[idx]; idx += 1
     raw_holdings = gathered_results[idx]; idx += 1
+    raw_web = gathered_results[idx]; idx += 1
     raw_market = gathered_results[idx] if market_task else ""; idx += (1 if market_task else 0)
     raw_news = gathered_results[idx] if news_task else ("", []); idx += (1 if news_task else 0)
     raw_gold = gathered_results[idx] if gold_task else ("", []); idx += (1 if gold_task else 0)
@@ -280,6 +381,7 @@ async def consult_cloud_analyst(
 
     rag_hits = raw_rag if isinstance(raw_rag, list) else []
     holdings = raw_holdings if isinstance(raw_holdings, list) else []
+    web_context, web_citations = raw_web if isinstance(raw_web, tuple) else ("", [])
     market_context = raw_market if isinstance(raw_market, str) else ""
     news_context, news_citations = raw_news if isinstance(raw_news, tuple) else ("", [])
     gold_technical_context, gold_citations = raw_gold if isinstance(raw_gold, tuple) else ("", [])
@@ -316,9 +418,27 @@ async def consult_cloud_analyst(
             f"{h.get('content', '')}"
         )
 
-    # Add News and BigQuery Gold citations
+    # Add Curated News, Deep Web Search, and BigQuery Gold citations
     citations.extend(news_citations)
+    citations.extend(web_citations)
     citations.extend(gold_citations)
+
+    # Deduplicate citations by normalized title and URL
+    seen_titles = set()
+    seen_urls = set()
+    unique_citations = []
+    for c in citations:
+        title_key = re.sub(r'[^a-zA-Z0-9]', '', c.get("title", "")).lower()
+        url_key = c.get("source_url", "")
+        if title_key and title_key in seen_titles:
+            continue
+        if url_key and url_key in seen_urls:
+            continue
+        seen_titles.add(title_key)
+        if url_key:
+            seen_urls.add(url_key)
+        unique_citations.append(c)
+    citations = unique_citations
 
     # Process Holdings Context
     portfolio_context = ""
@@ -358,6 +478,8 @@ async def consult_cloud_analyst(
     combined_evidence = []
     if news_context:
         combined_evidence.append(news_context)
+    if web_context:
+        combined_evidence.append(web_context)
     if market_context:
         combined_evidence.append(market_context)
     if gold_technical_context:
@@ -374,20 +496,21 @@ async def consult_cloud_analyst(
     system_prompt = (
         "You are FinGent, an intelligent, empathetic financial companion and investment mentor (like ChatGPT). "
         "Your mission is to make stock market research and financial analysis clear, insightful, and accessible for beginner and retail investors. "
-        "Always ground your response strictly on the factual evidence provided (Latest News Headlines, Market Valuation, SEC Filings, Technical Indicators).\n\n"
+        "Always ground your response strictly on the factual evidence provided (Latest Curated News, Deep Live Web Search Grounding via Google Search Engine, Market Valuation, SEC Filings, Technical Indicators).\n\n"
         "KEY COMMUNICATION & FORMATTING PRINCIPLES:\n"
         "1. TONE & STYLE: Conversational, friendly, objective, and encouraging. Never sound like a stiff, dry academic report.\n"
         "2. LANGUAGE: If the user's research question is in Indonesian, answer in natural, fluent Indonesian. If in English, answer in natural English.\n"
         "3. EXPLAIN TECHNICAL METRICS SIMPLY (Data-to-Insight): Keep all exact factual numbers (P/E ratio, PBV, RSI, Support/Resistance, Price), but always briefly explain what the numbers mean for an investor. For example:\n"
         "   - Instead of just 'Forward P/E 12.9x', explain: 'Valuasinya cukup wajar dengan P/E di level 12,9x, yang menunjukkan harga relatif terjangkau dibanding rata-rata industrinya.'\n"
         "   - Instead of just 'RSI 32', explain: 'Indikator momentum RSI berada di angka 32, menandakan saham ini sudah banyak terkoreksi (oversold) dan tekanan jualnya mulai mereda.'\n"
-        "4. CLEAN FORMATTING - STRICTLY NO MARKDOWN ASTERISKS: DO NOT use markdown bold asterisks (**) or triple asterisks (***). Keep the text clean, elegant, and comfortable to read on mobile screens. Use clean bullet points (•) when listing items.\n"
-        "5. RESPONSE STRUCTURE:\n"
+        "4. HYBRID DEEP WEB SEARCH & CATALYST SYNTHESIS: Weave together both curated financial news and deep live web search grounding (e.g. rumors, crossing saham, new products, corporate actions) to explain WHY a stock is moving or what catalysts investors are watching.\n"
+        "5. CLEAN FORMATTING - STRICTLY NO MARKDOWN ASTERISKS: DO NOT use markdown bold asterisks (**) or triple asterisks (***). Keep the text clean, elegant, and comfortable to read on mobile screens. Use clean bullet points (•) when listing items.\n"
+        "6. RESPONSE STRUCTURE:\n"
         "   - Ringkasan Utama: Answer the user's core question directly and warmly in 1-2 sentences.\n"
         "   - Fakta & Analisis Pasar: Weave together the verified news catalysts, technical indicators, and valuation data.\n"
         "   - Sudut Pandang Investor: A calm, sensible takeaway or key levels to watch.\n"
-        "6. SINGLE STOCK FOCUS: When asked about a specific stock, focus strictly on that stock. Never mention unrelated portfolio holdings.\n"
-        "7. STRICTLY NO URLS OR LINKS IN TEXT: DO NOT include raw URLs, website addresses, 'Link: http...', 'Sumber: http...', or markdown links '[Title](url)'. The mobile app UI automatically renders interactive citation pills and source badges from structured data below your response. Keep the response text 100% conversational, clean, and free of URL links."
+        "7. SINGLE STOCK FOCUS: When asked about a specific stock, focus strictly on that stock. Never mention unrelated portfolio holdings.\n"
+        "8. STRICTLY NO URLS OR LINKS IN TEXT: DO NOT include raw URLs, website addresses, 'Link: http...', 'Sumber: http...', or markdown links '[Title](url)'. The mobile app UI automatically renders interactive citation pills and source badges from structured data below your response. Keep the response text 100% conversational, clean, and free of URL links."
     )
 
     full_prompt = (

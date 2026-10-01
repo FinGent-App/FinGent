@@ -773,7 +773,7 @@ struct TooltipView: View {
         let df = DateFormatter()
         df.locale = Locale(identifier: "id_ID")
         df.timeZone = TimeZone(identifier: "Asia/Jakarta")!
-        df.dateFormat = range.isIntraday ? "d MMM 'pukul' HH:mm" : "d MMM yyyy"
+        df.dateFormat = range.isIntraday ? "d MMM HH:mm" : "d MMM yyyy"
         return df.string(from: date)
     }
 

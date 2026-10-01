@@ -19,15 +19,21 @@ final class SharedCitationStore {
             } else if dto.doc_type.lowercased() == "portfolio" {
                 source = .portfolio
             } else {
-                source = NewsSourceType.from(rawString: dto.title)
+                let raw = (dto.badge_label ?? "") + " " + dto.title
+                let parsed = NewsSourceType.from(rawString: raw)
+                if parsed == .other && dto.doc_type.lowercased() == "web" {
+                    source = .googleSearch
+                } else {
+                    source = parsed
+                }
             }
             return NewsCitation(
                 id: UUID().uuidString,
                 title: dto.title,
                 source: source,
-                url: URL(string: dto.source_url ?? "https://www.sec.gov") ?? URL(string: "about:blank")!,
+                url: URL(string: dto.source_url ?? "https://www.google.com") ?? URL(string: "about:blank")!,
                 publishedAt: Date(),
-                badgeLabel: dto.doc_type.uppercased()
+                badgeLabel: dto.badge_label ?? dto.doc_type.uppercased()
             )
         }
     }
@@ -53,7 +59,7 @@ final class SharedCitationStore {
 
 struct ConsultCloudAnalystTool: Tool {
     let name = "consultCloudAnalyst"
-    let description = "In-depth research on a SINGLE stock's price movements, reasons for surging/dropping (e.g. 'why micron goes up yesterday'), catalysts, SEC regulatory filings (10-K/8-K), and deep Wall Street research via Google Gemini. Strictly for SINGLE stock research. Do NOT use for comparing two or more stocks or viewing portfolio holdings."
+    let description = "In-depth research on a SINGLE stock's price movements, reasons for surging/dropping (e.g. 'why micron goes up yesterday', 'BBCA rumor akuisisi'), catalysts, SEC regulatory filings (10-K/8-K), and deep Live Google Web Search Grounding via Google Gemini 3.5. Strictly for SINGLE stock research. Do NOT use for comparing two or more stocks or viewing portfolio holdings."
 
     @Generable struct Arguments {
         @Guide(description: "The specific financial query, research topic, or complex question to analyze deeply.")

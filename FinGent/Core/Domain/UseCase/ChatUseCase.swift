@@ -1063,15 +1063,21 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 } else if dto.doc_type.lowercased() == "portfolio" {
                     source = .portfolio
                 } else {
-                    source = NewsSourceType.from(rawString: dto.title)
+                    let raw = (dto.badge_label ?? "") + " " + dto.title
+                    let parsed = NewsSourceType.from(rawString: raw)
+                    if parsed == .other && dto.doc_type.lowercased() == "web" {
+                        source = .googleSearch
+                    } else {
+                        source = parsed
+                    }
                 }
                 return NewsCitation(
                     id: UUID().uuidString,
                     title: dto.title,
                     source: source,
-                    url: URL(string: dto.source_url ?? "https://www.sec.gov") ?? URL(string: "about:blank")!,
+                    url: URL(string: dto.source_url ?? "https://www.google.com") ?? URL(string: "about:blank")!,
                     publishedAt: Date(),
-                    badgeLabel: dto.doc_type.uppercased()
+                    badgeLabel: dto.badge_label ?? dto.doc_type.uppercased()
                 )
             }
 

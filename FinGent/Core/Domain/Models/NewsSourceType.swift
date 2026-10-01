@@ -20,6 +20,12 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
     case liputan6 = "Liputan6 Bisnis"
     case tempo = "Tempo Bisnis"
     case cnnIndonesia = "CNN Indonesia Ekonomi"
+    case bisnis = "Bisnis.com"
+    case kompas = "Kompas"
+    case bloombergTechnoz = "Bloomberg Technoz"
+
+    // Live Web Search Grounding
+    case googleSearch = "Google Search"
 
     // Regulatory & Portfolio
     case sec = "SEC"
@@ -44,6 +50,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .liputan6: return "Liputan6 Bisnis"
         case .tempo: return "Tempo Bisnis"
         case .cnnIndonesia: return "CNN Indonesia Ekonomi"
+        case .bisnis: return "Bisnis.com"
+        case .kompas: return "Kompas.com"
+        case .bloombergTechnoz: return "Bloomberg Technoz"
+        case .googleSearch: return "Google Search"
         case .sec: return "SEC Filing"
         case .portfolio: return "Portofolio & P/L"
         case .other: return "News"
@@ -52,7 +62,7 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
 
     var isIndonesian: Bool {
         switch self {
-        case .kontan, .detikFinance, .liputan6, .tempo, .cnnIndonesia:
+        case .kontan, .detikFinance, .liputan6, .tempo, .cnnIndonesia, .bisnis, .kompas, .bloombergTechnoz:
             return true
         default:
             return false
@@ -61,7 +71,7 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
 
     var isUSGlobal: Bool {
         switch self {
-        case .yahooFinance, .cnbc, .investing, .nasdaq, .globeNewswire, .prNewswire, .businessWire, .bloomberg, .reuters, .sec:
+        case .yahooFinance, .cnbc, .investing, .nasdaq, .globeNewswire, .prNewswire, .businessWire, .bloomberg, .reuters, .sec, .googleSearch:
             return true
         default:
             return false
@@ -84,6 +94,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .liputan6: return "flame.fill"
         case .tempo: return "book.fill"
         case .cnnIndonesia: return "globe.asia.australia.fill"
+        case .bisnis: return "chart.line.uptrend.xyaxis"
+        case .kompas: return "newspaper.fill"
+        case .bloombergTechnoz: return "chart.bar.xaxis"
+        case .googleSearch: return "magnifyingglass.circle.fill"
         case .sec: return "doc.text.fill"
         case .portfolio: return "briefcase.fill"
         case .other: return "link"
@@ -106,6 +120,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .liputan6: return "logo_liputan6"
         case .tempo: return "logo_tempo"
         case .cnnIndonesia: return "logo_cnn"
+        case .bisnis: return "logo_bisnis"
+        case .kompas: return "logo_kompas"
+        case .bloombergTechnoz: return "logo_bloomberg"
+        case .googleSearch: return "logo_google"
         case .sec: return "logo_sec"
         case .portfolio: return "logo_portfolio"
         case .other: return "logo_news"
@@ -128,6 +146,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .liputan6: return "LP6"
         case .tempo: return "TMP"
         case .cnnIndonesia: return "CNN"
+        case .bisnis: return "BSN"
+        case .kompas: return "KMP"
+        case .bloombergTechnoz: return "BTZ"
+        case .googleSearch: return "GGL"
         case .sec: return "SEC"
         case .portfolio: return "P"
         case .other: return "N"
@@ -150,6 +172,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
         case .liputan6: return "F26522" // Liputan6 Orange
         case .tempo: return "E51B24" // Tempo Red
         case .cnnIndonesia: return "CC0000" // CNN Red
+        case .bisnis: return "008080" // Bisnis Teal
+        case .kompas: return "00529C" // Kompas Blue
+        case .bloombergTechnoz: return "FF5933" // Bloomberg Orange
+        case .googleSearch: return "4285F4" // Google Blue
         case .sec: return "EAA626" // Gold
         case .portfolio: return "00D084" // Emerald Green
         case .other: return "8E8E93" // Gray
@@ -162,6 +188,14 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
             return .portfolio
         } else if lowered.contains("sec") {
             return .sec
+        } else if lowered.contains("technoz") || (lowered.contains("bloomberg") && lowered.contains("technoz")) {
+            return .bloombergTechnoz
+        } else if lowered.contains("bloomberg") {
+            return .bloomberg
+        } else if lowered.contains("bisnis") {
+            return .bisnis
+        } else if lowered.contains("kompas") {
+            return .kompas
         } else if lowered.contains("kontan") {
             return .kontan
         } else if lowered.contains("detik") {
@@ -186,10 +220,10 @@ enum NewsSourceType: String, Codable, CaseIterable, Sendable, Hashable, CustomSt
             return .yahooFinance
         } else if lowered.contains("cnbc") {
             return .cnbc
-        } else if lowered.contains("bloomberg") {
-            return .bloomberg
         } else if lowered.contains("reuters") {
             return .reuters
+        } else if lowered.contains("google") || lowered.contains("web search") || lowered.contains("search engine") {
+            return .googleSearch
         }
         return .other
     }

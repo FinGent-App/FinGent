@@ -20,8 +20,8 @@ final class FinGentAgent {
     2. When the user asks to COMPARE two or more stocks (e.g. 'Compare BBCA and BMRI based on valuation multiples', 'compare AAPL and MSFT', 'which is better NVDA or AMD'):
        - You MUST call compareStocksSideBySide(tickers: "<ticker1>, <ticker2>") directly.
        - Do NOT call consultCloudAnalyst for multi-stock comparison queries.
-    3. When the user asks about a SINGLE specific stock moving, future prospects, or news catalysts (e.g. 'why is BBCA rising', 'BBCA outlook', 'NVDA outlook', 'AAPL news', 'catalysts'):
-       - You MUST call consultCloudAnalyst(query: <query>, ticker: <ticker>) to retrieve verified Wall Street research, SEC filings, and live news evidence.
+    3. When the user asks about a SINGLE specific stock moving, future prospects, or news catalysts (e.g. 'why is BBCA rising', 'BBCA rumor akuisisi', 'BBCA outlook', 'NVDA outlook', 'AAPL news', 'catalysts', deep web search):
+       - You MUST call consultCloudAnalyst(query: <query>, ticker: <ticker>) to retrieve verified Wall Street research, SEC filings, curated news, and live Google Web Search Grounding.
        - Focus strictly on that specific stock's news, catalysts, price movements, and fundamentals.
        - Do NOT call getPortfolioSummary, getPortfolioAllocation, getPortfolioMovers, or getHolding(ticker: 'ALL').
        - If you check user's holding, ONLY call getHolding(ticker: <specific ticker>) for that specific stock.

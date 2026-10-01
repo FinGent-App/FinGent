@@ -198,6 +198,7 @@ final class StockApiClient: Sendable {
     struct CloudConsultCitationDTO: Decodable, Sendable {
         let doc_type: String
         let title: String
+        let badge_label: String?
         let source_url: String?
         let score: Double?
     }
