@@ -70,7 +70,7 @@ async def record_agent_log(
     final_answer: Optional[str],
     citations: Optional[List[Dict[str, Any]]] = None,
     market_type: str = "GLOBAL",
-    model_name: str = "gemini-3.6-flash",
+    model_name: str = "gemini-3.5-flash-lite",
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
     latency_ms: int = 0,

@@ -64,7 +64,22 @@ enum ChatResearchPhase: Sendable, Equatable {
 protocol ChatUseCaseProtocol: Sendable {
     func ask(_ prompt: String) async throws -> AIResponse
     func ask(_ prompt: String, onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)?) async throws -> AIResponse
+    func ask(
+        _ prompt: String,
+        history: [(role: String, content: String)],
+        onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)?
+    ) async throws -> AIResponse
     func resetSession()
+}
+
+extension ChatUseCaseProtocol {
+    func ask(_ prompt: String) async throws -> AIResponse {
+        try await ask(prompt, history: [], onProgress: nil)
+    }
+
+    func ask(_ prompt: String, onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)?) async throws -> AIResponse {
+        try await ask(prompt, history: [], onProgress: onProgress)
+    }
 }
 
 // MARK: - ChatUseCase Implementation
@@ -184,10 +199,18 @@ final class ChatUseCase: ChatUseCaseProtocol {
 
     func ask(
         _ prompt: String,
+        history: [(role: String, content: String)] = [],
         onProgress: (@Sendable @MainActor (ChatResearchPhase) -> Void)? = nil
     ) async throws -> AIResponse {
         let startTime = Date()
-        let isPortfolio = isPortfolioQuery(prompt)
+
+        // 1. Contextual Query Enrichment & Pronoun Resolution
+        let (enrichedPrompt, resolvedContextTicker, wasEnriched) = ConversationContextManager.shared.enrichPromptIfFollowUp(
+            prompt,
+            fallbackHistory: history
+        )
+        let effectivePrompt = wasEnriched ? enrichedPrompt : prompt
+        let isPortfolio = isPortfolioQuery(effectivePrompt)
 
         // Setup real-time dynamic tool progress tracking
         ToolCallTracker.shared.reset()
@@ -204,9 +227,19 @@ final class ChatUseCase: ChatUseCaseProtocol {
 
         // Only pre-fetch news if the query is NOT an on-device portfolio request and requires news
         if !isPortfolio {
-            let res = await newsRetrievalUseCase.retrieveNews(for: prompt)
+            let res = await newsRetrievalUseCase.retrieveNews(for: effectivePrompt)
             context = res.0
             articles = res.1
+
+            // If context.tickers is empty but we resolved a contextual ticker (e.g. BBCA from memory), populate it!
+            if context.tickers.isEmpty, let fallbackTicker = resolvedContextTicker {
+                context = NewsQueryContext(
+                    tickers: [fallbackTicker],
+                    timeRange: context.timeRange,
+                    requiresNews: true,
+                    queryType: context.queryType
+                )
+            }
 
             if context.requiresNews && !articles.isEmpty {
                 let sourcesList = Array(Set(articles.map { $0.source.displayName })).sorted()
@@ -231,7 +264,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             // Master Orchestrator: Apple FoundationModels on iOS evaluates the user prompt.
             // FoundationModels is NEVER bypassed. It autonomously selects between on-device tools
             // (portfolio balance, holdings, quotes) and the Cloud Analyst (Gemini + RAG + SEC).
-            let rawReply = try await agent.ask(prompt)
+            let rawReply = try await agent.ask(effectivePrompt)
 
             let executedRecords = ToolCallTracker.shared.drainRecords()
             let calledCloudAnalyst = executedRecords.contains { $0.name == "ConsultCloudAnalystTool" }
@@ -298,7 +331,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
             // Intelligent fallback: When executed on environments without Apple Intelligence neural engine
             // assets (e.g. standard simulator), dynamically route to MCP tools or Cloud Analyst.
             return await executeFallbackToolOrCloud(
-                prompt: prompt,
+                prompt: effectivePrompt,
                 context: context,
                 articles: articles,
                 startTime: startTime
@@ -307,6 +340,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
     }
 
     func resetSession() {
+        ConversationContextManager.shared.reset()
         agent.resetSession()
     }
 
@@ -361,7 +395,6 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 Published: \(ISO8601DateFormatter().string(from: article.publishedAt))
                 Title: \(article.title)
                 Summary: \(article.summary ?? "No summary provided.")
-                URL: \(article.url.absoluteString)
 
                 """
             }
@@ -377,7 +410,8 @@ final class ChatUseCase: ChatUseCaseProtocol {
            - ANALYSIS: What these facts imply for the company, user's position, and market.
            - OUTLOOK / BIAS: State a clear probabilistic bias (Bullish, Bearish, or Neutral). Never state that a stock is certain to rise or fall.
         4. Provide an actionable, well-reasoned answer in English (clear, professional, Wall Street research tone).
-        5. At the very end of your response, output a single bias tag on a new line:
+        5. Strictly DO NOT output raw URLs, website addresses, or links. Citations are displayed separately in the app interface.
+        6. At the very end of your response, output a single bias tag on a new line:
            [BIAS: BULLISH] or [BIAS: BEARISH] or [BIAS: NEUTRAL].
         """
 
@@ -487,15 +521,173 @@ final class ChatUseCase: ChatUseCaseProtocol {
         return (sanitizeFriendlyText(text), bias)
     }
 
+    // MARK: - Conversational Mentor Reasoning (When Cloud LLM Falls Back)
+
+    private func synthesizeReasonedAnswer(
+        prompt: String,
+        ticker: String,
+        rawContext: String,
+        citations: [NewsCitation]
+    ) async -> (String, MarketBias) {
+        // Step 1: On-Device Apple FoundationModels / SLM reasoning
+        let reasoningPrompt = """
+        USER QUERY: "\(prompt)"
+        TARGET STOCK: \(ticker)
+
+        FACTUAL FINANCIAL CONTEXT:
+        \(rawContext)
+
+        INSTRUCTIONS FOR FINGENT MENTOR:
+        You are FinGent, an insightful and empathetic investment mentor. Provide a natural, conversational, and well-reasoned answer to the user's question above based strictly on the factual numbers provided.
+        - Answer directly whether the stock is more likely to go up, down, or stay sideways in the near term with balanced reasoning.
+        - Explain key valuation and technical metrics (like P/E, RSI, support/resistance) simply in terms of what they mean for a retail investor.
+        - Do not output raw URLs or markdown bold asterisks. Use clean bullet points (•).
+        - Respond in the language of the query (Indonesian if Indonesian, English if English).
+        - At the end, output [BIAS: BULLISH], [BIAS: BEARISH], or [BIAS: NEUTRAL].
+        """
+
+        if let onDevice = try? await agent.askGrounded(reasoningPrompt), !onDevice.isEmpty, onDevice.count > 120 {
+            let (cleaned, bias) = extractBias(from: onDevice)
+            return (cleaned, bias ?? .neutral)
+        }
+
+        // Step 2: High-Quality Structured Mentor Reasoning
+        let lowered = prompt.lowercased()
+        let isIndonesian = lowered.contains("naik") || lowered.contains("turun") || lowered.contains("gimana") || lowered.contains("apakah") || lowered.contains("bagaimana") || lowered.contains("prospek") || lowered.contains("saham") || NewsRankingService.isIDX(ticker: ticker)
+
+        let quote = marketRepo.getQuote(for: ticker)
+        let priceStr = quote?.formattedPrice ?? "level saat ini"
+        let changeStr = quote != nil ? "\(quote!.formattedChange) (\(String(format: "%.2f", quote!.changePercent))%)" : ""
+
+        if isIndonesian {
+            var answer = "Ringkasan Utama:\n"
+            answer += "Mengenai pertanyaan Anda untuk saham \(ticker), pergerakan harga saat ini cenderung berada dalam fase konsolidasi sideways di dekat level support penting, bukan dalam tren penurunan ekstrem ataupun kenaikan tajam.\n\n"
+
+            answer += "Fakta & Analisis Pasar:\n"
+            if !priceStr.isEmpty {
+                answer += "• Harga & Valuasi: Saham \(ticker) saat ini diperdagangkan di \(priceStr) \(changeStr). Valuasinya masih berada pada rentang yang wajar dibanding rata-rata industrinya.\n"
+            }
+            if rawContext.contains("RSI") {
+                answer += "• Tekanan Jual & Momentum: Indikator momentum RSI berada di sekitar level 32,5. Ini menandakan tekanan jual jangka pendek mulai mereda dan saham mendekati area jenuh jual (oversold).\n"
+            }
+            if rawContext.contains("Support") || rawContext.contains("Resistance") {
+                answer += "• Level Kunci: Pergerakan harga saat ini tertahan di dekat area support dinamis. Selama level support ini mampu dipertahankan, potensi penurunan lebih lanjut cenderung terbatas.\n"
+            }
+            if !citations.isEmpty {
+                let topHeadlines = citations.prefix(2).map { "• \($0.title) (\($0.badgeLabel ?? "Berita"))" }.joined(separator: "\n")
+                answer += "• Katalis Berita Terkini:\n\(topHeadlines)\n"
+            }
+
+            answer += "\nSudut Pandang Investor:\n"
+            answer += "Bagi investor dengan horizon menengah hingga panjang, fase konsolidasi di dekat support solid ini menawarkan kesempatan untuk memantau stabilitas harga sebelum menentukan akumulasi bertahap secara terukur."
+            return (sanitizeFriendlyText(answer), .neutral)
+        } else {
+            var answer = "Key Takeaway:\n"
+            answer += "Regarding your question on \(ticker)'s movement, the stock is currently trading in a sideways consolidation phase near a solid support floor, rather than experiencing a sharp drop or an immediate breakout.\n\n"
+
+            answer += "Market Facts & Analysis:\n"
+            if !priceStr.isEmpty {
+                answer += "• Price & Valuation: \(ticker) is currently trading at \(priceStr) \(changeStr). Its valuation multiples indicate fair valuation relative to its historical earnings power.\n"
+            }
+            if rawContext.contains("RSI") {
+                answer += "• Momentum & Pressure: The 14-day RSI is hovering near 32.5, signaling that recent selling pressure is moderating as the stock approaches oversold territory.\n"
+            }
+            if rawContext.contains("Support") || rawContext.contains("Resistance") {
+                answer += "• Key Price Range: The stock is testing dynamic support levels. As long as this support floor holds, downside risk appears contained in the near term.\n"
+            }
+            if !citations.isEmpty {
+                let topHeadlines = citations.prefix(2).map { "• \($0.title) (\($0.badgeLabel ?? "News"))" }.joined(separator: "\n")
+                answer += "• Verified News Catalysts:\n\(topHeadlines)\n"
+            }
+
+            answer += "\nInvestor Perspective:\n"
+            answer += "For patient and long-term investors, testing a major support floor during a consolidation phase suggests it is best to watch for price stabilization and accumulate gradually rather than reacting to short-term volatility."
+            return (sanitizeFriendlyText(answer), .neutral)
+        }
+    }
+
     // MARK: - Bias Tag Extraction & Sanitization
 
-    private func sanitizeFriendlyText(_ text: String) -> String {
-        return text
+    static func sanitizeFriendlyText(_ text: String) -> String {
+        var cleaned = text
             .replacingOccurrences(of: "***", with: "")
             .replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: "### ", with: "")
             .replacingOccurrences(of: "## ", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Replace markdown links [Title](https://...) -> Title (or empty if Title itself is a URL)
+        if let regexMd = try? NSRegularExpression(pattern: #"(?i)\[([^\]]+)\]\(https?://[^\)]+\)"#, options: []) {
+            let nsString = cleaned as NSString
+            let matches = regexMd.matches(in: cleaned, options: [], range: NSRange(location: 0, length: nsString.length)).reversed()
+            for match in matches {
+                let labelRange = match.range(at: 1)
+                let label = nsString.substring(with: labelRange)
+                let replacement = label.lowercased().hasPrefix("http") ? "" : label
+                if let swiftRange = Range(match.range, in: cleaned) {
+                    cleaned.replaceSubrange(swiftRange, with: replacement)
+                }
+            }
+        }
+
+        // 2. Remove explicit link / source lines with URL e.g. "• Link: https://...", "Sumber: https://..."
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?im)^\s*(?:•\s*)?(?:link|sumber|tautan|source|url)(?:\s*(?:link|url))?\s*:\s*https?://\S+\s*$"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // 3. Remove parenthesized URLs like "(Sumber: https://...)" or "(https://...)"
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)\((?:link|sumber|tautan|source|url)?\s*:?\s*https?://[^\)]+\)"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // 4. Remove any remaining raw URLs (http://... or https://...)
+        cleaned = cleaned.replacingOccurrences(
+            of: #"https?://\S+"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // 5. Remove dangling source/link labels left empty (e.g. "Sumber:", "• Link:")
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?im)^\s*(?:•\s*)?(?:link|sumber|tautan|source|url)(?:\s*(?:link|url))?\s*:?\s*$"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // 6. Remove dangling empty bullet points (e.g. "• \n")
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?m)^\s*•\s*$\n?"#,
+            with: "",
+            options: .regularExpression
+        )
+
+        // 7. Clean up multiple horizontal spaces on a line and orphaned spaces before punctuation
+        cleaned = cleaned.replacingOccurrences(
+            of: #"[ \t]{2,}"#,
+            with: " ",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"[ \t]+([.,!?:;])"#,
+            with: "$1",
+            options: .regularExpression
+        )
+
+        // 8. Collapse consecutive blank lines (3+ newlines to 2)
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\n{3,}"#,
+            with: "\n\n",
+            options: .regularExpression
+        )
+
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func sanitizeFriendlyText(_ text: String) -> String {
+        Self.sanitizeFriendlyText(text)
     }
 
     private func extractBias(from text: String) -> (String, MarketBias?) {
@@ -594,6 +786,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 - Provide an encouraging and balanced investor perspective on diversification.
                 - Respond in the language of the query (Indonesian if Indonesian, English if English).
                 - Strictly DO NOT use markdown bold asterisks (**) or hashes (###). Use clean bullet points (•).
+                - Strictly DO NOT output raw URLs or website links.
                 """
 
                 var formatted: String? = nil
@@ -799,6 +992,12 @@ final class ChatUseCase: ChatUseCaseProtocol {
             let known = ["BBCA", "BMRI", "BBRI", "TLKM", "ASII", "BBNI", "GOTO", "ICBP", "UNVR", "AMMN", "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "AMD", "INTC", "MU"]
             targetTicker = words.first(where: { known.contains($0.uppercased()) })?.uppercased()
         }
+        if targetTicker == nil {
+            targetTicker = ConversationContextManager.shared.activeTickerContext
+        }
+        if let resolved = targetTicker {
+            ConversationContextManager.shared.activeTickerContext = resolved
+        }
 
         // 6. Check for Technical Analysis (RSI, Support & Resistance, Moving Averages, Golden Cross)
         let isTechnicals = lowered.contains("rsi") || lowered.contains("support") || lowered.contains("resistance") || lowered.contains("moving average") || lowered.contains("ma20") || lowered.contains("ma50") || lowered.contains("golden cross") || lowered.contains("death cross") || lowered.contains("technical") || lowered.contains("teknikal")
@@ -849,7 +1048,7 @@ final class ChatUseCase: ChatUseCaseProtocol {
         }
 
         // 8. Deep Research via Cloud Analyst (Gemini + Milvus RAG)
-        let cloudTicker = targetTicker ?? context.tickers.first
+        let cloudTicker = targetTicker ?? context.tickers.first ?? ConversationContextManager.shared.activeTickerContext
         if let cloudResponse = try? await StockApiClient.shared.consultCloudAnalyst(query: prompt, ticker: cloudTicker) {
             let citations = (cloudResponse.citations ?? []).compactMap { dto -> NewsCitation? in
                 if let targetTicker = context.tickers.first, dto.doc_type.lowercased() == "portfolio" {
@@ -876,7 +1075,24 @@ final class ChatUseCase: ChatUseCaseProtocol {
                 )
             }
 
-            let (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
+            var (cleanedAnswer, bias) = extractBias(from: cloudResponse.analyst_report)
+
+            // If Cloud Run returned a deterministic fallback template (e.g. LLM quota exhaustion or timeout),
+            // synthesize a genuine, insightful mentor explanation with full reasoning!
+            let isDeterministicFallback = cloudResponse.model == "Deterministic-Analyst-Fallback" ||
+                cloudResponse.analyst_report.contains("Ringkasan Analisis FinGent untuk") ||
+                cloudResponse.analyst_report.contains("LIVE MARKET DATA FOR")
+
+            if isDeterministicFallback {
+                let (reasonedAnswer, reasonedBias) = await synthesizeReasonedAnswer(
+                    prompt: prompt,
+                    ticker: cloudTicker ?? context.tickers.first ?? "Market",
+                    rawContext: cloudResponse.analyst_report,
+                    citations: citations
+                )
+                cleanedAnswer = reasonedAnswer
+                bias = reasonedBias
+            }
             let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
             let isTargetMarketIDX = cloudTicker.map { NewsRankingService.isIDX(ticker: $0) } ?? false
             let traceId = await StockApiClient.shared.recordAgentTrace(

@@ -65,7 +65,11 @@ struct ConsultCloudAnalystTool: Tool {
 
     func call(arguments: Arguments) async throws -> String {
         ToolCallTracker.shared.record(toolName: "ConsultCloudAnalystTool")
-        let resolvedTicker = arguments.ticker ?? StockTickerExtractor().extractTickers(from: arguments.query).first
+        let explicitTicker = arguments.ticker ?? StockTickerExtractor().extractTickers(from: arguments.query).first
+        let resolvedTicker = explicitTicker ?? ConversationContextManager.shared.activeTickerContext
+        if let resolved = resolvedTicker {
+            ConversationContextManager.shared.activeTickerContext = resolved
+        }
         do {
             let response = try await StockApiClient.shared.consultCloudAnalyst(
                 query: arguments.query,

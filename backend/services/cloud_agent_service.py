@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import time
 import logging
 from typing import Dict, Any, Optional, List, Tuple
@@ -14,8 +15,57 @@ from services.agent_tools_service import analyze_portfolio_impact, analyze_news_
 
 logger = logging.getLogger("FinGent.CloudAgent")
 
+def _clean_analyst_report(text: str) -> str:
+    """
+    Cleans raw markdown formatting and strips all URL/link clutter so that the
+    investor briefing is clean, conversational, and comfortable on mobile screens.
+    Citations are rendered separately via the structured sources row in the app.
+    """
+    if not text:
+        return ""
+
+    # 1. Strip heavy markdown headers and bold asterisks
+    cleaned = (
+        text.replace("***", "")
+        .replace("**", "")
+        .replace("### ", "")
+        .replace("## ", "")
+    )
+
+    # 2. Convert markdown links [Label](https://...) -> Label (if label is not a URL itself)
+    def _replace_md_link(match):
+        label = match.group(1).strip()
+        if re.match(r"^https?://", label, re.IGNORECASE):
+            return ""
+        return label
+    cleaned = re.sub(r"\[([^\]]+)\]\(https?://[^\)]+\)", _replace_md_link, cleaned)
+
+    # 3. Remove explicit link / source lines with URL e.g. "• Link: https://...", "Sumber: https://..."
+    cleaned = re.sub(r"(?im)^\s*(?:•\s*)?(?:link|sumber|tautan|source|url)(?:\s*(?:link|url))?\s*:\s*https?://\S+\s*$", "", cleaned)
+
+    # 4. Remove parenthesized URLs e.g. "(Sumber: https://...)" or "(https://...)"
+    cleaned = re.sub(r"\((?:link|sumber|tautan|source|url)?\s*:?\s*https?://[^\)]+\)", "", cleaned, flags=re.IGNORECASE)
+
+    # 5. Remove any remaining raw URLs
+    cleaned = re.sub(r"https?://\S+", "", cleaned)
+
+    # 6. Remove dangling empty link/source labels left behind (e.g. "Sumber:", "• Link:")
+    cleaned = re.sub(r"(?im)^\s*(?:•\s*)?(?:link|sumber|tautan|source|url)(?:\s*(?:link|url))?\s*:?\s*$", "", cleaned)
+
+    # 7. Remove empty bullet points left over
+    cleaned = re.sub(r"(?m)^\s*•\s*$\n?", "", cleaned)
+
+    # 8. Clean up extra spaces and orphaned spaces before punctuation
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"[ \t]+([.,!?:;])", r"\1", cleaned)
+
+    # 9. Normalize multiple newlines
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+
+    return cleaned.strip()
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-flash-latest")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-3.5-flash-lite")
 
 # In-memory TTL Caches to avoid redundant expensive network calls
 # BigQuery Lakehouse Gold Layer technicals: 30 minutes TTL
@@ -152,7 +202,11 @@ async def _fetch_verified_news_context(ticker: str) -> Tuple[str, List[Dict[str,
             news_lines = []
             news_citations = []
             for n in ticker_news:
-                news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}\n  Ringkasan: {n.get('summary', '')}\n  Link: {n.get('url', '')}")
+                summary = (n.get("summary") or "").strip()
+                if summary:
+                    news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}\n  Ringkasan: {summary}")
+                else:
+                    news_lines.append(f"• [{n.get('source', 'News')}] {n.get('title')}")
                 news_citations.append({
                     "id": n.get("id"),
                     "title": n.get("title"),
@@ -332,7 +386,8 @@ async def consult_cloud_analyst(
         "   - Ringkasan Utama: Answer the user's core question directly and warmly in 1-2 sentences.\n"
         "   - Fakta & Analisis Pasar: Weave together the verified news catalysts, technical indicators, and valuation data.\n"
         "   - Sudut Pandang Investor: A calm, sensible takeaway or key levels to watch.\n"
-        "6. SINGLE STOCK FOCUS: When asked about a specific stock, focus strictly on that stock. Never mention unrelated portfolio holdings."
+        "6. SINGLE STOCK FOCUS: When asked about a specific stock, focus strictly on that stock. Never mention unrelated portfolio holdings.\n"
+        "7. STRICTLY NO URLS OR LINKS IN TEXT: DO NOT include raw URLs, website addresses, 'Link: http...', 'Sumber: http...', or markdown links '[Title](url)'. The mobile app UI automatically renders interactive citation pills and source badges from structured data below your response. Keep the response text 100% conversational, clean, and free of URL links."
     )
 
     full_prompt = (
@@ -348,12 +403,13 @@ async def consult_cloud_analyst(
     analyst_report = ""
     used_model = "Deterministic-Analyst-Fallback"
     
-    preferred_model = os.getenv("GEMINI_MODEL", "models/gemini-flash-latest")
+    preferred_model = os.getenv("GEMINI_MODEL", "models/gemini-3.5-flash-lite")
     raw_candidates = [
         preferred_model if preferred_model.startswith("models/") else f"models/{preferred_model}",
-        "models/gemini-flash-latest",
-        "models/gemini-3.5-flash",
-        "models/gemini-3.7-flash"
+        "models/gemini-3.5-flash-lite",
+        "models/gemini-flash-lite-latest",
+        "models/gemini-3.1-flash-lite",
+        "models/gemini-3.6-flash"
     ]
     seen_models = set()
     models_to_try = [m for m in raw_candidates if not (m in seen_models or seen_models.add(m))]
@@ -384,7 +440,7 @@ async def consult_cloud_analyst(
         used_model = "Deterministic-Analyst-Fallback"
         news_summaries = []
         for c in citations[:5]:
-            news_summaries.append(f"• {c.get('title')} ({c.get('badge_label', 'News')})\n  Sumber: {c.get('source_url', 'N/A')}")
+            news_summaries.append(f"• {c.get('title')} ({c.get('badge_label', 'News')})")
         
         analyst_report = (
             f"Ringkasan Analisis FinGent untuk '{query}':\n\n"
@@ -395,15 +451,8 @@ async def consult_cloud_analyst(
             + f"Catatan untuk Investor: Berdasarkan data pasar dan berita di atas, pantau sentimen sektor dan level harga kunci untuk mengonfirmasi arah tren."
         )
 
-    # Strip any stray markdown asterisks and heavy hashes to guarantee clean, friendly presentation
-    analyst_report = (
-        analyst_report
-        .replace("**", "")
-        .replace("***", "")
-        .replace("### ", "")
-        .replace("## ", "")
-        .strip()
-    )
+    # Strip stray markdown asterisks, heavy hashes, and raw URLs to guarantee clean, friendly presentation
+    analyst_report = _clean_analyst_report(analyst_report)
     # Record execution trace for Admin Dashboard Observability & SSE
     latency_ms = int((time.time() - start_time) * 1000)
     prompt_tokens = max(1, len(full_prompt) // 4)

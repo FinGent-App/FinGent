@@ -244,7 +244,7 @@ final class SpeechRecognizerService {
         // Configure Audio Session
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker, .mixWithOthers])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
             print("🎤 [SpeechService] AudioSession successfully configured and activated")
         } catch {

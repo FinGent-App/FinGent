@@ -180,6 +180,10 @@ final class ChatViewModel {
 
         isProcessing = true
 
+        let currentHistory = messages.map { msg in
+            (role: msg.role == .user ? "user" : "assistant", content: msg.content)
+        }
+
         let assistantMessageId = UUID()
         let userMsg = ChatMessage(role: .user, content: prompt)
         let initialPhase = ChatResearchPhase.evaluatingRequest
@@ -213,7 +217,7 @@ final class ChatViewModel {
                 }
             }
             do {
-                let response = try await self.chatUseCase.ask(prompt) { [weak self] phase in
+                let response = try await self.chatUseCase.ask(prompt, history: currentHistory) { [weak self] phase in
                     guard let self else { return }
                     self.updateResearchStep(for: assistantMessageId, phase: phase)
                 }
@@ -245,6 +249,7 @@ final class ChatViewModel {
         stopListening()
         speechService.reset()
         chatUseCase.resetSession()
+        ConversationContextManager.shared.reset()
         messages = []
     }
 
