@@ -166,11 +166,26 @@ final class HomeViewModel {
         isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
 
         let market = marketDataRepository
+        let fxRate = market.usdToIdrRate
+
         let totalVal = holdings.reduce(0.0) { sum, h in
-            let price = market.getQuote(for: h.ticker)?.price ?? h.pricePerShare
-            return sum + (Double(h.shares) * price)
+            let quote = market.getQuote(for: h.ticker)
+            let price = h.marketPrice ?? quote?.price ?? h.pricePerShare
+            if isAllUSD {
+                return sum + h.currentValue(at: price)
+            } else {
+                return sum + h.currentValueInIDR(at: price, fxRate: fxRate)
+            }
         }
-        let totalInv = repo.totalInvested
+
+        let totalInv = holdings.reduce(0.0) { sum, h in
+            if isAllUSD {
+                return sum + h.investedAmount
+            } else {
+                return sum + h.investedAmountInIDR(fxRate: fxRate)
+            }
+        }
+
         portfolioValue = totalVal
         portfolioInvested = totalInv
         portfolioPnL = totalVal - totalInv
@@ -179,7 +194,12 @@ final class HomeViewModel {
         let totalDailyChange = holdings.reduce(0.0) { sum, h in
             let quote = market.getQuote(for: h.ticker)
             let change = quote?.change ?? 0.0
-            return sum + (Double(h.shares) * change)
+            let dailyChange = h.fractionalShares * change
+            if isAllUSD {
+                return sum + dailyChange
+            } else {
+                return sum + h.toIDR(dailyChange, fxRate: fxRate)
+            }
         }
         dailyPnL = totalDailyChange
         let prevVal = totalVal - totalDailyChange

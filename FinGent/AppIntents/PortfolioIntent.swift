@@ -196,17 +196,18 @@ struct AskFinGentIntent: AppIntent {
             return "Your FinGent portfolio is currently empty. Please open the app to add your first stock."
         }
         let market = MarketDataRepository.shared
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = market.usdToIdrRate
         let resolved = holdings.map { h -> StockHolding in
             let price = market.getQuote(for: h.ticker)?.price ?? h.pricePerShare
-            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector)
+            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector, currency: h.effectiveCurrency)
         }
-        let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
+        let totalValue = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
+        let totalInvested = resolved.reduce(0.0) { $0 + $1.totalCostInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "profit" : "loss"
-        let isAllUSD = holdings.allSatisfy { $0.isUSD }
-        let totalValueText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        let totalValueText = isAllUSD ? String(format: "$%.2f", totalValue) : NumberFormatters.rupiah(totalValue)
         return "Your FinGent portfolio is currently valued at \(totalValueText) across \(holdings.count) stocks, with an overall \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
     }
 }
@@ -229,17 +230,18 @@ struct CheckPortfolioIntent: AppIntent {
             return .result(dialog: IntentDialog(stringLiteral: "\(greeting)Your portfolio is currently empty. Please open FinGent to add stocks."))
         }
 
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = market.usdToIdrRate
         let resolved = holdings.map { h -> StockHolding in
             let price = market.getQuote(for: h.ticker)?.price ?? h.pricePerShare
-            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector)
+            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector, currency: h.effectiveCurrency)
         }
-        let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
+        let totalValue = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
+        let totalInvested = resolved.reduce(0.0) { $0 + $1.totalCostInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "gain" : "loss"
-        let isAllUSD = holdings.allSatisfy { $0.isUSD }
-        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : NumberFormatters.rupiah(totalValue)
         let reply = "\(greeting)Your portfolio is valued at \(valText) across \(holdings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
         return .result(dialog: IntentDialog(stringLiteral: reply))
     }
@@ -303,17 +305,18 @@ struct CheckStockIntent: AppIntent {
             return "\(greeting)Your portfolio is currently empty. Please open FinGent to add your stocks."
         }
 
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = market.usdToIdrRate
         let resolved = holdings.map { h -> StockHolding in
             let price = market.getQuote(for: h.ticker)?.price ?? h.pricePerShare
-            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector)
+            return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector, currency: h.effectiveCurrency)
         }
-        let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
+        let totalValue = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
+        let totalInvested = resolved.reduce(0.0) { $0 + $1.totalCostInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
         let pnl = totalValue - totalInvested
         let pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0
         let status = pnl >= 0 ? "gain" : "loss"
-        let isAllUSD = holdings.allSatisfy { $0.isUSD }
-        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : "$" + NumberFormatters.englishDecimal(totalValue)
+        let valText = isAllUSD ? String(format: "$%.2f", totalValue) : NumberFormatters.rupiah(totalValue)
         return "\(greeting)Your portfolio is valued at \(valText) across \(holdings.count) stocks, currently showing a \(status) of \(String(format: "%.1f", abs(pnlPct)))%."
     }
 }

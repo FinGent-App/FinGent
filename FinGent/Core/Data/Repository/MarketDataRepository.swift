@@ -12,6 +12,7 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
 
     private(set) var quotes: [String: StockQuote] = [:]
     private(set) var priceDirections: [String: PriceDirection] = [:]
+    private(set) var usdToIdrRate: Double = 16_000.0
     private(set) var lastTick: Date = Date()
 
     // MARK: - Persistence Keys
@@ -19,11 +20,15 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
     private enum Key {
         static let persistentQuotes = "persisted_stock_quotes_v1"
         static let lastSavedTimestamp = "persisted_stock_quotes_timestamp"
+        static let usdToIdrRate = "persisted_usd_to_idr_rate_v1"
     }
 
     // MARK: - Init
 
     private init() {
+        let savedFx = UserDefaults.standard.double(forKey: Key.usdToIdrRate)
+        self.usdToIdrRate = savedFx > 1000 ? savedFx : 16_000.0
+
         // 1. Load dari persistent storage terlebih dahulu agar harga terakhir langsung muncul di layar saat app dibuka
         let savedQuotes = Self.loadPersistedQuotes()
         let fallbackQuotes = Self.makeInitialQuotes()
@@ -148,6 +153,7 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
         let favTickers = FavoritesRepository.shared.favoriteTickers
         targetTickers.formUnion(holdingTickers)
         targetTickers.formUnion(favTickers)
+        targetTickers.insert("USDIDR=X")
 
         let tickerList = Array(targetTickers)
         guard !tickerList.isEmpty else { return }
@@ -158,6 +164,14 @@ final class MarketDataRepository: MarketDataRepositoryProtocol, @unchecked Senda
 
             for q in liveQuotes {
                 let upper = q.ticker.uppercased()
+                if upper == "USDIDR=X" || upper == "USDIDR" {
+                    if q.price > 1000 {
+                        self.usdToIdrRate = q.price
+                        UserDefaults.standard.set(q.price, forKey: Key.usdToIdrRate)
+                    }
+                    continue
+                }
+
                 let oldPrice = quotes[upper]?.price ?? q.price
                 let dir: PriceDirection = q.price > oldPrice ? .up : (q.price < oldPrice ? .down : .unchanged)
 

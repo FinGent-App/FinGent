@@ -17,18 +17,21 @@ struct GetPortfolioSummaryTool: Tool {
         guard !holdings.isEmpty else {
             return "Your portfolio is currently empty (0 stocks). Please add stocks first."
         }
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = MarketDataRepository.shared.usdToIdrRate
         let resolved = resolveHoldings(holdings)
-        let totalMarket = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalCost = resolved.reduce(0) { $0 + $1.totalCost }
+        let totalMarket = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
+        let totalCost = resolved.reduce(0.0) { $0 + $1.totalCostInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
         let totalPnL = totalMarket - totalCost
         let pnlPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0
+        let curr = isAllUSD ? "$" : "Rp "
 
         return """
         Portfolio Summary:
         - Total Holdings: \(holdings.count) stocks
-        - Total Market Value: Rp \(formatNumber(totalMarket))
-        - Total Cost Basis: Rp \(formatNumber(totalCost))
-        - Total P&L: Rp \(formatNumber(totalPnL)) (\(String(format: "%.2f", pnlPct))%)
+        - Total Market Value: \(curr)\(formatNumber(totalMarket))
+        - Total Cost Basis: \(curr)\(formatNumber(totalCost))
+        - Total P&L: \(curr)\(formatNumber(totalPnL)) (\(String(format: "%.2f", pnlPct))%)
         - Status: \(totalPnL >= 0 ? "PROFIT 📈" : "LOSS 📉")
         """
     }
@@ -116,16 +119,19 @@ struct GetPortfolioPerformanceTool: Tool {
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
 
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = MarketDataRepository.shared.usdToIdrRate
         let resolved = resolveHoldings(holdings)
         let data = MarketDataRepository.shared
-        let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
+        let totalValue = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
 
         var weightedReturn = 0.0
         var totalWeight = 0.0
 
         for h in resolved {
             guard let perf = data.getPerformance(for: h.ticker) else { continue }
-            let weight = totalValue > 0 ? h.marketValue / totalValue : 0
+            let hVal = h.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD)
+            let weight = totalValue > 0 ? hVal / totalValue : 0
             weightedReturn += periodReturn(perf, period: arguments.period) * weight
             totalWeight += weight
         }
@@ -162,20 +168,27 @@ struct GetPortfolioAllocationTool: Tool {
         ToolCallTracker.shared.record(toolName: "GetPortfolioAllocationTool")
         let holdings = await MainActor.run { PortfolioRepository.shared.userHoldings }
         guard !holdings.isEmpty else { return "Your portfolio currently has no stocks." }
+        let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = MarketDataRepository.shared.usdToIdrRate
         let resolved = resolveHoldings(holdings)
-        let totalValue = resolved.reduce(0) { $0 + $1.marketValue }
-        guard totalValue > 0 else { return "Total portfolio value is Rp 0." }
+        let totalValue = resolved.reduce(0.0) { $0 + $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
+        let curr = isAllUSD ? "$" : "Rp "
+        guard totalValue > 0 else { return "Total portfolio value is \(curr)0." }
 
         var sectorAlloc: [String: Double] = [:]
-        for h in resolved { sectorAlloc[h.sector, default: 0] += h.marketValue }
+        for h in resolved {
+            let val = h.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD)
+            sectorAlloc[h.sector, default: 0] += val
+        }
 
         var result = "Portfolio Allocation:\n\nBy Sector:\n"
         for (sector, value) in sectorAlloc.sorted(by: { $0.value > $1.value }) {
-            result += "- \(sector): Rp \(formatNumber(value)) (\(String(format: "%.1f", (value / totalValue) * 100))%)\n"
+            result += "- \(sector): \(curr)\(formatNumber(value)) (\(String(format: "%.1f", (value / totalValue) * 100))%)\n"
         }
         result += "\nBy Stock:\n"
-        for h in resolved.sorted(by: { $0.marketValue > $1.marketValue }) {
-            result += "- \(h.ticker) (\(h.name)): Rp \(formatNumber(h.marketValue)) (\(String(format: "%.1f", (h.marketValue / totalValue) * 100))%)\n"
+        for h in resolved.sorted(by: { $0.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) > $1.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD) }) {
+            let val = h.marketValueInBase(fxRate: fxRate, isAllUSD: isAllUSD)
+            result += "- \(h.ticker) (\(h.name)): \(curr)\(formatNumber(val)) (\(String(format: "%.1f", (val / totalValue) * 100))%)\n"
         }
         return result
     }
@@ -241,15 +254,20 @@ struct GetUnrealizedGainTool: Tool {
         let rawTicker = arguments.ticker.trimmingCharacters(in: .whitespaces)
 
         if rawTicker.uppercased() == "ALL" {
+            let isAllUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+            let fxRate = MarketDataRepository.shared.usdToIdrRate
+            let curr = isAllUSD ? "$" : "Rp "
             var result = "Unrealized P&L — Full Portfolio:\n"
             var totalGain = 0.0
             for h in resolved.sorted(by: { $0.unrealizedGain > $1.unrealizedGain }) {
-                result += "\(h.unrealizedGain >= 0 ? "🟢" : "🔴") \(h.ticker): Rp \(formatNumber(h.unrealizedGain)) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)\n"
-                totalGain += h.unrealizedGain
+                let hCurr = h.isUSD ? "$" : "Rp "
+                result += "\(h.unrealizedGain >= 0 ? "🟢" : "🔴") \(h.ticker): \(hCurr)\(formatNumber(h.unrealizedGain)) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)\n"
+                let gainInBase = isAllUSD ? h.unrealizedGain : (h.isUSD ? h.unrealizedGain * fxRate : h.unrealizedGain)
+                totalGain += gainInBase
             }
-            let totalCost = resolved.reduce(0) { $0 + $1.totalCost }
+            let totalCost = resolved.reduce(0.0) { $0 + $1.totalCostInBase(fxRate: fxRate, isAllUSD: isAllUSD) }
             let pct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0
-            result += "\nTotal Unrealized P&L: Rp \(formatNumber(totalGain)) (\(String(format: "%+.2f", pct))%)"
+            result += "\nTotal Unrealized P&L: \(curr)\(formatNumber(totalGain)) (\(String(format: "%+.2f", pct))%)"
             return result
         }
 
@@ -260,13 +278,14 @@ struct GetUnrealizedGainTool: Tool {
             return "You do not currently hold a position in '\(targetTicker)' in your portfolio."
         }
 
+        let hCurr = h.isUSD ? "$" : "Rp "
         return """
         Unrealized P&L — \(h.ticker) (\(h.name)):
         - Shares: \(h.shares)
-        - Avg Cost: Rp \(formatNumber(h.avgPrice)) → Current: Rp \(formatNumber(h.currentPrice))
-        - Total Cost: Rp \(formatNumber(h.totalCost))
-        - Market Value: Rp \(formatNumber(h.marketValue))
-        - Unrealized P&L: Rp \(formatNumber(h.unrealizedGain)) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)
+        - Avg Cost: \(hCurr)\(formatNumber(h.avgPrice)) → Current: \(hCurr)\(formatNumber(h.currentPrice))
+        - Total Cost: \(hCurr)\(formatNumber(h.totalCost))
+        - Market Value: \(hCurr)\(formatNumber(h.marketValue))
+        - Unrealized P&L: \(hCurr)\(formatNumber(h.unrealizedGain)) (\(String(format: "%+.2f", h.unrealizedGainPercent))%)
         - Status: \(h.unrealizedGain >= 0 ? "PROFIT 🟢" : "LOSS 🔴")
         """
     }
@@ -294,7 +313,15 @@ struct LocalAIExplanationTool: Tool {
 private func resolveHoldings(_ userHoldings: [UserHolding]) -> [StockHolding] {
     userHoldings.map { h in
         let price = MarketDataRepository.shared.getQuote(for: h.ticker)?.price ?? h.pricePerShare
-        return StockHolding(ticker: h.ticker, name: h.name, shares: h.shares, avgPrice: h.pricePerShare, currentPrice: price, sector: h.sector)
+        return StockHolding(
+            ticker: h.ticker,
+            name: h.name,
+            shares: h.shares,
+            avgPrice: h.pricePerShare,
+            currentPrice: price,
+            sector: h.sector,
+            currency: h.effectiveCurrency
+        )
     }
 }
 

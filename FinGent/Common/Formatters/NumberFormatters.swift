@@ -19,6 +19,25 @@ enum NumberFormatters {
         return formatter.string(from: NSNumber(value: value)) ?? "Rp 0"
     }
 
+    static func usd(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "$"
+        formatter.currencyGroupingSeparator = ","
+        formatter.currencyDecimalSeparator = "."
+        formatter.maximumFractionDigits = 2
+        formatter.minimumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: value)) ?? "$0.00"
+    }
+
+    static func currency(_ value: Double, code: String) -> String {
+        if code.uppercased() == "USD" {
+            return usd(value)
+        } else {
+            return rupiah(value)
+        }
+    }
+
     /// e.g. "10.500" (no currency prefix)
     static func stockPrice(_ value: Double) -> String {
         let formatter = NumberFormatter()

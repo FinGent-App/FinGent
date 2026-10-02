@@ -29,7 +29,8 @@ final class PortfolioUseCase {
                 shares: holding.shares,
                 avgPrice: holding.pricePerShare,
                 currentPrice: currentPrice,
-                sector: holding.sector
+                sector: holding.sector,
+                currency: holding.effectiveCurrency
             )
         }
     }
@@ -38,8 +39,16 @@ final class PortfolioUseCase {
 
     func portfolioSummary() -> PortfolioSummary {
         let resolved = resolvedHoldings()
-        let totalMarketValue = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = portfolioRepository.userHoldings.reduce(0) { $0 + $1.investedAmount }
+        let holdings = portfolioRepository.userHoldings
+        let allUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = marketDataRepository.usdToIdrRate
+
+        let totalMarketValue = resolved.reduce(0.0) { sum, h in
+            sum + h.marketValueInBase(fxRate: fxRate, isAllUSD: allUSD)
+        }
+        let totalInvested = holdings.reduce(0.0) { sum, h in
+            sum + (allUSD ? h.investedAmount : h.investedAmountInIDR(fxRate: fxRate))
+        }
         return PortfolioSummary(
             totalMarketValue: totalMarketValue,
             totalInvested: totalInvested,

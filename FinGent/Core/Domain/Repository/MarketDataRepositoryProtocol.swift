@@ -5,6 +5,7 @@ import Foundation
 protocol MarketDataRepositoryProtocol: AnyObject {
     var quotes: [String: StockQuote] { get }
     var priceDirections: [String: PriceDirection] { get }
+    var usdToIdrRate: Double { get }
 
     func getQuote(for ticker: String) -> StockQuote?
     func getFundamentals(for ticker: String) -> StockFundamentals?

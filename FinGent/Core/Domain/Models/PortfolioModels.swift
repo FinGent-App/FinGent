@@ -104,6 +104,26 @@ struct UserHolding: Codable, Identifiable, Sendable, Equatable {
         guard investedAmount > 0 else { return 0 }
         return (pnl(at: currentPrice) / investedAmount) * 100
     }
+
+    /// Converts a value in this holding's native currency to IDR using the given exchange rate.
+    func toIDR(_ value: Double, fxRate: Double) -> Double {
+        isUSD ? (value * fxRate) : value
+    }
+
+    /// Current market value converted to IDR
+    func currentValueInIDR(at currentPrice: Double, fxRate: Double) -> Double {
+        toIDR(currentValue(at: currentPrice), fxRate: fxRate)
+    }
+
+    /// Invested amount converted to IDR
+    func investedAmountInIDR(fxRate: Double) -> Double {
+        toIDR(investedAmount, fxRate: fxRate)
+    }
+
+    /// Unrealized PnL converted to IDR
+    func pnlInIDR(at currentPrice: Double, fxRate: Double) -> Double {
+        toIDR(pnl(at: currentPrice), fxRate: fxRate)
+    }
 }
 
 // MARK: - StockHolding (AI tools / computed view)
@@ -115,6 +135,11 @@ struct StockHolding: Sendable {
     let avgPrice: Double
     let currentPrice: Double
     let sector: String
+    var currency: String = "USD"
+
+    var isUSD: Bool {
+        currency.uppercased() == "USD" || (!ticker.hasSuffix(".JK") && !["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "UNVR", "GOTO", "BBNI", "ICBP", "AMMN", "ACES", "BREN", "EMTK", "KLBF", "MDKA", "INDF", "PGAS", "PTBA", "ADRO", "ANTM"].contains(ticker.uppercased()))
+    }
 
     var marketValue: Double { Double(shares) * currentPrice }
     var totalCost: Double { Double(shares) * avgPrice }
@@ -122,6 +147,16 @@ struct StockHolding: Sendable {
     var unrealizedGainPercent: Double {
         guard totalCost > 0 else { return 0 }
         return (unrealizedGain / totalCost) * 100
+    }
+
+    func marketValueInBase(fxRate: Double, isAllUSD: Bool) -> Double {
+        if isAllUSD { return marketValue }
+        return isUSD ? (marketValue * fxRate) : marketValue
+    }
+
+    func totalCostInBase(fxRate: Double, isAllUSD: Bool) -> Double {
+        if isAllUSD { return totalCost }
+        return isUSD ? (totalCost * fxRate) : totalCost
     }
 }
 

@@ -41,12 +41,27 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
 
     // MARK: - Derived
 
+    var isAllUSD: Bool {
+        !userHoldings.isEmpty && userHoldings.allSatisfy { $0.isUSD }
+    }
+
     var totalInvested: Double {
-        userHoldings.reduce(0) { $0 + $1.investedAmount }
+        totalInvested(fxRate: MarketDataRepository.shared.usdToIdrRate)
+    }
+
+    func totalInvested(fxRate: Double) -> Double {
+        if isAllUSD {
+            return userHoldings.reduce(0) { $0 + $1.investedAmount }
+        }
+        return userHoldings.reduce(0) { $0 + $1.investedAmountInIDR(fxRate: fxRate) }
     }
 
     var formattedValue: String {
-        NumberFormatters.rupiah(portfolioValue)
+        if isAllUSD {
+            return NumberFormatters.currency(portfolioValue, code: "USD")
+        } else {
+            return NumberFormatters.rupiah(portfolioValue)
+        }
     }
 
     // MARK: - Init
@@ -54,7 +69,17 @@ final class PortfolioRepository: PortfolioRepositoryProtocol, @unchecked Sendabl
     private init() {
         self.portfolioValue = UserDefaults.standard.double(forKey: Key.portfolioValue)
         self.userName = UserDefaults.standard.string(forKey: Key.userName) ?? ""
-        self.userHoldings = Self.loadHoldings()
+        let loaded = Self.loadHoldings()
+        self.userHoldings = loaded
+
+        let allUSD = !loaded.isEmpty && loaded.allSatisfy { $0.isUSD }
+        let fx = MarketDataRepository.shared.usdToIdrRate
+        let calc = loaded.reduce(0.0) { sum, h in
+            allUSD ? sum + h.investedAmount : sum + h.investedAmountInIDR(fxRate: fx)
+        }
+        if calc > 0 {
+            self.portfolioValue = calc
+        }
 
         // Asynchronously sync with PostgreSQL backend
         Task { [weak self] in

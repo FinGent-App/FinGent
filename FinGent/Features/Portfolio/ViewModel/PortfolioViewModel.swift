@@ -123,12 +123,17 @@ final class PortfolioViewModel {
         }
 
         let resolved = portfolioUseCase.resolvedHoldings()
-        let totalMarket = resolved.reduce(0) { $0 + $1.marketValue }
-        let totalInvested = holdings.reduce(0) { $0 + $1.investedAmount }
+        let allUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
+        let fxRate = marketDataRepository.usdToIdrRate
+
+        let totalMarket = resolved.reduce(0.0) { sum, h in
+            sum + h.marketValueInBase(fxRate: fxRate, isAllUSD: allUSD)
+        }
+        let totalInvested = holdings.reduce(0.0) { sum, h in
+            sum + (allUSD ? h.investedAmount : h.investedAmountInIDR(fxRate: fxRate))
+        }
         let totalPnL = totalMarket - totalInvested
         let totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0
-
-        let allUSD = !holdings.isEmpty && holdings.allSatisfy { $0.isUSD }
 
         let displayValue: String = {
             if !holdings.isEmpty {
