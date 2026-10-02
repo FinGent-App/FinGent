@@ -193,21 +193,21 @@ export const AppToolsView: React.FC = () => {
             className={`filter-pill ${selectedTier === 'on_device' ? 'active cyan' : ''}`}
             onClick={() => setSelectedTier('on_device')}
           >
-            <Cpu size={14} />
+            <Cpu size={17} />
             <span>On-Device ({tierCounts.on_device})</span>
           </button>
           <button
             className={`filter-pill ${selectedTier === 'cloud_agent' ? 'active purple' : ''}`}
             onClick={() => setSelectedTier('cloud_agent')}
           >
-            <Cloud size={14} />
+            <Cloud size={17} />
             <span>Cloud Agent ({tierCounts.cloud_agent})</span>
           </button>
           <button
             className={`filter-pill ${selectedTier === 'mcp_server' ? 'active amber' : ''}`}
             onClick={() => setSelectedTier('mcp_server')}
           >
-            <Globe size={14} />
+            <Globe size={17} />
             <span>MCP Server ({tierCounts.mcp_server})</span>
           </button>
         </div>
@@ -286,15 +286,15 @@ export const AppToolsView: React.FC = () => {
                 {/* Badges metadata bar */}
                 <div className="tool-meta-tags">
                   <span className="meta-tag category-tag">
-                    <Layers size={11} />
+                    <Layers size={17} />
                     {tool.category}
                   </span>
                   <span className="meta-tag latency-tag">
-                    <Clock size={11} />
+                    <Clock size={17} />
                     {formatToolLatency(tool.latency)}
                   </span>
                   <span className="meta-tag privacy-tag">
-                    <ShieldCheck size={11} />
+                    <ShieldCheck size={17} />
                     {tool.privacy}
                   </span>
                 </div>
@@ -311,7 +311,7 @@ export const AppToolsView: React.FC = () => {
                 {/* Parameters Section */}
                 <div className="tool-section">
                   <div className="section-title">
-                    <Terminal size={12} />
+                    <Terminal size={18} />
                     <span>Parameters / Arguments ({tool.parameters.length})</span>
                   </div>
 
@@ -342,7 +342,7 @@ export const AppToolsView: React.FC = () => {
                 {/* Example Prompts */}
                 <div className="tool-section">
                   <div className="section-title">
-                    <Sparkles size={12} />
+                    <Sparkles size={18} />
                     <span>Example User Prompts</span>
                   </div>
                   <div className="example-prompts-list">
@@ -355,7 +355,7 @@ export const AppToolsView: React.FC = () => {
                       >
                         <span>"{ex}"</span>
                         <button className="copy-icon-btn">
-                          {copiedPrompt === ex ? <Check size={12} color="var(--accent-emerald)" /> : <Copy size={12} />}
+                          {copiedPrompt === ex ? <Check size={18} color="var(--accent-emerald)" /> : <Copy size={18} />}
                         </button>
                       </div>
                     ))}
@@ -365,7 +365,7 @@ export const AppToolsView: React.FC = () => {
                 {/* Data Sources Badges */}
                 <div className="tool-section data-sources-section">
                   <div className="section-title">
-                    <Database size={12} />
+                    <Database size={18} />
                     <span>Data Sources</span>
                   </div>
                   <div className="sources-pills">
@@ -384,7 +384,7 @@ export const AppToolsView: React.FC = () => {
                     onClick={() => setSelectedToolForInspect(tool)}
                   >
                     <span>Inspect Tool Schema</span>
-                    <ArrowRight size={13} />
+                    <ArrowRight size={19} />
                   </button>
                 </div>
               </div>

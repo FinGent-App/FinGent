@@ -966,53 +966,58 @@ h1, h2, h3, h4, h5, h6 {
 .tier-filter-pills {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
 .filter-pill {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
-  border-radius: 20px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  border-radius: 0;
+  padding: 0.35rem 0.2rem;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   transition: all 0.2s;
+  box-shadow: none;
 }
 
 .filter-pill:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.9);
+  background: transparent;
 }
 
 .filter-pill.active {
-  background: rgba(0, 102, 255, 0.12);
+  background: transparent;
   color: var(--accent-blue);
-  border-color: rgba(0, 102, 255, 0.35);
-  font-weight: 600;
+  font-weight: 700;
+  border: none;
+  box-shadow: none;
 }
 
 .filter-pill.active.cyan {
-  background: rgba(0, 184, 159, 0.12);
+  background: transparent;
   color: var(--accent-cyan);
-  border-color: rgba(0, 184, 159, 0.35);
+  border: none;
+  box-shadow: none;
 }
 
 .filter-pill.active.purple {
-  background: rgba(139, 92, 246, 0.12);
+  background: transparent;
   color: var(--accent-purple);
-  border-color: rgba(139, 92, 246, 0.35);
+  border: none;
+  box-shadow: none;
 }
 
 .filter-pill.active.amber {
-  background: rgba(217, 119, 6, 0.12);
+  background: transparent;
   color: var(--accent-amber);
-  border-color: rgba(217, 119, 6, 0.35);
+  border: none;
+  box-shadow: none;
 }
 
 .category-select-wrapper {
@@ -1150,10 +1155,10 @@ h1, h2, h3, h4, h5, h6 {
 .meta-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.7rem;
-  border-radius: 6px;
-  padding: 0.2rem 0.5rem;
+  gap: 0.45rem;
+  font-size: 1.15rem;
+  border-radius: 9px;
+  padding: 0.4rem 0.85rem;
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-secondary);
 }
@@ -1174,23 +1179,22 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .tool-description {
-  font-size: 0.83rem;
-  line-height: 1.45;
+  font-size: 1.32rem;
+  line-height: 1.55;
   color: var(--text-secondary);
-  margin-bottom: 0.85rem;
-  flex-grow: 1;
+  margin-bottom: 0.75rem;
 }
 
 .tool-engine-box {
   background: rgba(246, 248, 252, 0.85);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  padding: 0.4rem 0.65rem;
+  border-radius: 9px;
+  padding: 0.65rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.73rem;
-  margin-bottom: 0.85rem;
+  gap: 0.55rem;
+  font-size: 1.2rem;
+  margin-bottom: 0.95rem;
 }
 
 .engine-label {
@@ -1207,48 +1211,48 @@ h1, h2, h3, h4, h5, h6 {
 
 .tool-section {
   border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding-top: 0.65rem;
-  margin-top: 0.65rem;
+  padding-top: 0.95rem;
+  margin-top: 0.95rem;
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.72rem;
+  gap: 0.55rem;
+  font-size: 1.18rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.65rem;
 }
 
 .no-params-badge {
-  font-size: 0.75rem;
+  font-size: 1.2rem;
   color: var(--text-muted);
   font-style: italic;
-  padding: 0.2rem 0;
+  padding: 0.35rem 0;
 }
 
 .params-list {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.6rem;
 }
 
 .param-item {
   background: rgba(248, 250, 252, 0.85);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  padding: 0.4rem 0.6rem;
+  border-radius: 9px;
+  padding: 0.6rem 0.9rem;
 }
 
 .param-header {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.75rem;
-  margin-bottom: 0.2rem;
+  gap: 0.55rem;
+  font-size: 1.22rem;
+  margin-bottom: 0.35rem;
 }
 
 .param-name {
@@ -1258,50 +1262,50 @@ h1, h2, h3, h4, h5, h6 {
 
 .param-type {
   color: var(--accent-purple);
-  font-size: 0.7rem;
+  font-size: 1.1rem;
 }
 
 .param-required {
-  font-size: 0.6rem;
+  font-size: 0.96rem;
   color: var(--accent-rose);
   background: rgba(255, 59, 48, 0.12);
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 5px;
   margin-left: auto;
 }
 
 .param-optional {
-  font-size: 0.6rem;
+  font-size: 0.96rem;
   color: var(--text-muted);
   background: rgba(0, 0, 0, 0.05);
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 5px;
   margin-left: auto;
 }
 
 .param-desc {
-  font-size: 0.73rem;
+  font-size: 1.15rem;
   color: var(--text-secondary);
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 .example-prompts-list {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .example-prompt-chip {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(0, 0, 0, 0.07);
-  border-radius: 8px;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.75rem;
+  border-radius: 9px;
+  padding: 0.65rem 0.95rem;
+  font-size: 1.22rem;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.6rem;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1324,21 +1328,21 @@ h1, h2, h3, h4, h5, h6 {
 .sources-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.45rem;
 }
 
 .source-pill {
-  font-size: 0.68rem;
+  font-size: 1.08rem;
   background: rgba(0, 0, 0, 0.04);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 4px;
-  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
   color: var(--text-muted);
 }
 
 .tool-card-footer {
-  margin-top: 0.9rem;
-  padding-top: 0.75rem;
+  margin-top: auto;
+  padding-top: 1rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -1348,14 +1352,14 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: 1.25rem;
   font-weight: 500;
-  padding: 0.5rem;
+  padding: 0.75rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.55rem;
   transition: all 0.2s;
 }
 
