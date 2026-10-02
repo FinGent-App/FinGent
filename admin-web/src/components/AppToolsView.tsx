@@ -130,7 +130,7 @@ export const AppToolsView: React.FC = () => {
       <div className="tools-header-banner">
         <div className="header-left">
           <div className="tools-icon-wrapper">
-            <Wrench size={26} color="var(--accent-cyan)" />
+            <Wrench size={34} fill="var(--accent-emerald)" color="var(--accent-emerald)" />
           </div>
           <div>
             <h1 className="tools-page-title">App Tools & Capabilities Directory</h1>
@@ -187,7 +187,7 @@ export const AppToolsView: React.FC = () => {
             className={`filter-pill ${selectedTier === 'all' ? 'active' : ''}`}
             onClick={() => setSelectedTier('all')}
           >
-            All Tiers ({tierCounts.total})
+            All Tools ({tierCounts.total})
           </button>
           <button
             className={`filter-pill ${selectedTier === 'on_device' ? 'active cyan' : ''}`}
@@ -265,30 +265,20 @@ export const AppToolsView: React.FC = () => {
               <div key={tool.id} className="tool-card" id={tool.id}>
                 {/* Top header of card */}
                 <div className="tool-card-header">
-                  <div className="tool-title-row">
-                    <div className="tool-symbol-icon">
-                      {tool.tier === 'on_device' ? '📱' : tool.tier === 'cloud_agent' ? '☁️' : '🌐'}
+                  <div className="tool-title-col">
+                    <div className="tool-func-name font-mono">
+                      {tool.name.endsWith('()') ? tool.name : `${tool.name}()`}
                     </div>
-                    <div className="tool-title-col">
-                      <div className="tool-func-name font-mono">
-                        {tool.name.endsWith('()') ? tool.name : `${tool.name}()`}
-                      </div>
-                      {tool.display_name && (
-                        <div style={{ fontSize: '0.785rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '-0.2rem' }}>
-                          {tool.display_name}
-                        </div>
-                      )}
-                      <div 
-                        className="tier-badge"
-                        style={{
-                          color: badge.color,
-                          backgroundColor: badge.bg,
-                          borderColor: badge.border
-                        }}
-                      >
-                        {badge.icon}
-                        <span>{badge.label}</span>
-                      </div>
+                    <div 
+                      className="tier-badge"
+                      style={{
+                        color: badge.color,
+                        backgroundColor: badge.bg,
+                        borderColor: badge.border
+                      }}
+                    >
+                      {badge.icon}
+                      <span>{badge.label}</span>
                     </div>
                   </div>
                 </div>
